@@ -1,0 +1,22 @@
+[package]
+name = "terrain-editor"
+version = "0.1.0"
+edition = "2021"
+authors = ["rmemr"]
+
+[dependencies]
+bevy = { path = "../bevy", default-features = false, features = [
+  "dynamic",
+  "bevy_winit",
+
+  "bevy_core_pipeline",
+  "bevy_render",
+  "bevy_pbr",     # TODO remove ?
+
+  "x11",
+  "filesystem_watcher",
+] }
+
+[[bin]]
+name = "terrain-editor"
+path = "src/bin/terrain-editor.rs"
