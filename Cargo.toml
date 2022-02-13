@@ -17,6 +17,8 @@ bevy = { path = "../bevy", default-features = false, features = [
   "filesystem_watcher",
 ] }
 
+bevy_egui = { path = "../bevy_egui", default-features = false }
+
 [[bin]]
 name = "terrain-editor"
 path = "src/bin/terrain-editor.rs"

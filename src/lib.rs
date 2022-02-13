@@ -4,9 +4,12 @@ use bevy::prelude::*;
 pub struct EditorPlugin;
 // ----------------------------------------------------------------------------
 use camera::CameraPlugin;
+use gui::GuiAction;
 // ----------------------------------------------------------------------------
 mod atmosphere;
 mod camera;
+
+mod gui;
 // ----------------------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 enum EditorState {
@@ -23,6 +26,7 @@ impl Plugin for EditorPlugin {
                 speed_modifier: 3.0,
             })
             .add_plugin(CameraPlugin)
+            .add_plugin(gui::EditorUiPlugin)
             .insert_resource(atmosphere::AtmosphereMat::default())
             .add_plugin(atmosphere::AtmospherePlugin { dynamic: true })
             .init_resource::<SunSettings>()
@@ -40,11 +44,25 @@ impl EditorState {
     fn terrain_editing(app: &mut App) {
         use EditorState::Editing;
 
-        app.add_system_set(SystemSet::on_update(Editing).with_system(daylight_cycle))
+        app.add_system_set(
+            SystemSet::on_update(Editing)
+                .with_system(hotkeys)
+                .with_system(daylight_cycle)
+            )
             // plugins
             .add_system_set(CameraPlugin::active_free_camera(Editing));
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+#[allow(clippy::single_match)]
+fn hotkeys(keys: Res<Input<KeyCode>>, mut gui_event: EventWriter<GuiAction>) {
+    for key in keys.get_just_pressed() {
+        match key {
+            KeyCode::F12 => gui_event.send(GuiAction::ToggleFullscreen),
+            _ => (),
+        }
+    }
 }
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
@@ -103,27 +121,11 @@ fn daylight_cycle(
 }
 // ----------------------------------------------------------------------------
 // Simple environment
-fn setup_lighting_environment(
-    mut commands: Commands,
-    // mut meshes: ResMut<Assets<Mesh>>,
-    // mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+fn setup_lighting_environment(mut commands: Commands) {
     info!("startup_system: setup_lighting_environment");
     // Our Sun
     commands
         .spawn()
-        // .insert_bundle(bevy::pbr::PbrBundle {
-        //     mesh: meshes.add(Mesh::from(bevy::prelude::shape::Icosphere {
-        //         radius: 100.0,
-        //         // radius: -10.0,
-        //         subdivisions: 5
-        //     })),
-        //     material: materials.add(StandardMaterial {
-        //         emissive: Color::rgb(1.0, 1.0, 0.79),
-        //         ..Default::default()
-        //     }),
-        //     ..Default::default()
-        // })
         .insert(GlobalTransform::default())
         .insert(Transform::default())
         .insert(Sun);
