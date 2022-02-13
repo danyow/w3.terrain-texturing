@@ -4,10 +4,14 @@ use bevy::prelude::*;
 pub struct EditorPlugin;
 // ----------------------------------------------------------------------------
 use camera::CameraPlugin;
+
 use gui::GuiAction;
 // ----------------------------------------------------------------------------
 mod atmosphere;
 mod camera;
+mod config;
+
+mod terrain_material;
 
 mod gui;
 // ----------------------------------------------------------------------------
@@ -19,7 +23,8 @@ enum EditorState {
 // ----------------------------------------------------------------------------
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_state(EditorState::Editing)
+        app.init_resource::<config::TerrainConfig>()
+            .add_state(EditorState::Editing)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012
                 movement_speed: 122.0,         // default: 12.0
