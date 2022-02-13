@@ -13,6 +13,8 @@ mod config;
 
 mod terrain_material;
 
+mod texturearray;
+
 mod gui;
 // ----------------------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
@@ -25,6 +27,7 @@ impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<config::TerrainConfig>()
             .add_state(EditorState::Editing)
+            .add_plugin(texturearray::TextureArrayPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012
                 movement_speed: 122.0,         // default: 12.0
