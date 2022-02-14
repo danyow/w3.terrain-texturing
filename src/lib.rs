@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-use bevy::{app::AppExit, prelude::*, render::render_resource::TextureFormat};
+use bevy::{app::AppExit, prelude::*, render::render_resource::TextureFormat, tasks::Task};
 use bevy_egui::EguiContext;
 // ----------------------------------------------------------------------------
 pub struct EditorPlugin;
@@ -17,6 +17,7 @@ mod terrain_material;
 
 mod texturearray;
 
+mod cmds;
 mod gui;
 // ----------------------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
@@ -84,6 +85,10 @@ fn handle_setup_errors(
     }
 }
 // ----------------------------------------------------------------------------
+type TaskResult = Task<Result<TaskResultData, String>>;
+// ----------------------------------------------------------------------------
+enum TaskResultData {}
+// ----------------------------------------------------------------------------
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DefaultResources>()
@@ -94,6 +99,7 @@ impl Plugin for EditorPlugin {
                     .chain(handle_setup_errors)
                     .label("default_resources"),
             )
+            .add_plugin(cmds::AsyncCmdsPlugin)
             .add_plugin(texturearray::TextureArrayPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012

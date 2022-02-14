@@ -19,6 +19,10 @@ bevy = { path = "../bevy", default-features = false, features = [
 
 bevy_egui = { path = "../bevy_egui", default-features = false }
 
+# needed for async tasks
+enum_dispatch = "0.3"
+futures-lite = "1.11.3"
+
 # needed for height/texture/tint map loader
 image = { version = "0.23", features = ["png"] }
 png = "0.17"
