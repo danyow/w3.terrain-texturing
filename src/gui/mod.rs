@@ -1,9 +1,11 @@
 // ----------------------------------------------------------------------------
 use bevy::{math::Vec3, prelude::*};
+use bevy_egui::EguiContext;
 
 use crate::atmosphere::AtmosphereMat;
 use crate::config;
-use crate::terrain_material::{MaterialSlot, TerrainMaterialSet};
+use crate::terrain_material::{MaterialSlot, TerrainMaterialSet, TextureType};
+use crate::texturearray::TextureArray;
 use crate::EditorState;
 use crate::SunSettings;
 // ----------------------------------------------------------------------------
@@ -76,7 +78,6 @@ impl Plugin for EditorUiPlugin {
             .init_resource::<UiState>()
             .init_resource::<UiImages>()
             .add_event::<GuiAction>()
-            .add_startup_system(initialize_ui.after("initialize_render_pipeline"))
             .add_system(view::show_ui.label("gui_actions"))
             .add_system(log_ui_actions.after("gui_actions"))
             .add_system(handle_ui_actions.after("gui_actions"))
@@ -85,8 +86,52 @@ impl Plugin for EditorUiPlugin {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-fn initialize_ui() {
+const TEXTURE_PREVIEW_SIZE_SMALL: u32 = 64;
+// ----------------------------------------------------------------------------
+pub(super) fn initialize_ui(
+    mut egui_ctx: ResMut<EguiContext>,
+    mut egui_image_registry: ResMut<UiImages>,
+    mut images: ResMut<Assets<Image>>,
+    texture_arrays: ResMut<Assets<TextureArray>>,
+    materialset: ResMut<TerrainMaterialSet>,
+) {
     info!("startup_system: initialize_ui");
+
+    // setup egui link to terrain texture preview images
+    for (array_handle, texture_type) in [
+        (&materialset.diffuse, TextureType::Diffuse),
+        (&materialset.normal, TextureType::Normal),
+    ] {
+        if let Some(array) = texture_arrays.get(array_handle) {
+            for i in 0..array.texture_count() {
+                let (format, size, img_data) = array.imagedata(i as u8, TEXTURE_PREVIEW_SIZE_SMALL);
+
+                egui_image_registry.add_image(
+                    &mut egui_ctx,
+                    &mut *images,
+                    format!("terraintexture.{}.{}", texture_type, i),
+                    format,
+                    (size, size),
+                    img_data,
+                );
+            }
+        }
+
+        // if let Some(array) = texture_arrays.get(&materialset.normal) {
+        //     for i in 0..array.texture_count() {
+        //         let (format, size, img_data) = array.imagedata(i as u8, TEXTURE_PREVIEW_SIZE_SMALL);
+
+        //         egui_image_registry.add_image(
+        //             &mut egui_ctx,
+        //             &mut *images,
+        //             format!("terraintexture.{}.{}", TextureType::Normal, i),
+        //             format,
+        //             (size, size),
+        //             img_data,
+        //         );
+        //     }
+        // }
+    }
 }
 // ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments)]

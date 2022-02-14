@@ -58,7 +58,7 @@ impl Plugin for MaterialSetPlugin {
     }
 }
 // ----------------------------------------------------------------------------
-fn setup_default_materialset(
+pub(super) fn setup_default_materialset(
     placeholder: Res<DefaultResources>,
     textures: Res<Assets<Image>>,
     mut texture_arrays: ResMut<Assets<TextureArray>>,

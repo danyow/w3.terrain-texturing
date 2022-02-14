@@ -113,11 +113,6 @@ impl Plugin for EditorPlugin {
         app.init_resource::<DefaultResources>()
             .init_resource::<config::TerrainConfig>()
             .add_state(EditorState::Initialization)
-            .add_startup_system(
-                setup_default_assets
-                    .chain(handle_setup_errors)
-                    .label("default_resources"),
-            )
             .add_plugin(cmds::AsyncCmdsPlugin)
             .add_plugin(texturearray::TextureArrayPlugin)
             .add_plugin(terrain_material::MaterialSetPlugin)
@@ -143,13 +138,19 @@ impl Plugin for EditorPlugin {
 // ----------------------------------------------------------------------------
 impl EditorState {
     // ------------------------------------------------------------------------
-    /// init of default resources/placeholders etc.
+    /// init of default resources/placeholders etc. with explicit ordering
     fn initialization(app: &mut App) {
-        use EditorState::Initialization;
-
-        app.add_system_set(
-            terrain_material::MaterialSetPlugin::setup_default_materialset(Initialization),
-        );
+        app.add_startup_system(
+            setup_default_assets
+                .chain(handle_setup_errors)
+                .label("default_resources"),
+        )
+        .add_startup_system(
+            terrain_material::setup_default_materialset
+                .label("default_materialset")
+                .after("default_resources"),
+        )
+        .add_startup_system(gui::initialize_ui.after("default_materialset"));
     }
     // ------------------------------------------------------------------------
     /// load project / terrain data state

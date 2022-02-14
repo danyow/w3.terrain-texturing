@@ -1,6 +1,4 @@
 // ----------------------------------------------------------------------------
-const TEXTURE_PREVIEW_SIZE_SMALL: u32 = 64;
-// ----------------------------------------------------------------------------
 #[inline]
 pub(super) fn show(
     ui: &mut egui::Ui,
@@ -66,7 +64,7 @@ pub(super) fn show(
 use bevy::prelude::*;
 use bevy_egui::egui::{self, Slider};
 
-use crate::gui::{GuiAction, MaterialSetting, UiImages, UiState};
+use crate::gui::{GuiAction, MaterialSetting, UiImages, UiState, TEXTURE_PREVIEW_SIZE_SMALL};
 use crate::terrain_material::{
     MaterialSlot, TerrainMaterialParam, TerrainMaterialSet, TextureType,
 };

@@ -52,7 +52,6 @@ impl UiImages {
             TextureFormat::R16Uint => TextureFormat::R16Unorm,
             _ => format,
         };
-        // println!("add_image format: {:?}", format);
         let new_img = Image::new(
             Extent3d {
                 width: size.0,
