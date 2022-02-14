@@ -1,15 +1,17 @@
 // ----------------------------------------------------------------------------
-use bevy::prelude::*;
+use bevy::{app::AppExit, prelude::*, render::render_resource::TextureFormat};
+use bevy_egui::EguiContext;
 // ----------------------------------------------------------------------------
 pub struct EditorPlugin;
 // ----------------------------------------------------------------------------
 use camera::CameraPlugin;
 
-use gui::GuiAction;
+use gui::{GuiAction, UiImages};
 // ----------------------------------------------------------------------------
 mod atmosphere;
 mod camera;
 mod config;
+mod loader;
 
 mod terrain_material;
 
@@ -23,10 +25,75 @@ enum EditorState {
     Editing,
 }
 // ----------------------------------------------------------------------------
+#[derive(Default)]
+struct DefaultResources {
+    logo: Handle<Image>,
+    // placeholder_texture: Handle<Image>,
+}
+// ----------------------------------------------------------------------------
+// sync loader of essential files
+fn setup_default_assets(
+    mut egui_ctx: ResMut<EguiContext>,
+    mut ui_images: ResMut<UiImages>,
+    mut resources: ResMut<DefaultResources>,
+    mut textures: ResMut<Assets<Image>>,
+) -> Result<(), String> {
+    use bevy::render::render_resource::{Extent3d, TextureDimension};
+
+    info!("startup_system: setup_default_assets");
+
+    let logo_resolution = 150;
+
+    let logo_data = loader::LoaderPlugin::load_png_data(
+        png::ColorType::Rgba,
+        png::BitDepth::Eight,
+        logo_resolution,
+        "assets/logo.png",
+    )?;
+
+    let logo = Image::new(
+        Extent3d {
+            width: logo_resolution,
+            height: logo_resolution,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        logo_data,
+        TextureFormat::Rgba8UnormSrgb,
+    );
+
+    resources.logo = textures.add(logo);
+    // resources.placeholder_texture = textures.add();
+
+    ui_images.set(&mut egui_ctx, "logo", resources.logo.clone_weak());
+
+    info!("startup_system: setup_default_assets.done");
+    Ok(())
+}
+// ----------------------------------------------------------------------------
+fn handle_setup_errors(
+    In(result): In<Result<(), String>>,
+    mut app_exit_events: EventWriter<AppExit>,
+) {
+    match result {
+        Ok(_) => {}
+        Err(msg) => {
+            error!("failed to initialize default resources. {}", msg);
+            app_exit_events.send(AppExit);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<config::TerrainConfig>()
-            .add_state(EditorState::Editing)
+        app.init_resource::<DefaultResources>()
+            .init_resource::<config::TerrainConfig>()
+            .add_state(EditorState::Initialization)
+            .add_startup_system(
+                setup_default_assets
+                    .chain(handle_setup_errors)
+                    .label("default_resources"),
+            )
             .add_plugin(texturearray::TextureArrayPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012
@@ -55,10 +122,10 @@ impl EditorState {
         app.add_system_set(
             SystemSet::on_update(Editing)
                 .with_system(hotkeys)
-                .with_system(daylight_cycle)
-            )
-            // plugins
-            .add_system_set(CameraPlugin::active_free_camera(Editing));
+                .with_system(daylight_cycle),
+        )
+        // plugins
+        .add_system_set(CameraPlugin::active_free_camera(Editing));
     }
     // ------------------------------------------------------------------------
 }
