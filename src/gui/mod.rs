@@ -5,6 +5,8 @@ use crate::{atmosphere::AtmosphereMat, SunSettings};
 // ----------------------------------------------------------------------------
 pub struct EditorUiPlugin;
 // ----------------------------------------------------------------------------
+pub use self::images::UiImages;
+// ----------------------------------------------------------------------------
 #[derive(Default)]
 pub struct UiState {
     fullscreen: bool,
@@ -40,6 +42,7 @@ pub enum AtmosphereSetting {
     ResetToDefault,
 }
 // ----------------------------------------------------------------------------
+mod images;
 mod update;
 mod view;
 // ----------------------------------------------------------------------------
@@ -48,6 +51,7 @@ impl Plugin for EditorUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(bevy_egui::EguiPlugin)
             .init_resource::<UiState>()
+            .init_resource::<UiImages>()
             .add_event::<GuiAction>()
             .add_startup_system(initialize_ui.after("initialize_render_pipeline"))
             .add_system(view::show_ui.label("gui_actions"))
