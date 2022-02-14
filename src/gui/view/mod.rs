@@ -2,7 +2,9 @@
 #[allow(clippy::too_many_arguments)]
 pub(super) fn show_ui(
     egui_ctx: Res<EguiContext>,
+    ui_images: Res<UiImages>,
     ui_state: Res<UiState>,
+    materialset: Option<Res<TerrainMaterialSet>>,
     sun_settings: Option<Res<SunSettings>>,
     atmosphere_settings: Option<Res<AtmosphereMat>>,
     mut gui_event: EventWriter<GuiAction>,
@@ -15,11 +17,7 @@ pub(super) fn show_ui(
     egui::SidePanel::right("side_panel")
         .width_range(300.0..=450.0)
         .show(egui_ctx.ctx(), |ui| {
-            // ui.heading("Side Panel");
-
             egui::ScrollArea::vertical()
-                // .max_height(f32::INFINITY)
-                // .auto_shrink([true, true])
                 .max_height(ui.available_height() - 45.0)
                 .show(ui, |ui| {
                     if let Some(settings) = sun_settings {
@@ -27,6 +25,15 @@ pub(super) fn show_ui(
                     }
                     if let Some(settings) = atmosphere_settings {
                         atmosphere::show_atmosphere_settings(ui, &settings, &mut gui_event);
+                    }
+                    if let Some(materialset) = materialset {
+                        materialpalette::show(
+                            ui,
+                            &ui_images,
+                            &*ui_state,
+                            &materialset,
+                            &mut gui_event,
+                        );
                     }
                 });
 
@@ -39,11 +46,14 @@ pub(super) fn show_ui(
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
 
-use crate::{atmosphere::AtmosphereMat, SunSettings};
+use crate::atmosphere::AtmosphereMat;
+use crate::terrain_material::TerrainMaterialSet;
+use crate::SunSettings;
 
-use super::{GuiAction, UiState};
+use super::{GuiAction, UiImages, UiState};
 // ----------------------------------------------------------------------------
 mod atmosphere;
+mod materialpalette;
 mod menu;
 
 mod debug;

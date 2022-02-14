@@ -119,6 +119,7 @@ impl Plugin for EditorPlugin {
             )
             .add_plugin(cmds::AsyncCmdsPlugin)
             .add_plugin(texturearray::TextureArrayPlugin)
+            .add_plugin(terrain_material::MaterialSetPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012
                 movement_speed: 122.0,         // default: 12.0
@@ -132,6 +133,7 @@ impl Plugin for EditorPlugin {
             .add_startup_system(setup_lighting_environment);
 
         // --- state systems definition ---------------------------------------
+        EditorState::initialization(app);
         EditorState::terrain_loading(app);
         EditorState::terrain_editing(app);
         // --- state systems definition END -----------------------------------
@@ -139,6 +141,15 @@ impl Plugin for EditorPlugin {
 }
 // ----------------------------------------------------------------------------
 impl EditorState {
+    // ------------------------------------------------------------------------
+    /// init of default resources/placeholders etc.
+    fn initialization(app: &mut App) {
+        use EditorState::Initialization;
+
+        app.add_system_set(
+            terrain_material::MaterialSetPlugin::setup_default_materialset(Initialization),
+        );
+    }
     // ------------------------------------------------------------------------
     /// load project / terrain data state
     fn terrain_loading(app: &mut App) {

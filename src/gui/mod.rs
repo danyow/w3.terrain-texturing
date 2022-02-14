@@ -1,9 +1,10 @@
 // ----------------------------------------------------------------------------
 use bevy::{math::Vec3, prelude::*};
 
-use crate::EditorState;
 use crate::atmosphere::AtmosphereMat;
 use crate::config;
+use crate::terrain_material::{MaterialSlot, TerrainMaterialSet};
+use crate::EditorState;
 use crate::SunSettings;
 // ----------------------------------------------------------------------------
 pub struct EditorUiPlugin;
@@ -13,15 +14,33 @@ pub use self::images::UiImages;
 #[derive(Default)]
 pub struct UiState {
     fullscreen: bool,
+
+    // FIXME this should be some kind of brush state
+    selected_slot: Option<MaterialSlot>,
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub enum GuiAction {
+    SelectMaterial(MaterialSlot),
+    UnselectMaterial,
+    UpdateMaterial(MaterialSlot, MaterialSetting),
     UpdateSunSetting(SunSetting),
     UpdateAtmosphereSetting(AtmosphereSetting),
     ToggleFullscreen,
     QuitRequest,
     DebugLoadTerrain(Box<config::TerrainConfig>),
+}
+// ----------------------------------------------------------------------------
+#[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
+pub enum MaterialSetting {
+    SetBlendSharpness(f32),
+    SetSlopeBaseDampening(f32),
+    SetSlopeNormalDampening(f32),
+    SetSpecularityScale(f32),
+    SetSpecularity(f32),
+    SetSpecularityBase(f32),
+    SetFalloff(f32),
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
@@ -74,11 +93,21 @@ fn initialize_ui() {
 fn handle_ui_actions(
     mut ui_state: ResMut<UiState>,
     mut ui_action: EventReader<GuiAction>,
+    mut materialset: Option<ResMut<TerrainMaterialSet>>,
     mut sun_settings: Option<ResMut<SunSettings>>,
     mut atmosphere_settings: Option<ResMut<AtmosphereMat>>,
 ) {
     for action in ui_action.iter() {
         match action {
+            GuiAction::SelectMaterial(slot) => {
+                ui_state.selected_slot = Some(*slot);
+            }
+            GuiAction::UnselectMaterial => {
+                ui_state.selected_slot = None;
+            }
+            GuiAction::UpdateMaterial(slot, setting) => {
+                update::update_material_settings(*slot, setting, &mut materialset);
+            }
             GuiAction::ToggleFullscreen => {
                 ui_state.fullscreen = !ui_state.fullscreen;
             }
@@ -99,11 +128,7 @@ fn handle_ui_actions(
 // ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments)]
 fn handle_ui_debug_actions(
-    mut ui_state: ResMut<UiState>,
     mut ui_action: EventReader<GuiAction>,
-
-    mut textures: ResMut<Assets<Image>>,
-
     mut app_state: ResMut<State<EditorState>>,
     mut worldconf: ResMut<config::TerrainConfig>,
 ) {

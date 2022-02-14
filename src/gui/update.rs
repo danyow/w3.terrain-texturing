@@ -1,12 +1,32 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::*;
 
-use crate::{
-    atmosphere::AtmosphereMat,
-    SunSettings,
-};
+use crate::atmosphere::AtmosphereMat;
+use crate::terrain_material::{MaterialSlot, TerrainMaterialSet};
+use crate::SunSettings;
 
-use super::{AtmosphereSetting, SunSetting};
+use super::{AtmosphereSetting, MaterialSetting, SunSetting};
+// ----------------------------------------------------------------------------
+#[inline]
+pub(super) fn update_material_settings(
+    slot: MaterialSlot,
+    action: &MaterialSetting,
+    materialset: &mut Option<ResMut<TerrainMaterialSet>>,
+) {
+    use MaterialSetting::*;
+
+    if let Some(mset) = materialset {
+        match action {
+            SetBlendSharpness(v) => mset.parameter[slot].blend_sharpness = *v,
+            SetSlopeBaseDampening(v) => mset.parameter[slot].slope_base_dampening = *v,
+            SetSlopeNormalDampening(v) => mset.parameter[slot].slope_normal_dampening = *v,
+            SetSpecularityScale(v) => mset.parameter[slot].specularity_scale = *v,
+            SetSpecularity(v) => mset.parameter[slot].specularity = *v,
+            SetSpecularityBase(v) => mset.parameter[slot].specularity_base = *v,
+            SetFalloff(v) => mset.parameter[slot].falloff = *v,
+        }
+    }
+}
 // ----------------------------------------------------------------------------
 pub(super) fn update_sun_settings(action: &SunSetting, sun: &mut Option<ResMut<SunSettings>>) {
     use SunSetting::*;
