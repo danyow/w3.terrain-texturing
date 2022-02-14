@@ -16,6 +16,7 @@ mod loader;
 
 mod terrain_material;
 
+mod resource;
 mod texturearray;
 
 mod cmds;
