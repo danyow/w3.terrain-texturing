@@ -1,7 +1,10 @@
 // ----------------------------------------------------------------------------
 use bevy::{math::Vec3, prelude::*};
 
-use crate::{atmosphere::AtmosphereMat, SunSettings};
+use crate::EditorState;
+use crate::atmosphere::AtmosphereMat;
+use crate::config;
+use crate::SunSettings;
 // ----------------------------------------------------------------------------
 pub struct EditorUiPlugin;
 // ----------------------------------------------------------------------------
@@ -18,6 +21,7 @@ pub enum GuiAction {
     UpdateAtmosphereSetting(AtmosphereSetting),
     ToggleFullscreen,
     QuitRequest,
+    DebugLoadTerrain(Box<config::TerrainConfig>),
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
@@ -56,7 +60,8 @@ impl Plugin for EditorUiPlugin {
             .add_startup_system(initialize_ui.after("initialize_render_pipeline"))
             .add_system(view::show_ui.label("gui_actions"))
             .add_system(log_ui_actions.after("gui_actions"))
-            .add_system(handle_ui_actions.after("gui_actions"));
+            .add_system(handle_ui_actions.after("gui_actions"))
+            .add_system(handle_ui_debug_actions.after("gui_actions"));
     }
     // ------------------------------------------------------------------------
 }
@@ -86,6 +91,29 @@ fn handle_ui_actions(
             GuiAction::UpdateAtmosphereSetting(setting) => {
                 update::update_atmosphere_settings(setting, &mut atmosphere_settings)
             }
+            // TODO should be removed late
+            GuiAction::DebugLoadTerrain(_) => {}
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[allow(clippy::too_many_arguments)]
+fn handle_ui_debug_actions(
+    mut ui_state: ResMut<UiState>,
+    mut ui_action: EventReader<GuiAction>,
+
+    mut textures: ResMut<Assets<Image>>,
+
+    mut app_state: ResMut<State<EditorState>>,
+    mut worldconf: ResMut<config::TerrainConfig>,
+) {
+    for action in ui_action.iter() {
+        match action {
+            GuiAction::DebugLoadTerrain(new_config) => {
+                *worldconf = (**new_config).clone();
+                app_state.overwrite_set(EditorState::TerrainLoading).ok();
+            }
+            _ => {}
         }
     }
 }

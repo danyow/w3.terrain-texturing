@@ -11,20 +11,26 @@
 #[derive(Debug)]
 pub enum AsyncTask {
     LoadTerrainMaterialSet,
+    WaitForTerrainLoaded,
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
 pub enum AsyncTaskStartEvent {
     LoadTerrainMaterialSet,
+    WaitForTerrainLoaded,
 }
 // ----------------------------------------------------------------------------
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum AsyncTaskFinishedEvent {
+    TerrainLoaded,
     TerrainMaterialSetLoaded,
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug, Default)]
 pub struct LoadTerrainMaterialSet;
+// ----------------------------------------------------------------------------
+#[derive(Debug, Default)]
+pub struct WaitForTerrainLoaded;
 // ----------------------------------------------------------------------------
 // #[derive(Debug)]
 // pub struct LoadTerrainMaterialTexture(crate::MaterialSlot, crate::loader::TextureType, String);

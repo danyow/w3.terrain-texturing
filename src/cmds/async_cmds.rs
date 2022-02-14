@@ -2,13 +2,14 @@
 use enum_dispatch::enum_dispatch;
 
 use bevy::prelude::*;
-use bevy::{tasks::IoTaskPool, utils::HashSet};
+use bevy::utils::HashSet;
 
-use crate::config;
-use crate::texturearray::TextureArray;
 use crate::TaskResult;
 
-use super::{AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, LoadTerrainMaterialSet};
+use super::{
+    AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, LoadTerrainMaterialSet,
+    WaitForTerrainLoaded,
+};
 // ----------------------------------------------------------------------------
 pub struct AsyncCmdsPlugin;
 // ----------------------------------------------------------------------------
@@ -57,17 +58,17 @@ impl AsyncCommandManager {
             let mut still_pending = HashSet::default();
             let mut start_events = Vec::new();
             for pending in self.pending.drain() {
-                error!("checking [{:?}] preconditions: {:?}", self.ready, pending);
+                debug!("checking [{:?}] preconditions: {:?}", self.ready, pending);
                 if pending
                     .preconditions()
                     .iter()
                     .any(|c| !self.ready.contains(c))
                 {
-                    error!("some precondition still pending");
+                    debug!("some precondition still pending");
                     still_pending.insert(pending);
                 } else {
                     // all pre conditions met
-                    error!("all precondition met");
+                    debug!("all precondition met");
                     start_events.push(pending.start_event());
                 }
             }
@@ -86,12 +87,9 @@ impl AsyncCommandManager {
 // ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn start_async_operations(
-    mut commands: Commands,
     mut async_cmd_tracker: ResMut<AsyncCommandManager>,
     mut tasks_finished: EventReader<AsyncTaskFinishedEvent>,
     mut task_ready: EventWriter<AsyncTaskStartEvent>,
-    thread_pool: Res<IoTaskPool>,
-    terrain_config: Res<config::TerrainConfig>,
 ) {
     for task in tasks_finished.iter().copied() {
         async_cmd_tracker.update(task);
@@ -103,6 +101,8 @@ pub(crate) fn start_async_operations(
         for task in new_tasks.drain(..) {
             match task {
                 LoadTerrainMaterialSet => task_ready.send(LoadTerrainMaterialSet),
+                // -- these are just wrapper for sinks (join multiple events but do nothing)
+                WaitForTerrainLoaded => task_ready.send(WaitForTerrainLoaded),
             }
         }
     }
@@ -114,7 +114,6 @@ pub(crate) fn poll_async_task_state(
     mut pending_futures: Query<(Entity, &mut TaskResult)>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
     mut task_ready: EventReader<AsyncTaskStartEvent>,
-    mut texture_arrays: ResMut<Assets<TextureArray>>,
 ) {
     use futures_lite::future;
 
@@ -123,6 +122,14 @@ pub(crate) fn poll_async_task_state(
             commands.entity(entity).despawn();
 
             //TODO
+        }
+    }
+
+    // some tasks can be used as generaic wait until without any work and need
+    // to transition to finished state directly
+    for task in task_ready.iter().copied() {
+        if let AsyncTaskStartEvent::WaitForTerrainLoaded = task {
+            task_finished.send(AsyncTaskFinishedEvent::TerrainLoaded);
         }
     }
 }
@@ -143,5 +150,12 @@ trait AsyncTaskNode {
 impl AsyncTaskNode for LoadTerrainMaterialSet {
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::LoadTerrainMaterialSet }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainMaterialSetLoaded }
+}
+// ----------------------------------------------------------------------------
+#[rustfmt::skip]
+impl AsyncTaskNode for WaitForTerrainLoaded {
+    fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[AsyncTaskFinishedEvent::TerrainMaterialSetLoaded]}
+    fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::WaitForTerrainLoaded }
+    fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainLoaded }
 }
 // ----------------------------------------------------------------------------

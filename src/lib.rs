@@ -6,6 +6,7 @@ pub struct EditorPlugin;
 // ----------------------------------------------------------------------------
 use camera::CameraPlugin;
 
+use cmds::AsyncTaskFinishedEvent;
 use gui::{GuiAction, UiImages};
 // ----------------------------------------------------------------------------
 mod atmosphere;
@@ -23,6 +24,7 @@ mod gui;
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 enum EditorState {
     Initialization,
+    TerrainLoading,
     Editing,
 }
 // ----------------------------------------------------------------------------
@@ -89,6 +91,22 @@ type TaskResult = Task<Result<TaskResultData, String>>;
 // ----------------------------------------------------------------------------
 enum TaskResultData {}
 // ----------------------------------------------------------------------------
+fn setup_terrain_loading(mut task_manager: ResMut<cmds::AsyncCommandManager>) {
+    task_manager.add_new(cmds::WaitForTerrainLoaded::default().into());
+    task_manager.add_new(cmds::LoadTerrainMaterialSet::default().into());
+}
+// ----------------------------------------------------------------------------
+fn watch_loading(
+    mut app_state: ResMut<State<EditorState>>,
+    mut tasks_finished: EventReader<AsyncTaskFinishedEvent>,
+) {
+    use AsyncTaskFinishedEvent::TerrainLoaded;
+    if tasks_finished.iter().any(|t| matches!(t, TerrainLoaded)) {
+        info!("terrain loaded.");
+        app_state.overwrite_set(EditorState::Editing).ok();
+    }
+}
+// ----------------------------------------------------------------------------
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DefaultResources>()
@@ -114,12 +132,30 @@ impl Plugin for EditorPlugin {
             .add_startup_system(setup_lighting_environment);
 
         // --- state systems definition ---------------------------------------
+        EditorState::terrain_loading(app);
         EditorState::terrain_editing(app);
         // --- state systems definition END -----------------------------------
     }
 }
 // ----------------------------------------------------------------------------
 impl EditorState {
+    // ------------------------------------------------------------------------
+    /// load project / terrain data state
+    fn terrain_loading(app: &mut App) {
+        use EditorState::TerrainLoading;
+
+        app.add_system_set(SystemSet::on_enter(TerrainLoading).with_system(setup_terrain_loading));
+
+        app.add_system_set(
+            SystemSet::on_update(TerrainLoading)
+                //TODO the following or a slimmed down version should probably be available in all states
+                .with_system(cmds::start_async_operations)
+                .with_system(cmds::poll_async_task_state)
+                .with_system(watch_loading),
+        )
+        // plugins
+        .add_system_set(CameraPlugin::active_free_camera(TerrainLoading));
+    }
     // ------------------------------------------------------------------------
     /// main editing state
     fn terrain_editing(app: &mut App) {
