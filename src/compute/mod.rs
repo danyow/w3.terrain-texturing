@@ -1,6 +1,7 @@
 // ----------------------------------------------------------------------------
 mod cache;
 mod computetask;
+mod normals;
 // ----------------------------------------------------------------------------
 use async_channel::{Receiver, Sender};
 use bevy::{
@@ -16,15 +17,20 @@ use bevy::{
     utils::HashMap,
 };
 use futures_lite::Future;
+
+use self::normals::{ComputeNormalsResult, GpuComputeNormals};
 // ----------------------------------------------------------------------------
 pub use cache::*;
 // ----------------------------------------------------------------------------
 #[derive(Component)]
 /// simplification: used as wrapper for all used compute task types
 pub enum GpuComputeTask {
+    ComputeNormals(GpuComputeNormals),
+    // MipGeneration,
 }
 // ----------------------------------------------------------------------------
 pub enum ComputeResultData {
+    ComputeNormals(ComputeNormalsResult),
 }
 // ----------------------------------------------------------------------------
 pub type TaskId = Entity;
@@ -78,6 +84,9 @@ impl Plugin for GpuComputeTaskPlugin {
 
         let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
         render_graph.add_node("compute_task_pass", compute_node);
+
+        // depends on ComputePipelineCache
+        app.add_plugin(normals::ComputeNormalsPlugin);
     }
     // ------------------------------------------------------------------------
 }
@@ -86,19 +95,31 @@ impl Plugin for GpuComputeTaskPlugin {
 // ----------------------------------------------------------------------------
 impl GpuComputeTask {
     // ------------------------------------------------------------------------
-    fn record_commands(&self, pipeline: &ComputePipeline, cmd_encoder: &mut CommandEncoder) {}
+    fn record_commands(&self, pipeline: &ComputePipeline, cmd_encoder: &mut CommandEncoder) {
+        match self {
+            GpuComputeTask::ComputeNormals(t) => t.record_commands(pipeline, cmd_encoder),
+        }
+    }
     // ------------------------------------------------------------------------
     fn wait_for_result(
         &self,
     ) -> impl Future<Output = Result<BufferSlice, BufferAsyncError>> + Send {
-        async move { todo!() }
+        use futures_lite::FutureExt;
+
+        match self {
+            GpuComputeTask::ComputeNormals(t) => t.wait_for_result().boxed(),
+        }
     }
     // ------------------------------------------------------------------------
     fn get_result<'a>(
         &'a self,
         wait_future: impl Future<Output = Result<BufferSlice<'a>, BufferAsyncError>> + Send,
     ) -> Result<ComputeResultData, BufferAsyncError> {
-        todo!()
+        use ComputeResultData::*;
+
+        match self {
+            GpuComputeTask::ComputeNormals(t) => t.get_result(wait_future).map(ComputeNormals),
+        }
     }
     // ------------------------------------------------------------------------
 }
