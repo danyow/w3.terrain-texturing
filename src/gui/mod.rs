@@ -4,10 +4,10 @@ use bevy_egui::EguiContext;
 
 use crate::atmosphere::AtmosphereMat;
 use crate::config;
-use crate::terrain_material::{MaterialSlot, TerrainMaterialSet, TextureType};
+use crate::terrain_material::{MaterialSlot, TerrainMaterialSet, TextureType, TextureUpdatedEvent};
 use crate::texturearray::TextureArray;
-use crate::EditorState;
 use crate::SunSettings;
+use crate::{EditorEvent, EditorState};
 // ----------------------------------------------------------------------------
 pub struct EditorUiPlugin;
 // ----------------------------------------------------------------------------
@@ -22,6 +22,7 @@ pub struct UiState {
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
+/// Events triggered by user in the GUI (user actions)
 pub enum GuiAction {
     SelectMaterial(MaterialSlot),
     UnselectMaterial,
@@ -79,6 +80,7 @@ impl Plugin for EditorUiPlugin {
             .init_resource::<UiImages>()
             .add_event::<GuiAction>()
             .add_system(view::show_ui.label("gui_actions"))
+            .add_system(handle_editor_events)
             .add_system(log_ui_actions.after("gui_actions"))
             .add_system(handle_ui_actions.after("gui_actions"))
             .add_system(handle_ui_debug_actions.after("gui_actions"));
@@ -131,6 +133,37 @@ pub(super) fn initialize_ui(
         //         );
         //     }
         // }
+    }
+}
+// ----------------------------------------------------------------------------
+fn handle_editor_events(
+    mut egui_image_registry: ResMut<UiImages>,
+    mut images: ResMut<Assets<Image>>,
+    texture_arrays: Res<Assets<TextureArray>>,
+    materialset: Res<TerrainMaterialSet>,
+    mut events: EventReader<EditorEvent>,
+) {
+    use EditorEvent::*;
+
+    for event in events.iter() {
+        match event {
+            TerrainTextureUpdated(TextureUpdatedEvent(slot, texture_ty)) => {
+                let handle = match texture_ty {
+                    TextureType::Diffuse => &materialset.diffuse,
+                    // TODO ignore normal?
+                    TextureType::Normal => &materialset.normal,
+                };
+
+                if let Some(array) = texture_arrays.get(handle) {
+                    let (_, _, img_data) = array.imagedata(**slot, TEXTURE_PREVIEW_SIZE_SMALL);
+                    egui_image_registry.update_image(
+                        &mut *images,
+                        &format!("terraintexture.{}.{}", texture_ty, slot),
+                        img_data,
+                    );
+                }
+            }
+        }
     }
 }
 // ----------------------------------------------------------------------------

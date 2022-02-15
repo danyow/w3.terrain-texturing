@@ -1,11 +1,25 @@
 // ----------------------------------------------------------------------------
 use std::fs::File;
 
+use futures_lite::Future;
+
 use png::{BitDepth, ColorType};
 // ----------------------------------------------------------------------------
 pub struct LoaderPlugin;
 // ----------------------------------------------------------------------------
 impl LoaderPlugin {
+    // ------------------------------------------------------------------------
+    pub(crate) fn load_terrain_texture(
+        filepath: String,
+        size: u32,
+    ) -> impl Future<Output = Result<image::RgbaImage, String>> {
+        use png::{BitDepth::Eight, ColorType::Rgba};
+
+        async move {
+            let data = Self::load_png_data(Rgba, Eight, size, &filepath)?;
+            Ok(image::RgbaImage::from_raw(size, size, data).unwrap())
+        }
+    }
     // ------------------------------------------------------------------------
     pub fn load_png_data(
         colortype: ColorType,

@@ -36,7 +36,7 @@ pub struct TerrainConfig {
 // ----------------------------------------------------------------------------
 use bevy::math::{vec2, Vec2};
 
-use crate::terrain_material::TerrainMaterialParam;
+use crate::terrain_material::{MaterialSlot, TerrainMaterialParam};
 // ----------------------------------------------------------------------------
 #[allow(dead_code)]
 impl TerrainConfig {
@@ -122,6 +122,27 @@ impl MaterialSetConfig {
     pub fn texture_size(&self) -> u32 {
         // TODO support other?
         1024
+    }
+    // ------------------------------------------------------------------------
+    pub fn textures(&self) -> impl Iterator<Item = (MaterialSlot, &str, &str)> {
+        self.diffuse
+            .iter()
+            .zip(self.normal.iter())
+            .enumerate()
+            .map(|(i, (diffuse, normal))| {
+                (
+                    MaterialSlot::from(i as u8),
+                    diffuse.as_str(),
+                    normal.as_str(),
+                )
+            })
+    }
+    // ------------------------------------------------------------------------
+    pub fn parameters(&self) -> impl Iterator<Item = (MaterialSlot, &TerrainMaterialParam)> {
+        self.parameter
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (MaterialSlot::from(i as u8), p))
     }
     // ------------------------------------------------------------------------
 }

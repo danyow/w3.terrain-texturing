@@ -8,6 +8,8 @@ use camera::CameraPlugin;
 
 use cmds::AsyncTaskFinishedEvent;
 use gui::{GuiAction, UiImages};
+
+use crate::terrain_material::{MaterialSetPlugin};
 // ----------------------------------------------------------------------------
 mod atmosphere;
 mod camera;
@@ -27,6 +29,11 @@ enum EditorState {
     Initialization,
     TerrainLoading,
     Editing,
+}
+// ----------------------------------------------------------------------------
+/// events triggered by editor and not user (e.g. to update something in GUI)
+enum EditorEvent {
+    TerrainTextureUpdated(terrain_material::TextureUpdatedEvent),
 }
 // ----------------------------------------------------------------------------
 #[derive(Default)]
@@ -112,6 +119,7 @@ impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DefaultResources>()
             .init_resource::<config::TerrainConfig>()
+            .add_event::<EditorEvent>()
             .add_state(EditorState::Initialization)
             .add_plugin(cmds::AsyncCmdsPlugin)
             .add_plugin(texturearray::TextureArrayPlugin)
@@ -167,7 +175,8 @@ impl EditorState {
                 .with_system(watch_loading),
         )
         // plugins
-        .add_system_set(CameraPlugin::active_free_camera(TerrainLoading));
+        .add_system_set(CameraPlugin::active_free_camera(TerrainLoading))
+        .add_system_set(MaterialSetPlugin::terrain_material_loading(TerrainLoading));
     }
     // ------------------------------------------------------------------------
     /// main editing state
