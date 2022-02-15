@@ -22,6 +22,8 @@ bevy_egui = { path = "../bevy_egui", default-features = false }
 # needed for async tasks
 enum_dispatch = "0.3"
 futures-lite = "1.11.3"
+# needed for compute task result
+async-channel = "1.4"
 
 # needed for height/texture/tint map loader
 image = { version = "0.23", features = ["png"] }

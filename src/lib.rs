@@ -12,12 +12,13 @@ use gui::{GuiAction, UiImages};
 use crate::terrain_material::{MaterialSetPlugin};
 // ----------------------------------------------------------------------------
 mod atmosphere;
-mod camera;
 mod config;
 mod loader;
 
 mod terrain_material;
 
+mod camera;
+mod compute;
 mod resource;
 mod texturearray;
 
@@ -121,6 +122,7 @@ impl Plugin for EditorPlugin {
             .init_resource::<config::TerrainConfig>()
             .add_event::<EditorEvent>()
             .add_state(EditorState::Initialization)
+            .add_plugin(compute::GpuComputeTaskPlugin)
             .add_plugin(cmds::AsyncCmdsPlugin)
             .add_plugin(texturearray::TextureArrayPlugin)
             .add_plugin(terrain_material::MaterialSetPlugin)
