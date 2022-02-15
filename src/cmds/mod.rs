@@ -10,21 +10,27 @@
 #[enum_dispatch]
 #[derive(Debug)]
 pub enum AsyncTask {
+    LoadHeightmap,
     LoadTerrainMaterialSet,
     WaitForTerrainLoaded,
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
 pub enum AsyncTaskStartEvent {
+    LoadHeightmap,
     LoadTerrainMaterialSet,
     WaitForTerrainLoaded,
 }
 // ----------------------------------------------------------------------------
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum AsyncTaskFinishedEvent {
+    HeightmapLoaded,
     TerrainLoaded,
     TerrainMaterialSetLoaded,
 }
+// ----------------------------------------------------------------------------
+#[derive(Debug, Default)]
+pub struct LoadHeightmap;
 // ----------------------------------------------------------------------------
 #[derive(Debug, Default)]
 pub struct LoadTerrainMaterialSet;

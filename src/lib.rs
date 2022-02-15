@@ -15,6 +15,7 @@ mod atmosphere;
 mod config;
 mod loader;
 
+mod heightmap;
 mod terrain_material;
 
 mod camera;
@@ -98,10 +99,13 @@ fn handle_setup_errors(
 // ----------------------------------------------------------------------------
 type TaskResult = Task<Result<TaskResultData, String>>;
 // ----------------------------------------------------------------------------
-enum TaskResultData {}
+enum TaskResultData {
+    HeightmapData(heightmap::TerrainHeightMap),
+}
 // ----------------------------------------------------------------------------
 fn setup_terrain_loading(mut task_manager: ResMut<cmds::AsyncCommandManager>) {
     task_manager.add_new(cmds::WaitForTerrainLoaded::default().into());
+    task_manager.add_new(cmds::LoadHeightmap::default().into());
     task_manager.add_new(cmds::LoadTerrainMaterialSet::default().into());
 }
 // ----------------------------------------------------------------------------
@@ -125,6 +129,7 @@ impl Plugin for EditorPlugin {
             .add_plugin(compute::GpuComputeTaskPlugin)
             .add_plugin(cmds::AsyncCmdsPlugin)
             .add_plugin(texturearray::TextureArrayPlugin)
+            .add_plugin(heightmap::HeightmapPlugin)
             .add_plugin(terrain_material::MaterialSetPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012

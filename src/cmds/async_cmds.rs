@@ -1,13 +1,15 @@
 // ----------------------------------------------------------------------------
 use enum_dispatch::enum_dispatch;
 
-use bevy::prelude::*;
-use bevy::utils::HashSet;
+use bevy::{prelude::*, tasks::IoTaskPool, utils::HashSet};
 
-use crate::TaskResult;
+use crate::config;
+use crate::heightmap::TerrainHeightMap;
+use crate::loader::LoaderPlugin;
+use crate::{TaskResult, TaskResultData};
 
 use super::{
-    AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, LoadTerrainMaterialSet,
+    AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, LoadHeightmap, LoadTerrainMaterialSet,
     WaitForTerrainLoaded,
 };
 // ----------------------------------------------------------------------------
@@ -87,9 +89,12 @@ impl AsyncCommandManager {
 // ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn start_async_operations(
+    mut commands: Commands,
     mut async_cmd_tracker: ResMut<AsyncCommandManager>,
     mut tasks_finished: EventReader<AsyncTaskFinishedEvent>,
     mut task_ready: EventWriter<AsyncTaskStartEvent>,
+    thread_pool: Res<IoTaskPool>,
+    terrain_config: Res<config::TerrainConfig>,
 ) {
     for task in tasks_finished.iter().copied() {
         async_cmd_tracker.update(task);
@@ -100,6 +105,11 @@ pub(crate) fn start_async_operations(
 
         for task in new_tasks.drain(..) {
             match task {
+                // -- these tasks can be handled by futures
+                LoadHeightmap => {
+                    let task = thread_pool.spawn(LoaderPlugin::load_heightmap(&terrain_config));
+                    commands.spawn().insert(task);
+                }
                 LoadTerrainMaterialSet => task_ready.send(LoadTerrainMaterialSet),
                 // -- these are just wrapper for sinks (join multiple events but do nothing)
                 WaitForTerrainLoaded => task_ready.send(WaitForTerrainLoaded),
@@ -114,6 +124,7 @@ pub(crate) fn poll_async_task_state(
     mut pending_futures: Query<(Entity, &mut TaskResult)>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
     mut task_ready: EventReader<AsyncTaskStartEvent>,
+    mut terrain_heightmap: ResMut<TerrainHeightMap>,
 ) {
     use futures_lite::future;
 
@@ -121,7 +132,23 @@ pub(crate) fn poll_async_task_state(
         if let Some(task_result) = future::block_on(future::poll_once(&mut *task)) {
             commands.entity(entity).despawn();
 
-            //TODO
+            match task_result {
+                Ok(result) => match result {
+                    TaskResultData::HeightmapData(new_heightmap) => {
+                        info!("loading heightmap...finished");
+                        // must be updated in place as commands.insert_resource is queued but
+                        // event may trigger next step earlier
+                        // commands.insert_resource(new_heightmap);
+                        terrain_heightmap.update(new_heightmap);
+
+                        task_finished.send(AsyncTaskFinishedEvent::HeightmapLoaded);
+                    }
+                },
+                Err(e) => {
+                    //TODO this involves canceling all futures and stoping other tasks
+                    error!("{}", e);
+                }
+            }
         }
     }
 
@@ -147,6 +174,12 @@ trait AsyncTaskNode {
 }
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
+impl AsyncTaskNode for LoadHeightmap {
+    fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::LoadHeightmap }
+    fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::HeightmapLoaded }
+}
+// ----------------------------------------------------------------------------
+#[rustfmt::skip]
 impl AsyncTaskNode for LoadTerrainMaterialSet {
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::LoadTerrainMaterialSet }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainMaterialSetLoaded }
@@ -154,7 +187,10 @@ impl AsyncTaskNode for LoadTerrainMaterialSet {
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
 impl AsyncTaskNode for WaitForTerrainLoaded {
-    fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[AsyncTaskFinishedEvent::TerrainMaterialSetLoaded]}
+    fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[
+        AsyncTaskFinishedEvent::HeightmapLoaded,
+        AsyncTaskFinishedEvent::TerrainMaterialSetLoaded,
+    ]}
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::WaitForTerrainLoaded }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainLoaded }
 }

@@ -1,13 +1,55 @@
 // ----------------------------------------------------------------------------
 use std::fs::File;
 
+use bevy::prelude::*;
+
 use futures_lite::Future;
 
 use png::{BitDepth, ColorType};
+
+use crate::config;
+use crate::heightmap::TerrainHeightMap;
+use crate::TaskResultData;
 // ----------------------------------------------------------------------------
 pub struct LoaderPlugin;
 // ----------------------------------------------------------------------------
 impl LoaderPlugin {
+    // ------------------------------------------------------------------------
+    pub(crate) fn load_heightmap(
+        config: &config::TerrainConfig,
+    ) -> impl Future<Output = Result<TaskResultData, String>> {
+        use byteorder::{BigEndian, ReadBytesExt};
+        use png::{BitDepth::Sixteen, ColorType::Grayscale};
+        use std::io::Cursor;
+
+        let (filepath, size, height_scaling) = (
+            config.heightmap().to_string(),
+            config.map_size(),
+            config.height_scaling(),
+        );
+        async move {
+            let data = if filepath.is_empty() {
+                debug!("generating heightmap...");
+                // generate some terrain as placeholder
+                generate_placeholder_heightmap(size)
+            } else {
+                debug!("loading heightmap...");
+                let img_data = Self::load_png_data(Grayscale, Sixteen, size, &filepath)?;
+
+                // transform buffer into 16 bits
+                let mut buffer_u16 = vec![0; (size * size) as usize];
+                let mut buffer_cursor = Cursor::new(img_data);
+                buffer_cursor
+                    .read_u16_into::<BigEndian>(&mut buffer_u16)
+                    .map_err(|e| format!("failed to convert buffer into u16 values: {}", e))?;
+
+                buffer_u16
+            };
+
+            let heightmap = TerrainHeightMap::new(size, height_scaling, data);
+            Ok(TaskResultData::HeightmapData(heightmap))
+        }
+    }
     // ------------------------------------------------------------------------
     pub(crate) fn load_terrain_texture(
         filepath: String,
@@ -60,5 +102,21 @@ impl LoaderPlugin {
         Ok(img_data)
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+#[allow(dead_code)]
+fn generate_placeholder_heightmap(gen_size: u32) -> Vec<u16> {
+    let mut generated_heightmap = Vec::with_capacity((gen_size * gen_size) as usize);
+    for y in 0..gen_size {
+        for x in 0..gen_size {
+            let scale = 7.0 / gen_size as f32 * (gen_size as f32 / 256.0);
+            let x = x as f32;
+            let y = y as f32;
+            let v = 1.0 + (scale * (x + 0.76 * y)).sin() * (scale * y / 2.0).cos();
+
+            generated_heightmap.push(((u16::MAX / 4) as f32 * v) as u16);
+        }
+    }
+    generated_heightmap
 }
 // ----------------------------------------------------------------------------
