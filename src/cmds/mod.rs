@@ -11,6 +11,7 @@
 #[derive(Debug)]
 pub enum AsyncTask {
     LoadHeightmap,
+    GenerateHeightmapNormals,
     LoadTerrainMaterialSet,
     WaitForTerrainLoaded,
 }
@@ -18,6 +19,7 @@ pub enum AsyncTask {
 #[derive(Debug, Copy, Clone)]
 pub enum AsyncTaskStartEvent {
     LoadHeightmap,
+    GenerateHeightmapNormals,
     LoadTerrainMaterialSet,
     WaitForTerrainLoaded,
 }
@@ -25,12 +27,16 @@ pub enum AsyncTaskStartEvent {
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum AsyncTaskFinishedEvent {
     HeightmapLoaded,
+    HeightmapNormalsGenerated,
     TerrainLoaded,
     TerrainMaterialSetLoaded,
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug, Default)]
 pub struct LoadHeightmap;
+// ----------------------------------------------------------------------------
+#[derive(Debug, Default)]
+pub struct GenerateHeightmapNormals;
 // ----------------------------------------------------------------------------
 #[derive(Debug, Default)]
 pub struct LoadTerrainMaterialSet;

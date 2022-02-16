@@ -9,7 +9,7 @@ use camera::CameraPlugin;
 use cmds::AsyncTaskFinishedEvent;
 use gui::{GuiAction, UiImages};
 
-use crate::terrain_material::{MaterialSetPlugin};
+use crate::{terrain_material::{MaterialSetPlugin}, heightmap::HeightmapPlugin};
 // ----------------------------------------------------------------------------
 mod atmosphere;
 mod config;
@@ -183,7 +183,8 @@ impl EditorState {
         )
         // plugins
         .add_system_set(CameraPlugin::active_free_camera(TerrainLoading))
-        .add_system_set(MaterialSetPlugin::terrain_material_loading(TerrainLoading));
+        .add_system_set(MaterialSetPlugin::terrain_material_loading(TerrainLoading))
+        .add_system_set(HeightmapPlugin::generate_heightmap_normals(TerrainLoading));
     }
     // ------------------------------------------------------------------------
     /// main editing state
@@ -196,7 +197,8 @@ impl EditorState {
                 .with_system(daylight_cycle),
         )
         // plugins
-        .add_system_set(CameraPlugin::active_free_camera(Editing));
+        .add_system_set(CameraPlugin::active_free_camera(Editing))
+        .add_system_set(MaterialSetPlugin::terrain_material_loading(Editing));
     }
     // ------------------------------------------------------------------------
 }

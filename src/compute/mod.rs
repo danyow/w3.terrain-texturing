@@ -21,6 +21,7 @@ use futures_lite::Future;
 use self::normals::{ComputeNormalsResult, GpuComputeNormals};
 // ----------------------------------------------------------------------------
 pub use cache::*;
+pub use normals::AppComputeNormalsTask;
 // ----------------------------------------------------------------------------
 #[derive(Component)]
 /// simplification: used as wrapper for all used compute task types
