@@ -30,6 +30,9 @@ image = { version = "0.23", features = ["png"] }
 byteorder = "1.0"
 png = "0.17"
 
+# needed for mesh generation deferring to next frame
+instant = { version = "0.1" }
+
 [[bin]]
 name = "terrain-editor"
 path = "src/bin/terrain-editor.rs"

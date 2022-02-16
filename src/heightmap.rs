@@ -59,6 +59,14 @@ pub struct TerrainHeightMapView<'heightmap> {
     heightmap: Arc<&'heightmap TerrainHeightMap>,
 }
 // ----------------------------------------------------------------------------
+//TODO check if this redundant arc ref allocation can be fixed
+#[allow(clippy::redundant_allocation)]
+pub struct TerrainDataView<'heightmap, 'normals> {
+    offset: UVec2,
+    heightmap: Arc<&'heightmap TerrainHeightMap>,
+    normals: Arc<&'normals TerrainNormals>,
+}
+// ----------------------------------------------------------------------------
 impl TerrainHeightMap {
     // ------------------------------------------------------------------------
     pub(crate) fn new(size: u32, height_scaling: f32, data: Vec<u16>) -> Self {
@@ -223,6 +231,27 @@ fn generate_heightmap_normals(
 // ----------------------------------------------------------------------------
 // reduced views on heightmap/normals
 // ----------------------------------------------------------------------------
+impl TerrainHeightMap {
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn coordinates_to_offset(&self, p: UVec2) -> usize {
+        // ensure that coordinates are within map by repeating last col & row
+        (self.size * p.y.min(self.size - 1) + p.x.min(self.size - 1)) as usize
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn sample_interpolated_error(&self, a: UVec2, b: UVec2, middle: UVec2) -> f32 {
+        let a = self.data[self.coordinates_to_offset(a)];
+        let b = self.data[self.coordinates_to_offset(b)];
+        let m = self.data[self.coordinates_to_offset(middle)];
+
+        let interpolated = b as f32 / 2.0 + a as f32 / 2.0;
+
+        (interpolated - m as f32).abs() * self.height_scaling
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
 impl MinHeight {
     // ------------------------------------------------------------------------
     #[inline(always)]
@@ -302,6 +331,43 @@ impl<'heightmap> TerrainHeightMapView<'heightmap> {
             start_tile: start,
             heightmap,
         }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl<'heightmap, 'normals> TerrainDataView<'heightmap, 'normals> {
+    // ------------------------------------------------------------------------
+    //TODO check if this redundant arc ref allocation can be fixed
+    #[allow(clippy::redundant_allocation)]
+    pub fn new(
+        offset: UVec2,
+        heightmap: Arc<&'heightmap TerrainHeightMap>,
+        normals: Arc<&'normals TerrainNormals>,
+    ) -> Self {
+        Self {
+            offset,
+            heightmap,
+            normals,
+        }
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn sample_interpolated_height_error(&self, a: UVec2, b: UVec2, middle: UVec2) -> f32 {
+        self.heightmap.sample_interpolated_error(
+            self.offset + a,
+            self.offset + b,
+            self.offset + middle,
+        )
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn sample_height_and_normal(&self, pos: UVec2) -> (f32, [f32; 3]) {
+        // Note: heightmap and normals have the same size!
+        let offset = self.heightmap.coordinates_to_offset(pos);
+        let height = self.heightmap.data[offset];
+        let normal = self.normals.data[offset];
+
+        (height as f32 * self.heightmap.height_scaling, normal)
     }
     // ------------------------------------------------------------------------
 }

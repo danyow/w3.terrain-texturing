@@ -1,4 +1,12 @@
 // ----------------------------------------------------------------------------
+/// defines the max time for blocking errormap/mesh generation until remaining
+/// work is deferred to next frame. prevents blocking of complete app.
+const MAX_MESH_GENERATION_TIME_MS: instant::Duration = instant::Duration::from_millis(30);
+// ----------------------------------------------------------------------------
+/// defines how many tiles are processed in parallel before a check for max
+/// generation time is made
+const MESH_GENERATION_QUEUE_CHUNKSIZE: usize = 10;
+// ----------------------------------------------------------------------------
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -7,13 +15,15 @@ use bevy::{
     math::{vec3, Vec2, Vec3},
     prelude::*,
     render::primitives::Aabb,
-    tasks::ComputeTaskPool,
+    tasks::{ComputeTaskPool, TaskPool},
 };
 
 use crate::{
     cmds::{AsyncTaskFinishedEvent, AsyncTaskStartEvent},
     config::{TerrainConfig, TILE_SIZE},
-    heightmap::{TerrainHeightMap, TerrainHeightMapView, TerrainTileId},
+    heightmap::{
+        TerrainDataView, TerrainHeightMap, TerrainHeightMapView, TerrainNormals, TerrainTileId,
+    },
 };
 // ----------------------------------------------------------------------------
 pub struct TerrainTilesGeneratorPlugin;
@@ -23,7 +33,9 @@ impl TerrainTilesGeneratorPlugin {
     /// async (re)generation of terrain tiles, errormaps, meshes based on camera
     /// position changes
     pub fn lazy_generation<T: StateData>(state: T) -> SystemSet {
-        SystemSet::on_update(state).with_system(start_async_terraintile_tasks)
+        SystemSet::on_update(state)
+            .with_system(start_async_terraintile_tasks)
+            .with_system(async_errormap_generation)
     }
     // ------------------------------------------------------------------------
 }
@@ -42,6 +54,8 @@ pub struct TerrainTileComponent {
     /// tile center in world coordinates (with map resolution applied)
     pos_center: Vec3,
 }
+// ----------------------------------------------------------------------------
+mod generator;
 // ----------------------------------------------------------------------------
 impl TerrainTileComponent {
     // ------------------------------------------------------------------------
@@ -89,75 +103,166 @@ impl TerrainTileComponent {
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
+#[allow(clippy::too_many_arguments)]
 fn start_async_terraintile_tasks(
     mut commands: Commands,
     terrain_config: Res<TerrainConfig>,
     heightmap: Res<TerrainHeightMap>,
     thread_pool: Res<ComputeTaskPool>,
 
+    tiles: Query<Entity, With<TerrainTileComponent>>,
+
     mut tasks_queued: EventReader<AsyncTaskStartEvent>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
 ) {
     use AsyncTaskStartEvent::*;
 
-    if tasks_queued
-        .iter()
-        .any(|t| matches!(t, GenerateTerrainTiles))
-    {
-        // generates all necessary tiles
-        let tiles = terrain_config.tiles_per_edge();
-        debug!("generating terrain tiles...");
-
-        // unfortunately heightmap doesn't have static lifetime and cannot be provided to
-        // an async task/thread pool -> scoped, blocking threadpool
-
-        // extract min max heights per tile to precaclulate bounding boxes
-        let hm = Arc::new(heightmap.deref());
-        let mut tile_elevation = thread_pool.scope(|s| {
-            for y in 0..tiles {
-                let heightmap_strip =
-                    TerrainHeightMapView::new_strip(TerrainTileId::new(0, y), hm.clone());
-
-                s.spawn(async move { heightmap_strip.tiles_min_max_y_strip() });
+    for task in tasks_queued.iter() {
+        match task {
+            GenerateTerrainTiles => {
+                debug!("generating terrain tiles...");
+                commands.spawn_batch(generate_tiles(&*terrain_config, &*heightmap, &*thread_pool));
+                task_finished.send(AsyncTaskFinishedEvent::TerrainTilesGenerated);
             }
-        });
+            GenerateTerrainMeshErrorMaps => {
+                debug!("generating error maps...");
+                tiles.iter().for_each(|entity| {
+                    commands
+                        .entity(entity)
+                        .insert(TileHeightErrorGenerationQueued);
+                });
+            }
+            _ => {}
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[derive(Component)]
+/// marker for tiles which require regeneration of errormap
+struct TileHeightErrorGenerationQueued;
+// ----------------------------------------------------------------------------
+#[allow(clippy::too_many_arguments)]
+fn async_errormap_generation(
+    mut commands: Commands,
+    tiles: Query<(Entity, &TerrainTileComponent), With<TileHeightErrorGenerationQueued>>,
+    heightmap: Res<TerrainHeightMap>,
+    normals: Res<TerrainNormals>,
+    thread_pool: Res<ComputeTaskPool>,
+    mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
+) {
+    if !tiles.is_empty() {
+        use instant::Instant;
 
-        // generate new TerrainTileInfos
-        let map_resolution = terrain_config.resolution();
-        let map_offset = terrain_config.map_offset();
-        let height_scaling = terrain_config.height_scaling();
-        let height_offset = terrain_config.min_height();
+        let heightmap = Arc::new(heightmap.deref());
+        let normals = Arc::new(normals.deref());
+        let start_time = Instant::now();
 
-        let tiles = tile_elevation
-            .drain(..)
-            .flatten()
-            .map(|(tile_id, min_height, max_height)| {
-                let tile_info = TerrainTileComponent::new(
-                    tile_id,
-                    min_height.to_f32(),
-                    max_height.to_f32(),
-                    map_resolution,
-                    // offset in absolute world coordinates to put center of terrain at origin
-                    map_offset,
-                );
-
-                let tile_center = tile_info.pos_center;
-                let aabb = tile_info.compute_aabb(height_offset, height_scaling, map_resolution);
-
-                // default component bundle for terrain tile
-                (
-                    tile_info,
-                    GlobalTransform::default(),
-                    Transform::from_translation(tile_center),
-                    aabb,
-                    Visibility::default(),
-                    ComputedVisibility::default(),
-                )
-            })
+        // remap tiles to cloned data
+        let tiles_to_process = tiles
+            .iter()
+            .map(|(entity, tile)| (entity, tile.id))
             .collect::<Vec<_>>();
 
-        commands.spawn_batch(tiles);
-        task_finished.send(AsyncTaskFinishedEvent::TerrainTilesGenerated);
+        // divide into packets that are parallelized...
+        let queue = &mut tiles_to_process.chunks(MESH_GENERATION_QUEUE_CHUNKSIZE);
+
+        // ...measure duration after every packet
+        while Instant::now().duration_since(start_time) < MAX_MESH_GENERATION_TIME_MS {
+            match queue.next() {
+                Some(package) => {
+                    let mut generated_errormaps = thread_pool.scope(|s| {
+                        for (entity, tileid) in package {
+                            let terraindata_view = TerrainDataView::new(
+                                tileid.sampling_offset(),
+                                heightmap.clone(),
+                                normals.clone(),
+                            );
+
+                            s.spawn(async move {
+                                (*entity, generator::generate_errormap(&terraindata_view))
+                            })
+                        }
+                    });
+                    for (entity, tile_errors) in generated_errormaps.drain(..) {
+                        commands
+                            .entity(entity)
+                            .insert(tile_errors)
+                            .remove::<TileHeightErrorGenerationQueued>();
+                    }
+                }
+                None => break,
+            }
+        }
+
+        if queue.next().is_none() {
+            task_finished.send(AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated);
+        }
     }
+}
+// ----------------------------------------------------------------------------
+type TerrainTileBundle = (
+    TerrainTileComponent,
+    GlobalTransform,
+    Transform,
+    Aabb,
+    Visibility,
+    ComputedVisibility,
+);
+// ----------------------------------------------------------------------------
+fn generate_tiles(
+    terrain_config: &TerrainConfig,
+    heightmap: &TerrainHeightMap,
+    thread_pool: &TaskPool,
+) -> Vec<TerrainTileBundle> {
+    // generates all necessary tiles
+    let tiles = terrain_config.tiles_per_edge();
+
+    // unfortunately heightmap doesn't have static lifetime and cannot be provided to
+    // an async task/thread pool -> scoped, blocking threadpool
+
+    // extract min max heights per tile to precaclulate bounding boxes
+    let hm = Arc::new(heightmap.deref());
+    let mut tile_elevation = thread_pool.scope(|s| {
+        for y in 0..tiles {
+            let heightmap_strip =
+                TerrainHeightMapView::new_strip(TerrainTileId::new(0, y), hm.clone());
+
+            s.spawn(async move { heightmap_strip.tiles_min_max_y_strip() });
+        }
+    });
+
+    // generate new TerrainTileInfos
+    let map_resolution = terrain_config.resolution();
+    let map_offset = terrain_config.map_offset();
+    let height_scaling = terrain_config.height_scaling();
+    let height_offset = terrain_config.min_height();
+
+    tile_elevation
+        .drain(..)
+        .flatten()
+        .map(|(tile_id, min_height, max_height)| {
+            let tile_info = TerrainTileComponent::new(
+                tile_id,
+                min_height.to_f32(),
+                max_height.to_f32(),
+                map_resolution,
+                // offset in absolute world coordinates to put center of terrain at origin
+                map_offset,
+            );
+
+            let tile_center = tile_info.pos_center;
+            let aabb = tile_info.compute_aabb(height_offset, height_scaling, map_resolution);
+
+            // default component bundle for terrain tile
+            (
+                tile_info,
+                GlobalTransform::default(),
+                Transform::from_translation(tile_center),
+                aabb,
+                Visibility::default(),
+                ComputedVisibility::default(),
+            )
+        })
+        .collect::<Vec<_>>()
 }
 // ----------------------------------------------------------------------------
