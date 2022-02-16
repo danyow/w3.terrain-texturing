@@ -10,7 +10,8 @@ use crate::{TaskResult, TaskResultData};
 
 use super::{
     AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, GenerateHeightmapNormals,
-    LoadHeightmap, LoadTerrainMaterialSet, WaitForTerrainLoaded, GenerateTerrainTiles, GenerateTerrainMeshErrorMaps,
+    GenerateTerrainMeshErrorMaps, GenerateTerrainMeshes, GenerateTerrainTiles, LoadHeightmap,
+    LoadTerrainMaterialSet, WaitForTerrainLoaded,
 };
 // ----------------------------------------------------------------------------
 pub struct AsyncCmdsPlugin;
@@ -115,6 +116,7 @@ pub(crate) fn start_async_operations(
                 GenerateHeightmapNormals => task_ready.send(GenerateHeightmapNormals),
                 GenerateTerrainTiles => task_ready.send(GenerateTerrainTiles),
                 GenerateTerrainMeshErrorMaps => task_ready.send(GenerateTerrainMeshErrorMaps),
+                GenerateTerrainMeshes => task_ready.send(GenerateTerrainMeshes),
                 // -- these are just wrapper for sinks (join multiple events but do nothing)
                 WaitForTerrainLoaded => task_ready.send(WaitForTerrainLoaded),
             }
@@ -214,6 +216,14 @@ impl AsyncTaskNode for GenerateTerrainMeshErrorMaps {
     ]}
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::GenerateTerrainMeshErrorMaps }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated }
+    fn subsequent_tasks(&self) -> Vec<AsyncTask> { vec![GenerateTerrainMeshes::default().into()] }
+}
+// ----------------------------------------------------------------------------
+#[rustfmt::skip]
+impl AsyncTaskNode for GenerateTerrainMeshes {
+    fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated]}
+    fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::GenerateTerrainMeshes }
+    fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainMeshesGenerated }
 }
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
@@ -225,7 +235,7 @@ impl AsyncTaskNode for LoadTerrainMaterialSet {
 #[rustfmt::skip]
 impl AsyncTaskNode for WaitForTerrainLoaded {
     fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[
-        AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated,
+        AsyncTaskFinishedEvent::TerrainMeshesGenerated,
         AsyncTaskFinishedEvent::TerrainMaterialSetLoaded,
     ]}
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::WaitForTerrainLoaded }

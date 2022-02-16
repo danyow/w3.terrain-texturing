@@ -14,6 +14,7 @@ pub enum AsyncTask {
     GenerateHeightmapNormals,
     GenerateTerrainTiles,
     GenerateTerrainMeshErrorMaps,
+    GenerateTerrainMeshes,
     LoadTerrainMaterialSet,
     WaitForTerrainLoaded,
 }
@@ -24,6 +25,7 @@ pub enum AsyncTaskStartEvent {
     GenerateHeightmapNormals,
     GenerateTerrainTiles,
     GenerateTerrainMeshErrorMaps,
+    GenerateTerrainMeshes,
     LoadTerrainMaterialSet,
     WaitForTerrainLoaded,
 }
@@ -34,6 +36,7 @@ pub enum AsyncTaskFinishedEvent {
     HeightmapNormalsGenerated,
     TerrainTilesGenerated,
     TerrainMeshErrorMapsGenerated,
+    TerrainMeshesGenerated,
     TerrainLoaded,
     TerrainMaterialSetLoaded,
 }
@@ -51,6 +54,9 @@ pub struct GenerateTerrainTiles;
 pub struct GenerateTerrainMeshErrorMaps;
 // ----------------------------------------------------------------------------
 #[derive(Debug, Default)]
+pub struct GenerateTerrainMeshes;
+// ----------------------------------------------------------------------------
+#[derive(Debug, Default)]
 pub struct LoadTerrainMaterialSet;
 // ----------------------------------------------------------------------------
 #[derive(Debug, Default)]
@@ -61,10 +67,10 @@ pub struct WaitForTerrainLoaded;
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
+pub(crate) use async_cmds::poll_async_task_state;
+pub(crate) use async_cmds::start_async_operations;
 pub(crate) use async_cmds::AsyncCmdsPlugin;
 pub(crate) use async_cmds::AsyncCommandManager;
-pub(crate) use async_cmds::start_async_operations;
-pub(crate) use async_cmds::poll_async_task_state;
 // ----------------------------------------------------------------------------
 mod async_cmds;
 // ----------------------------------------------------------------------------

@@ -15,7 +15,7 @@ use bevy::{
     math::{vec3, Vec2, Vec3},
     prelude::*,
     render::primitives::Aabb,
-    tasks::{ComputeTaskPool, TaskPool},
+    tasks::{AsyncComputeTaskPool, ComputeTaskPool, TaskPool},
 };
 
 use crate::{
@@ -25,8 +25,18 @@ use crate::{
         TerrainDataView, TerrainHeightMap, TerrainHeightMapView, TerrainNormals, TerrainTileId,
     },
 };
+
+use TerrainTileSystemLabel::*;
+
+use self::generator::TileHeightErrors;
 // ----------------------------------------------------------------------------
 pub struct TerrainTilesGeneratorPlugin;
+// ----------------------------------------------------------------------------
+#[derive(Debug, Clone, Hash, Eq, PartialEq, SystemLabel)]
+pub enum TerrainTileSystemLabel {
+    ErrorMapGeneration,
+    MeshGeneration,
+}
 // ----------------------------------------------------------------------------
 impl TerrainTilesGeneratorPlugin {
     // ------------------------------------------------------------------------
@@ -35,7 +45,8 @@ impl TerrainTilesGeneratorPlugin {
     pub fn lazy_generation<T: StateData>(state: T) -> SystemSet {
         SystemSet::on_update(state)
             .with_system(start_async_terraintile_tasks)
-            .with_system(async_errormap_generation)
+            .with_system(async_errormap_generation.label(ErrorMapGeneration))
+            .with_system(async_tilemesh_generation.label(MeshGeneration))
     }
     // ------------------------------------------------------------------------
 }
@@ -51,8 +62,16 @@ pub struct TerrainTileComponent {
     id: TerrainTileId<TILE_SIZE>,
     min_height: f32,
     max_height: f32,
+    mesh_conf: MeshReduction,
     /// tile center in world coordinates (with map resolution applied)
     pos_center: Vec3,
+}
+// ----------------------------------------------------------------------------
+#[derive(Clone)]
+struct MeshReduction {
+    current: f32,
+    target: f32,
+    priority: u32,
 }
 // ----------------------------------------------------------------------------
 mod generator;
@@ -73,6 +92,7 @@ impl TerrainTileComponent {
             id,
             min_height,
             max_height,
+            mesh_conf: MeshReduction::default(),
             // Note: remap 2d coordinates to 3d -> y becomes z!
             pos_center: vec3(center.x, 0.0, center.y),
         }
@@ -132,6 +152,12 @@ fn start_async_terraintile_tasks(
                         .insert(TileHeightErrorGenerationQueued);
                 });
             }
+            GenerateTerrainMeshes => {
+                debug!("generating tile meshes...");
+                tiles.iter().for_each(|entity| {
+                    commands.entity(entity).insert(TileMeshGenerationQueued);
+                });
+            }
             _ => {}
         }
     }
@@ -141,7 +167,6 @@ fn start_async_terraintile_tasks(
 /// marker for tiles which require regeneration of errormap
 struct TileHeightErrorGenerationQueued;
 // ----------------------------------------------------------------------------
-#[allow(clippy::too_many_arguments)]
 fn async_errormap_generation(
     mut commands: Commands,
     tiles: Query<(Entity, &TerrainTileComponent), With<TileHeightErrorGenerationQueued>>,
@@ -196,6 +221,103 @@ fn async_errormap_generation(
 
         if queue.next().is_none() {
             task_finished.send(AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[derive(Component)]
+/// marker for tiles which require regeneration of meshes
+struct TileMeshGenerationQueued;
+// ----------------------------------------------------------------------------
+//TODO make proper specialized mesh type so updates just take data instead clone (?)
+type TerrainMesh = Mesh;
+// ----------------------------------------------------------------------------
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn async_tilemesh_generation(
+    mut commands: Commands,
+    terrain_config: Res<TerrainConfig>,
+    heightmap: Res<TerrainHeightMap>,
+    normals: Res<TerrainNormals>,
+    mut meshes: ResMut<Assets<TerrainMesh>>,
+    tiles: Query<
+        (
+            Entity,
+            &TerrainTileComponent,
+            &TileHeightErrors,
+            Option<&Handle<TerrainMesh>>,
+        ),
+        With<TileMeshGenerationQueued>,
+    >,
+    thread_pool: Res<AsyncComputeTaskPool>,
+    mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
+) {
+    if !tiles.is_empty() {
+        use instant::Instant;
+
+        let heightmap = Arc::new(heightmap.deref());
+        let normals = Arc::new(normals.deref());
+        let terrain_config = &terrain_config;
+        let start_time = Instant::now();
+
+        // remap tiles to cloned data
+        let mut tiles_to_process = tiles.iter().collect::<Vec<_>>();
+
+        // prioritize tiles which are closer to viewer (and visible) based on
+        // priority
+        tiles_to_process.sort_unstable_by_key(|(_, tile, _, _)| tile.mesh_conf.priority);
+
+        // divide into packets that are parallelized...
+        let queue = &mut tiles_to_process.chunks(MESH_GENERATION_QUEUE_CHUNKSIZE);
+
+        // ...measure duration after every packet
+        while Instant::now().duration_since(start_time) < MAX_MESH_GENERATION_TIME_MS {
+            match queue.next() {
+                Some(package) => {
+                    let mut generated_meshes = thread_pool.scope(|s| {
+                        for (_, tile, triangle_errors, _) in package {
+                            let terraindata_view = TerrainDataView::new(
+                                tile.id.sampling_offset(),
+                                heightmap.clone(),
+                                normals.clone(),
+                            );
+
+                            s.spawn(async move {
+                                generator::generate_tilemesh(
+                                    tile.id,
+                                    terrain_config.resolution(),
+                                    terrain_config.min_height(),
+                                    tile.mesh_conf.target,
+                                    terraindata_view,
+                                    triangle_errors,
+                                )
+                            })
+                        }
+                    });
+                    // attach generated meshes to tile entities and remove marker component
+                    for ((entity, _, _, mesh_handle), new_mesh) in
+                        package.iter().zip(generated_meshes.drain(..))
+                    {
+                        let mut e = commands.entity(*entity);
+                        e.remove::<TileMeshGenerationQueued>();
+
+                        if let Some(handle) = mesh_handle {
+                            // mesh is an update
+                            meshes
+                                .get_mut(*handle)
+                                .expect("existing tile mesh handle")
+                                .clone_from(&new_mesh.mesh());
+                        } else {
+                            // tile has no mesh -> add generated mesh and assign handle to tile
+                            e.insert(meshes.add(new_mesh.mesh()));
+                        }
+                    }
+                }
+                None => break,
+            }
+        }
+
+        if queue.next().is_none() {
+            task_finished.send(AsyncTaskFinishedEvent::TerrainMeshesGenerated);
         }
     }
 }
@@ -264,5 +386,17 @@ fn generate_tiles(
             )
         })
         .collect::<Vec<_>>()
+}
+// ----------------------------------------------------------------------------
+impl Default for MeshReduction {
+    fn default() -> Self {
+        Self {
+            current: f32::MAX,
+            // make target error threshold "high" by default so new terrain is
+            // showed quicker and only near tiles are "upgraded"
+            target: 2.0,
+            priority: 0,
+        }
+    }
 }
 // ----------------------------------------------------------------------------

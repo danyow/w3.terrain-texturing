@@ -105,11 +105,14 @@
 //
 // ----------------------------------------------------------------------------
 use bevy::{
-    math::{uvec2, UVec2},
+    math::{uvec2, uvec3, UVec2, UVec3},
     prelude::*,
+    render::mesh::Indices,
+    render::render_resource::PrimitiveTopology,
+    utils::{AHashExt, HashMap},
 };
 
-use super::{TerrainDataView, TILE_SIZE};
+use super::{TerrainDataView, TerrainMesh, TerrainTileId, TILE_SIZE};
 // ----------------------------------------------------------------------------
 #[derive(Component)]
 pub struct TileHeightErrors {
@@ -183,6 +186,59 @@ pub(super) fn generate_errormap(heightmap: &TerrainDataView) -> TileHeightErrors
     errors
 }
 // ----------------------------------------------------------------------------
+pub(super) fn generate_tilemesh(
+    tile_id: TerrainTileId<TILE_SIZE>,
+    map_resolution: f32,
+    base_height: f32,
+    error_threshold: f32,
+    terraindata_view: TerrainDataView,
+    triangle_errors: &TileHeightErrors,
+) -> TileMesh {
+    let mut mesh_builder =
+        TileMeshBuilder::new(tile_id, map_resolution, base_height, terraindata_view);
+
+    // top tile triangles are always added
+    process_triangle(
+        TileTriangle::root_left_bottom(),
+        error_threshold,
+        triangle_errors,
+        &mut mesh_builder,
+    );
+    process_triangle(
+        TileTriangle::root_right_upper(),
+        error_threshold,
+        triangle_errors,
+        &mut mesh_builder,
+    );
+
+    mesh_builder.build()
+}
+// ----------------------------------------------------------------------------
+fn process_triangle(
+    triangle: TileTriangle,
+    error_threshold: f32,
+    error_map: &TileHeightErrors,
+    mesh_builder: &mut TileMeshBuilder,
+) {
+    // calculate middle point which is used as lookup address in error map
+    if triangle.can_be_split() && error_map.get(triangle.m()) > error_threshold {
+        process_triangle(
+            triangle.split_left(),
+            error_threshold,
+            error_map,
+            mesh_builder,
+        );
+        process_triangle(
+            triangle.split_right(),
+            error_threshold,
+            error_map,
+            mesh_builder,
+        );
+    } else {
+        mesh_builder.add_triangle(triangle);
+    }
+}
+// ----------------------------------------------------------------------------
 /// right-angled triangle with counter clockwise vertices [a, b, c] where c is
 /// vertex of right angle (opposite to hypothenuse)
 struct TileTriangle {
@@ -190,6 +246,30 @@ struct TileTriangle {
     b: UVec2,
     /// vertex opposite to hypothenuse
     c: UVec2,
+}
+// ----------------------------------------------------------------------------
+impl TileTriangle {
+    // ------------------------------------------------------------------------
+    /// returns biggest left bottom triangle of tile quad (root triangle)
+    fn root_left_bottom() -> Self {
+        // counter clockwise with right angle vertex last
+        Self {
+            a: uvec2(TILE_SIZE, TILE_SIZE),
+            b: uvec2(0, 0),
+            c: uvec2(0, TILE_SIZE),
+        }
+    }
+    // ------------------------------------------------------------------------
+    /// returns biggest right top triangle of tile quad (root triangle)
+    fn root_right_upper() -> Self {
+        // counter clockwise with right angle vertex last
+        Self {
+            a: uvec2(0, 0),
+            b: uvec2(TILE_SIZE, TILE_SIZE),
+            c: uvec2(TILE_SIZE, 0),
+        }
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 impl TileTriangle {
@@ -292,6 +372,28 @@ impl TileTriangle {
         (self.a + self.b) >> 1
     }
     // ------------------------------------------------------------------------
+    /// returns left subtriangle of split
+    #[inline(always)]
+    fn split_left(&self) -> TileTriangle {
+        // Note: countre clockwise, right-angle vertex last
+        TileTriangle {
+            a: self.c,
+            b: self.a,
+            c: self.m(),
+        }
+    }
+    // ------------------------------------------------------------------------
+    /// returns right subtriangle of split
+    #[inline(always)]
+    fn split_right(&self) -> TileTriangle {
+        // Note: countre clockwise, right-angle vertex last
+        TileTriangle {
+            a: self.b,
+            b: self.c,
+            c: self.m(),
+        }
+    }
+    // ------------------------------------------------------------------------
     /// returns coordinates for middle of hypothenuse of left subtriangle
     #[inline(always)]
     fn left_middle(&self) -> UVec2 {
@@ -302,6 +404,29 @@ impl TileTriangle {
     #[inline(always)]
     fn right_middle(&self) -> UVec2 {
         (self.b + self.c) >> 1
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn can_be_split(&self) -> bool {
+        // test if points are neighbors:
+        //  yes: triangle cannot be split
+        //  no: can be split
+
+        // Note: abs_diff not stable yet  #![feature(int_abs_diff)]
+        // if (a.x.abs_diff(c.x) + a.y.abs_diff(c.y)) > 1 { ...
+        // #[rustfmt::skip]
+        let diff_x = if self.a.x < self.c.x {
+            self.c.x - self.a.x
+        } else {
+            self.a.x - self.c.x
+        };
+        let diff_y = if self.a.y < self.c.y {
+            self.c.y - self.a.y
+        } else {
+            self.a.y - self.c.y
+        };
+
+        diff_x + diff_y > 1
     }
     // ------------------------------------------------------------------------
 }
@@ -337,6 +462,130 @@ impl TileHeightErrors {
         } else {
             previous
         }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+/// Helper Mesh builder: collects triangles, makes vertices unique, generates
+/// appropriate indices and finally the tilemesh data.
+struct TileMeshBuilder<'heightmap, 'normalmap> {
+    sampling_offset: UVec2,
+    resolution: f32,
+    base_height: f32,
+    terrain_data: TerrainDataView<'heightmap, 'normalmap>,
+
+    known_indices: HashMap<UVec3, u32>,
+    vertices: Vec<[f32; 3]>,
+    normals: Vec<[f32; 3]>,
+    barycentric: Vec<[f32; 2]>,
+    indices: Vec<u32>,
+}
+// ----------------------------------------------------------------------------
+impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
+    // ------------------------------------------------------------------------
+    fn new(
+        tileid: TerrainTileId<TILE_SIZE>,
+        map_resolution: f32,
+        base_height: f32,
+        terrain_data: TerrainDataView<'heightmap, 'normalmap>,
+    ) -> Self {
+        // just a guess
+        let expected_vertices = (TILE_SIZE * TILE_SIZE) as usize / 8;
+
+        Self {
+            sampling_offset: tileid.sampling_offset(),
+            resolution: map_resolution,
+            base_height,
+            terrain_data,
+
+            known_indices: HashMap::with_capacity(expected_vertices),
+            vertices: Vec::with_capacity(expected_vertices),
+            normals: Vec::with_capacity(expected_vertices),
+            barycentric: Vec::with_capacity(expected_vertices),
+            indices: Vec::with_capacity(expected_vertices * 2),
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn add_triangle(&mut self, triangle: TileTriangle) {
+        for (i, vertex_2d) in [triangle.a, triangle.b, triangle.c]
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            if let Some(index) = self
+                .known_indices
+                .get(&uvec3(i as u32, vertex_2d.x, vertex_2d.y))
+            {
+                self.indices.push(*index);
+            } else {
+                let next_index = self.vertices.len() as u32;
+
+                // map heightmap (x,y) coordinates to world terrain coordinates
+                let absolute_map_coords = vertex_2d + self.sampling_offset;
+
+                let (height, vertex_normal) = self
+                    .terrain_data
+                    .sample_height_and_normal(absolute_map_coords);
+
+                // center tile around 0/0
+                let new_vertex = [
+                    self.resolution * (vertex_2d.x as f32 - (TILE_SIZE / 2) as f32),
+                    self.base_height + height,
+                    self.resolution * (vertex_2d.y as f32 - (TILE_SIZE / 2) as f32),
+                ];
+
+                let vertex_normal = [vertex_normal[0], vertex_normal[1], vertex_normal[2]];
+
+                self.vertices.push(new_vertex);
+                self.normals.push(vertex_normal);
+                self.indices.push(next_index);
+
+                match i {
+                    0 => self.barycentric.push([1.0, 0.0]),
+                    1 => self.barycentric.push([0.0, 1.0]),
+                    _ => self.barycentric.push([0.0, 0.0]),
+                }
+
+                self.known_indices
+                    .insert(uvec3(i as u32, vertex_2d.x, vertex_2d.y), next_index);
+            }
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn build(self) -> TileMesh {
+        TileMesh {
+            vertices: self.vertices,
+            normals: self.normals,
+            indices: self.indices,
+            barycentric: Some(self.barycentric),
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+pub(super) struct TileMesh {
+    vertices: Vec<[f32; 3]>,
+    normals: Vec<[f32; 3]>,
+    indices: Vec<u32>,
+
+    barycentric: Option<Vec<[f32; 2]>>,
+}
+// ----------------------------------------------------------------------------
+impl TileMesh {
+    // ------------------------------------------------------------------------
+    pub(super) fn mesh(mut self) -> TerrainMesh {
+        let mut mesh = TerrainMesh::new(PrimitiveTopology::TriangleList);
+        mesh.set_attribute(
+            TerrainMesh::ATTRIBUTE_UV_0,
+            vec![[0.0; 2]; self.vertices.len()],
+        );
+        mesh.set_attribute(TerrainMesh::ATTRIBUTE_POSITION, self.vertices);
+        mesh.set_attribute(TerrainMesh::ATTRIBUTE_NORMAL, self.normals);
+        if let Some(coords) = self.barycentric.take() {
+            mesh.set_attribute(TerrainMesh::ATTRIBUTE_UV_0, coords);
+        }
+        mesh.set_indices(Some(Indices::U32(self.indices)));
+        mesh
     }
     // ------------------------------------------------------------------------
 }
