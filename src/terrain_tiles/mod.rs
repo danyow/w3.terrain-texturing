@@ -1,6 +1,4 @@
 // ----------------------------------------------------------------------------
-pub struct TerrainTilesGeneratorPlugin;
-// ----------------------------------------------------------------------------
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -18,6 +16,8 @@ use crate::{
     heightmap::{TerrainHeightMap, TerrainHeightMapView, TerrainTileId},
 };
 // ----------------------------------------------------------------------------
+pub struct TerrainTilesGeneratorPlugin;
+// ----------------------------------------------------------------------------
 impl TerrainTilesGeneratorPlugin {
     // ------------------------------------------------------------------------
     /// async (re)generation of terrain tiles, errormaps, meshes based on camera
@@ -34,20 +34,8 @@ impl Plugin for TerrainTilesGeneratorPlugin {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-// extract component into renderworld. entity has to be in renderworld to be
-// considered for rendering.
-impl bevy::render::render_component::ExtractComponent for TerrainTileInfo {
-    type Query = &'static TerrainTileInfo;
-    type Filter = With<TerrainTileInfo>;
-
-    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
-        item.clone()
-    }
-}
-// ----------------------------------------------------------------------------
 #[derive(Component, Clone)]
-// #TODO rename to TerrainTileComponent
-pub struct TerrainTileInfo {
+pub struct TerrainTileComponent {
     id: TerrainTileId<TILE_SIZE>,
     min_height: f32,
     max_height: f32,
@@ -55,7 +43,7 @@ pub struct TerrainTileInfo {
     pos_center: Vec3,
 }
 // ----------------------------------------------------------------------------
-impl TerrainTileInfo {
+impl TerrainTileComponent {
     // ------------------------------------------------------------------------
     fn new(
         id: TerrainTileId<TILE_SIZE>,
@@ -98,6 +86,8 @@ impl TerrainTileInfo {
     }
     // ------------------------------------------------------------------------
 }
+// ----------------------------------------------------------------------------
+// systems
 // ----------------------------------------------------------------------------
 fn start_async_terraintile_tasks(
     mut commands: Commands,
@@ -142,7 +132,7 @@ fn start_async_terraintile_tasks(
             .drain(..)
             .flatten()
             .map(|(tile_id, min_height, max_height)| {
-                let tile_info = TerrainTileInfo::new(
+                let tile_info = TerrainTileComponent::new(
                     tile_id,
                     min_height.to_f32(),
                     max_height.to_f32(),
