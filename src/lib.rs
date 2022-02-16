@@ -9,7 +9,9 @@ use camera::CameraPlugin;
 use cmds::AsyncTaskFinishedEvent;
 use gui::{GuiAction, UiImages};
 
-use crate::{terrain_material::{MaterialSetPlugin}, heightmap::HeightmapPlugin};
+use crate::heightmap::HeightmapPlugin;
+use crate::terrain_material::MaterialSetPlugin;
+use crate::terrain_tiles::TerrainTilesGeneratorPlugin;
 // ----------------------------------------------------------------------------
 mod atmosphere;
 mod config;
@@ -17,6 +19,7 @@ mod loader;
 
 mod heightmap;
 mod terrain_material;
+mod terrain_tiles;
 
 mod camera;
 mod compute;
@@ -131,6 +134,7 @@ impl Plugin for EditorPlugin {
             .add_plugin(texturearray::TextureArrayPlugin)
             .add_plugin(heightmap::HeightmapPlugin)
             .add_plugin(terrain_material::MaterialSetPlugin)
+            .add_plugin(terrain_tiles::TerrainTilesGeneratorPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012
                 movement_speed: 122.0,         // default: 12.0
@@ -184,7 +188,8 @@ impl EditorState {
         // plugins
         .add_system_set(CameraPlugin::active_free_camera(TerrainLoading))
         .add_system_set(MaterialSetPlugin::terrain_material_loading(TerrainLoading))
-        .add_system_set(HeightmapPlugin::generate_heightmap_normals(TerrainLoading));
+        .add_system_set(HeightmapPlugin::generate_heightmap_normals(TerrainLoading))
+        .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(TerrainLoading));
     }
     // ------------------------------------------------------------------------
     /// main editing state

@@ -3,12 +3,15 @@
 // mapsize 16384 * 512 rows * 12 byte (result buf with normals) = 96MB
 const COMPUTE_NORMALS_MAX_ROWS: usize = 1024;
 // ----------------------------------------------------------------------------
+use std::sync::Arc;
+
 use bevy::ecs::schedule::StateData;
+use bevy::math::uvec2;
 use bevy::prelude::*;
 
 use crate::cmds::{AsyncTaskFinishedEvent, AsyncTaskStartEvent};
 use crate::compute::{AppComputeNormalsTask, ComputeResultData, ComputeResults};
-use crate::config::TerrainConfig;
+use crate::config::{TerrainConfig, TILE_SIZE};
 // ----------------------------------------------------------------------------
 pub struct HeightmapPlugin;
 // ----------------------------------------------------------------------------
@@ -39,6 +42,21 @@ pub struct TerrainHeightMap {
 pub struct TerrainNormals {
     size: u32,
     data: Vec<[f32; 3]>,
+}
+// ----------------------------------------------------------------------------
+#[derive(Clone, Copy)]
+pub struct MinHeight(u16);
+#[derive(Clone, Copy)]
+pub struct MaxHeight(u16);
+// ----------------------------------------------------------------------------
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash)]
+pub struct TerrainTileId<const TILE_SIZE: u32>(u8, u8);
+// ----------------------------------------------------------------------------
+//TODO check if this redundant arc ref allocation can be fixed
+#[allow(clippy::redundant_allocation)]
+pub struct TerrainHeightMapView<'heightmap> {
+    start_tile: TerrainTileId<TILE_SIZE>,
+    heightmap: Arc<&'heightmap TerrainHeightMap>,
 }
 // ----------------------------------------------------------------------------
 impl TerrainHeightMap {
@@ -201,5 +219,125 @@ fn generate_heightmap_normals(
             task_finished.send(AsyncTaskFinishedEvent::HeightmapNormalsGenerated);
         }
     }
+}
+// ----------------------------------------------------------------------------
+// reduced views on heightmap/normals
+// ----------------------------------------------------------------------------
+impl MinHeight {
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn to_f32(self) -> f32 {
+        self.0 as f32
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl MaxHeight {
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn to_f32(self) -> f32 {
+        self.0 as f32
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl<'heightmap> TerrainHeightMapView<'heightmap> {
+    // ------------------------------------------------------------------------
+    pub(crate) fn tiles_min_max_y_strip(
+        &self,
+    ) -> Vec<(TerrainTileId<TILE_SIZE>, MinHeight, MaxHeight)> {
+        let tile_size = self.start_tile.tile_size();
+        let tiles_per_edge = (self.heightmap.size / tile_size) as usize;
+        let offset_start = (self.start_tile.sampling_offset().y * self.heightmap.size) as usize;
+        let offset_end = offset_start + (self.heightmap.size * tile_size) as usize;
+
+        assert!(self.heightmap.data.len() >= offset_end);
+
+        // println!("MINMAX_STRIP: {:?} {}", self.tileid, offset_start);
+        let tiles_reduced_x = self.heightmap.data[offset_start..offset_end]
+            .chunks_exact(tile_size as usize)
+            .map(|slice| {
+                slice
+                    .iter()
+                    .cloned()
+                    .map(|h| (h, h))
+                    .reduce(|(last_min, last_max), (next_min, next_max)| {
+                        (last_min.min(next_min), last_max.max(next_max))
+                    })
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let init_value = (u16::MAX, u16::MIN);
+        let mut result = vec![init_value; tiles_per_edge];
+
+        for reduced_x_collection in tiles_reduced_x.chunks_exact(tiles_per_edge) {
+            result = reduced_x_collection
+                .iter()
+                .zip(result.iter())
+                .map(|((a_min, a_max), (b_min, b_max))| (*a_min.min(b_min), *a_max.max(b_max)))
+                .collect::<Vec<_>>();
+        }
+
+        result
+            .iter()
+            .enumerate()
+            .map(|(x, (min, max))| {
+                (
+                    TerrainTileId::new(x as u8, self.start_tile.y()),
+                    MinHeight(*min),
+                    MaxHeight(*max),
+                )
+            })
+            .collect::<Vec<_>>()
+    }
+    // ------------------------------------------------------------------------
+    //TODO check if this redundant arc ref allocation can be fixed
+    #[allow(clippy::redundant_allocation)]
+    pub(crate) fn new_strip(
+        start: TerrainTileId<TILE_SIZE>,
+        heightmap: Arc<&'heightmap TerrainHeightMap>,
+    ) -> Self {
+        Self {
+            start_tile: start,
+            heightmap,
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl<const TILE_SIZE: u32> TerrainTileId<TILE_SIZE> {
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn new(x: u8, y: u8) -> Self {
+        Self(x, y)
+    }
+    // ------------------------------------------------------------------------
+    #[allow(dead_code)]
+    #[inline(always)]
+    pub fn x(&self) -> u8 {
+        self.0
+    }
+    // ------------------------------------------------------------------------
+    #[allow(dead_code)]
+    #[inline(always)]
+    pub fn y(&self) -> u8 {
+        self.1
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn sampling_offset(&self) -> UVec2 {
+        uvec2(self.0 as u32 * TILE_SIZE, self.1 as u32 * TILE_SIZE)
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn half_extent(&self) -> UVec2 {
+        uvec2(TILE_SIZE / 2, TILE_SIZE / 2)
+    }
+    // ------------------------------------------------------------------------
+    const fn tile_size(&self) -> u32 {
+        TILE_SIZE
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
