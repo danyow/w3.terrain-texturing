@@ -16,6 +16,8 @@ pub use self::images::UiImages;
 #[derive(Default)]
 pub struct UiState {
     fullscreen: bool,
+    project_open: bool,
+    project_is_loading: bool,
 
     progress: ProgressTracking,
     // FIXME this should be some kind of brush state
@@ -32,6 +34,7 @@ pub enum GuiAction {
     UpdateAtmosphereSetting(AtmosphereSetting),
     ToggleFullscreen,
     QuitRequest,
+    DebugCloseProject,
     DebugLoadTerrain(Box<config::TerrainConfig>),
 }
 // ----------------------------------------------------------------------------
@@ -174,6 +177,7 @@ fn handle_editor_events(
             ProgressTrackingUpdate(update) => {
                 ui_state.progress.update(update);
             }
+            StateChange(new_state) => ui_state.update(*new_state),
         }
     }
 }
@@ -210,7 +214,7 @@ fn handle_ui_actions(
                 update::update_atmosphere_settings(setting, &mut atmosphere_settings)
             }
             // TODO should be removed late
-            GuiAction::DebugLoadTerrain(_) => {}
+            GuiAction::DebugLoadTerrain(_) | GuiAction::DebugCloseProject => {}
         }
     }
 }
@@ -227,9 +231,34 @@ fn handle_ui_debug_actions(
                 *worldconf = (**new_config).clone();
                 app_state.overwrite_set(EditorState::TerrainLoading).ok();
             }
+            GuiAction::DebugCloseProject => {
+                app_state.overwrite_set(EditorState::NoTerrainData).ok();
+            }
             _ => {}
         }
     }
+}
+// ----------------------------------------------------------------------------
+impl UiState {
+    // ------------------------------------------------------------------------
+    fn update(&mut self, editor_state: EditorState) {
+        match editor_state {
+            EditorState::Initialization => {}
+            EditorState::NoTerrainData => {
+                self.project_open = false;
+                self.project_is_loading = false;
+            }
+            EditorState::TerrainLoading => {
+                self.project_open = false;
+                self.project_is_loading = true;
+            }
+            EditorState::Editing => {
+                self.project_open = true;
+                self.project_is_loading = false;
+            }
+        }
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 // debug

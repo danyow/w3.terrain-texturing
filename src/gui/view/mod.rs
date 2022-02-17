@@ -12,7 +12,7 @@ pub(super) fn show_ui(
     if ui_state.fullscreen {
         return;
     }
-    menu::show(&egui_ctx, &mut gui_event);
+    menu::show(&egui_ctx, &ui_state, &mut gui_event);
 
     egui::SidePanel::right("side_panel")
         .width_range(300.0..=450.0)

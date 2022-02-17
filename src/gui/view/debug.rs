@@ -2,12 +2,19 @@
 #[rustfmt::skip]
 pub(super) fn show_debug_menu(
     ui: &mut egui::Ui,
+    ui_state: &UiState,
     gui_event: &mut EventWriter<GuiAction>,
 ) {
     use crate::config::TerrainConfig;
-    use GuiAction::DebugLoadTerrain;
+    use GuiAction::{DebugCloseProject, DebugLoadTerrain};
+
+    ui.set_enabled(!ui_state.project_is_loading);
 
     ui.menu_button("Debug", |ui| {
+        if ui.add_enabled(ui_state.project_open, Button::new("unload terrain")).clicked() { gui_event.send(DebugCloseProject) }
+        ui.separator();
+
+        ui.set_enabled(!ui_state.project_open);
         ui.label("Prolog");
         if ui.button("Load Prolog (256)").clicked() { gui_event.send(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(256)))) }
         if ui.button("Load Prolog (512)").clicked() { gui_event.send(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(512)))) }
@@ -21,7 +28,7 @@ pub(super) fn show_debug_menu(
 }
 // ----------------------------------------------------------------------------
 use bevy::prelude::EventWriter;
-use bevy_egui::egui;
+use bevy_egui::egui::{self, Button};
 
-use crate::gui::GuiAction;
+use crate::gui::{GuiAction, UiState};
 // ----------------------------------------------------------------------------

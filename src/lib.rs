@@ -29,9 +29,10 @@ mod texturearray;
 mod cmds;
 mod gui;
 // ----------------------------------------------------------------------------
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
 enum EditorState {
     Initialization,
+    NoTerrainData,
     TerrainLoading,
     Editing,
 }
@@ -41,6 +42,7 @@ enum EditorEvent {
     TerrainTextureUpdated(terrain_material::TextureUpdatedEvent),
     ProgressTrackingStart(cmds::TrackedTaskname, Vec<cmds::TrackedProgress>),
     ProgressTrackingUpdate(cmds::TrackedProgress),
+    StateChange(EditorState),
 }
 // ----------------------------------------------------------------------------
 #[derive(Default)]
@@ -100,6 +102,17 @@ fn handle_setup_errors(
             app_exit_events.send(AppExit);
         }
     }
+}
+// ----------------------------------------------------------------------------
+fn finish_intialization(mut app_state: ResMut<State<EditorState>>) {
+    app_state.overwrite_set(EditorState::NoTerrainData).unwrap();
+}
+// ----------------------------------------------------------------------------
+fn signal_editor_state_change(
+    app_state: Res<State<EditorState>>,
+    mut editor_events: EventWriter<EditorEvent>,
+) {
+    editor_events.send(EditorEvent::StateChange(*app_state.current()));
 }
 // ----------------------------------------------------------------------------
 type TaskResult = Task<Result<TaskResultData, String>>;
@@ -168,6 +181,7 @@ impl Plugin for EditorPlugin {
 
         // --- state systems definition ---------------------------------------
         EditorState::initialization(app);
+        EditorState::no_terrain_data(app);
         EditorState::terrain_loading(app);
         EditorState::terrain_editing(app);
         // --- state systems definition END -----------------------------------
@@ -188,14 +202,41 @@ impl EditorState {
                 .label("default_materialset")
                 .after("default_resources"),
         )
-        .add_startup_system(gui::initialize_ui.after("default_materialset"));
+        .add_startup_system(
+            gui::initialize_ui
+                .label("init_ui")
+                .after("default_materialset"),
+        )
+        // there is no update phase in initialization, just transit to next state
+        .add_startup_system(finish_intialization.after("init_ui"));
+    }
+    // ------------------------------------------------------------------------
+    /// close project / unload terrain state
+    fn no_terrain_data(app: &mut App) {
+        use EditorState::NoTerrainData;
+
+        app.add_system_set(
+            SystemSet::on_enter(NoTerrainData).with_system(signal_editor_state_change),
+        );
+
+        app.add_system_set(
+            SystemSet::on_update(NoTerrainData)
+                .with_system(hotkeys)
+                .with_system(daylight_cycle),
+        )
+        // plugins
+        .add_system_set(TerrainTilesGeneratorPlugin::reset_data(NoTerrainData))
+        .add_system_set(MaterialSetPlugin::setup_default_materialset(NoTerrainData))
+        .add_system_set(CameraPlugin::active_free_camera(NoTerrainData));
     }
     // ------------------------------------------------------------------------
     /// load project / terrain data state
     fn terrain_loading(app: &mut App) {
         use EditorState::TerrainLoading;
 
-        app.add_system_set(SystemSet::on_enter(TerrainLoading).with_system(setup_terrain_loading));
+        app.add_system_set(SystemSet::on_enter(TerrainLoading)
+            .with_system(signal_editor_state_change)
+            .with_system(setup_terrain_loading));
 
         app.add_system_set(
             SystemSet::on_update(TerrainLoading)
@@ -214,6 +255,9 @@ impl EditorState {
     /// main editing state
     fn terrain_editing(app: &mut App) {
         use EditorState::Editing;
+
+        app.add_system_set(SystemSet::on_enter(Editing)
+            .with_system(signal_editor_state_change));
 
         app.add_system_set(
             SystemSet::on_update(Editing)
@@ -254,7 +298,7 @@ struct SunSettings {
 impl Default for SunSettings {
     fn default() -> Self {
         Self {
-            cycle_active: true,
+            cycle_active: false,
             cycle_speed: 4.0,
             pos: 0.25,
             distance: 10.0,

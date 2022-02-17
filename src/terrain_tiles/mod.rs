@@ -48,6 +48,10 @@ impl TerrainTilesGeneratorPlugin {
             .with_system(async_tilemesh_generation.label(MeshGeneration))
     }
     // ------------------------------------------------------------------------
+    pub fn reset_data<T: StateData>(state: T) -> SystemSet {
+        SystemSet::on_enter(state).with_system(despawn_tiles)
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainTilesGeneratorPlugin {
@@ -409,6 +413,12 @@ fn generate_tiles(
             )
         })
         .collect::<Vec<_>>()
+}
+// ----------------------------------------------------------------------------
+fn despawn_tiles(mut commands: Commands, tiles: Query<Entity, With<TerrainTileComponent>>) {
+    for tile in tiles.iter() {
+        commands.entity(tile).despawn();
+    }
 }
 // ----------------------------------------------------------------------------
 impl Default for MeshReduction {

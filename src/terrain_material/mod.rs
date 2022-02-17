@@ -111,8 +111,12 @@ pub(super) fn setup_default_materialset(
     textures: Res<Assets<Image>>,
     mut texture_arrays: ResMut<Assets<TextureArray>>,
     mut materialset: ResMut<TerrainMaterialSet>,
+    mut editor_events: EventWriter<EditorEvent>,
 ) {
+    use EditorEvent::TerrainTextureUpdated;
     use TextureFormat::Rgba8UnormSrgb;
+    use TextureType::*;
+
     debug!("generating default material pallete.start");
 
     let logo = textures.get(&placeholder.logo).expect("loaded logo");
@@ -151,19 +155,32 @@ pub(super) fn setup_default_materialset(
     let placeholder_diffuse = TextureArray::generate_mips(placeholder_diffuse, &mip_sizes);
     let placeholder_normal = TextureArray::generate_mips(placeholder_normal, &mip_sizes);
 
-    for _ in 1..=31 {
+    let mut update_events = Vec::with_capacity(2 * 31);
+
+    for slot in 0..31 {
         diffuse_array.add_texture_with_mips(placeholder_diffuse.clone());
-        // diffuse_array.add_texture(placeholder_diffuse.clone());
+
+        update_events.push(TerrainTextureUpdated(TextureUpdatedEvent(
+            slot.into(),
+            Diffuse,
+        )));
     }
     materialset.diffuse = texture_arrays.add(diffuse_array.build());
 
     let mut normal_array =
         TextureArrayBuilder::new(dim as u32, 31, Rgba8UnormSrgb, TERRAIN_TEXTURE_MIP_LEVELS);
-    for _ in 1..=31 {
+    for slot in 0..31 {
         normal_array.add_texture_with_mips(placeholder_normal.clone());
-        // normal_array.add_texture(placeholder_normal.clone());
+
+        update_events.push(TerrainTextureUpdated(TextureUpdatedEvent(
+            slot.into(),
+            Normal,
+        )));
     }
     materialset.normal = texture_arrays.add(normal_array.build());
+
+    // notify editor to update preview images in ui
+    editor_events.send_batch(update_events.drain(..));
 
     debug!("generating default material pallete.end");
 }

@@ -1,6 +1,10 @@
 // ----------------------------------------------------------------------------
 #[inline]
-pub fn show(egui_ctx: &Res<EguiContext>, gui_event: &mut EventWriter<GuiAction>) {
+pub fn show(
+    egui_ctx: &Res<EguiContext>,
+    ui_state: &UiState,
+    gui_event: &mut EventWriter<GuiAction>,
+) {
     egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx(), |ui| {
         egui::menu::bar(ui, |ui| {
             ui.menu_button("Project", |ui| {
@@ -12,7 +16,7 @@ pub fn show(egui_ctx: &Res<EguiContext>, gui_event: &mut EventWriter<GuiAction>)
             {
                 ui.add_space(50.0);
                 ui.separator();
-                super::debug::show_debug_menu(ui, gui_event);
+                super::debug::show_debug_menu(ui, ui_state, gui_event);
             }
         });
     });
@@ -21,5 +25,5 @@ pub fn show(egui_ctx: &Res<EguiContext>, gui_event: &mut EventWriter<GuiAction>)
 use bevy::prelude::{EventWriter, Res};
 use bevy_egui::{egui, EguiContext};
 
-use super::GuiAction;
+use super::{GuiAction, UiState};
 // ----------------------------------------------------------------------------
