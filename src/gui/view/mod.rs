@@ -39,6 +39,12 @@ pub(super) fn show_ui(
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.label("powered by bevy & egui");
+                if let Some(task_tracking) = ui_state.progress.task() {
+                    ui.add(
+                        egui::ProgressBar::new(task_tracking.progress())
+                            .text(task_tracking.last_msg()),
+                    );
+                }
             });
         });
 }

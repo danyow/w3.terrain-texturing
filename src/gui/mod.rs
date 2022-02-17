@@ -17,6 +17,7 @@ pub use self::images::UiImages;
 pub struct UiState {
     fullscreen: bool,
 
+    progress: ProgressTracking,
     // FIXME this should be some kind of brush state
     selected_slot: Option<MaterialSlot>,
 }
@@ -68,7 +69,10 @@ pub enum AtmosphereSetting {
     ResetToDefault,
 }
 // ----------------------------------------------------------------------------
+use self::progresstracking::ProgressTracking;
+// ----------------------------------------------------------------------------
 mod images;
+mod progresstracking;
 mod update;
 mod view;
 // ----------------------------------------------------------------------------
@@ -137,6 +141,7 @@ pub(super) fn initialize_ui(
 }
 // ----------------------------------------------------------------------------
 fn handle_editor_events(
+    mut ui_state: ResMut<UiState>,
     mut egui_image_registry: ResMut<UiImages>,
     mut images: ResMut<Assets<Image>>,
     texture_arrays: Res<Assets<TextureArray>>,
@@ -162,6 +167,12 @@ fn handle_editor_events(
                         img_data,
                     );
                 }
+            }
+            ProgressTrackingStart(name, subtasks) => {
+                ui_state.progress.start_task_tracking(name, subtasks);
+            }
+            ProgressTrackingUpdate(update) => {
+                ui_state.progress.update(update);
             }
         }
     }

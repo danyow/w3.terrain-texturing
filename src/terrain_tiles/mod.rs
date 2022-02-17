@@ -18,13 +18,12 @@ use bevy::{
     tasks::{AsyncComputeTaskPool, ComputeTaskPool, TaskPool},
 };
 
-use crate::{
-    cmds::{AsyncTaskFinishedEvent, AsyncTaskStartEvent},
-    config::{TerrainConfig, TILE_SIZE},
-    heightmap::{
-        TerrainDataView, TerrainHeightMap, TerrainHeightMapView, TerrainNormals, TerrainTileId,
-    },
+use crate::cmds::{AsyncTaskFinishedEvent, AsyncTaskStartEvent, TrackedProgress};
+use crate::config::{TerrainConfig, TILE_SIZE};
+use crate::heightmap::{
+    TerrainDataView, TerrainHeightMap, TerrainHeightMapView, TerrainNormals, TerrainTileId,
 };
+use crate::EditorEvent;
 
 use TerrainTileSystemLabel::*;
 
@@ -167,13 +166,16 @@ fn start_async_terraintile_tasks(
 /// marker for tiles which require regeneration of errormap
 struct TileHeightErrorGenerationQueued;
 // ----------------------------------------------------------------------------
+#[allow(clippy::too_many_arguments)]
 fn async_errormap_generation(
     mut commands: Commands,
+    terrain_config: Res<TerrainConfig>,
     tiles: Query<(Entity, &TerrainTileComponent), With<TileHeightErrorGenerationQueued>>,
     heightmap: Res<TerrainHeightMap>,
     normals: Res<TerrainNormals>,
     thread_pool: Res<ComputeTaskPool>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
+    mut editor_events: EventWriter<EditorEvent>,
 ) {
     if !tiles.is_empty() {
         use instant::Instant;
@@ -187,6 +189,7 @@ fn async_errormap_generation(
             .iter()
             .map(|(entity, tile)| (entity, tile.id))
             .collect::<Vec<_>>();
+        let mut remaining_tiles = tiles_to_process.len();
 
         // divide into packets that are parallelized...
         let queue = &mut tiles_to_process.chunks(MESH_GENERATION_QUEUE_CHUNKSIZE);
@@ -209,6 +212,7 @@ fn async_errormap_generation(
                         }
                     });
                     for (entity, tile_errors) in generated_errormaps.drain(..) {
+                        remaining_tiles -= 1;
                         commands
                             .entity(entity)
                             .insert(tile_errors)
@@ -218,6 +222,14 @@ fn async_errormap_generation(
                 None => break,
             }
         }
+        // progress update for GUI
+        let max_tiles = terrain_config.tile_count();
+        editor_events.send(EditorEvent::ProgressTrackingUpdate(
+            TrackedProgress::GeneratedTerrainErrorMaps(
+                max_tiles.saturating_sub(remaining_tiles),
+                max_tiles,
+            ),
+        ));
 
         if queue.next().is_none() {
             task_finished.send(AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated);
@@ -250,6 +262,7 @@ fn async_tilemesh_generation(
     >,
     thread_pool: Res<AsyncComputeTaskPool>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
+    mut editor_events: EventWriter<EditorEvent>,
 ) {
     if !tiles.is_empty() {
         use instant::Instant;
@@ -261,6 +274,7 @@ fn async_tilemesh_generation(
 
         // remap tiles to cloned data
         let mut tiles_to_process = tiles.iter().collect::<Vec<_>>();
+        let mut remaining_tiles = tiles_to_process.len();
 
         // prioritize tiles which are closer to viewer (and visible) based on
         // priority
@@ -297,6 +311,7 @@ fn async_tilemesh_generation(
                     for ((entity, _, _, mesh_handle), new_mesh) in
                         package.iter().zip(generated_meshes.drain(..))
                     {
+                        remaining_tiles -= 1;
                         let mut e = commands.entity(*entity);
                         e.remove::<TileMeshGenerationQueued>();
 
@@ -315,6 +330,14 @@ fn async_tilemesh_generation(
                 None => break,
             }
         }
+        // progress update for GUI
+        let max_tiles = terrain_config.tile_count();
+        editor_events.send(EditorEvent::ProgressTrackingUpdate(
+            TrackedProgress::GeneratedTerrainMeshes(
+                max_tiles.saturating_sub(remaining_tiles),
+                max_tiles,
+            ),
+        ));
 
         if queue.next().is_none() {
             task_finished.send(AsyncTaskFinishedEvent::TerrainMeshesGenerated);

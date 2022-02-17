@@ -39,6 +39,8 @@ enum EditorState {
 /// events triggered by editor and not user (e.g. to update something in GUI)
 enum EditorEvent {
     TerrainTextureUpdated(terrain_material::TextureUpdatedEvent),
+    ProgressTrackingStart(cmds::TrackedTaskname, Vec<cmds::TrackedProgress>),
+    ProgressTrackingUpdate(cmds::TrackedProgress),
 }
 // ----------------------------------------------------------------------------
 #[derive(Default)]
@@ -106,10 +108,27 @@ enum TaskResultData {
     HeightmapData(heightmap::TerrainHeightMap),
 }
 // ----------------------------------------------------------------------------
-fn setup_terrain_loading(mut task_manager: ResMut<cmds::AsyncCommandManager>) {
+fn setup_terrain_loading(
+    terrain_config: ResMut<config::TerrainConfig>,
+    mut editor_events: EventWriter<EditorEvent>,
+    mut task_manager: ResMut<cmds::AsyncCommandManager>,
+) {
     task_manager.add_new(cmds::WaitForTerrainLoaded::default().into());
     task_manager.add_new(cmds::LoadHeightmap::default().into());
     task_manager.add_new(cmds::LoadTerrainMaterialSet::default().into());
+
+    // bigger terrains may take > 10s of loading. show a progress bar by tracking
+    // all longer running events
+    editor_events.send(EditorEvent::ProgressTrackingStart(
+        "Loading Terrain".into(),
+        vec![
+            cmds::TrackedProgress::LoadHeightmap(false),
+            cmds::TrackedProgress::GenerateHeightmapNormals(false),
+            cmds::TrackedProgress::GenerateTerrainTiles(false),
+            cmds::TrackedProgress::GeneratedTerrainErrorMaps(0, terrain_config.tile_count()),
+            cmds::TrackedProgress::GeneratedTerrainMeshes(0, terrain_config.tile_count()),
+        ],
+    ));
 }
 // ----------------------------------------------------------------------------
 fn watch_loading(

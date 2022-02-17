@@ -19,6 +19,8 @@ pub enum AsyncTask {
     WaitForTerrainLoaded,
 }
 // ----------------------------------------------------------------------------
+pub use self::progress::{TrackedTaskname, TrackedProgress};
+// ----------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
 pub enum AsyncTaskStartEvent {
     LoadHeightmap,
@@ -62,9 +64,6 @@ pub struct LoadTerrainMaterialSet;
 #[derive(Debug, Default)]
 pub struct WaitForTerrainLoaded;
 // ----------------------------------------------------------------------------
-// #[derive(Debug)]
-// pub struct LoadTerrainMaterialTexture(crate::MaterialSlot, crate::loader::TextureType, String);
-// ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
 pub(crate) use async_cmds::poll_async_task_state;
@@ -73,6 +72,7 @@ pub(crate) use async_cmds::AsyncCmdsPlugin;
 pub(crate) use async_cmds::AsyncCommandManager;
 // ----------------------------------------------------------------------------
 mod async_cmds;
+mod progress;
 // ----------------------------------------------------------------------------
 use enum_dispatch::enum_dispatch;
 // ----------------------------------------------------------------------------

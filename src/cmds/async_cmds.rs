@@ -6,12 +6,12 @@ use bevy::{prelude::*, tasks::IoTaskPool, utils::HashSet};
 use crate::config;
 use crate::heightmap::TerrainHeightMap;
 use crate::loader::LoaderPlugin;
-use crate::{TaskResult, TaskResultData};
+use crate::{EditorEvent, TaskResult, TaskResultData};
 
 use super::{
     AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, GenerateHeightmapNormals,
     GenerateTerrainMeshErrorMaps, GenerateTerrainMeshes, GenerateTerrainTiles, LoadHeightmap,
-    LoadTerrainMaterialSet, WaitForTerrainLoaded,
+    LoadTerrainMaterialSet, TrackedProgress, WaitForTerrainLoaded,
 };
 // ----------------------------------------------------------------------------
 pub struct AsyncCmdsPlugin;
@@ -94,17 +94,23 @@ pub(crate) fn start_async_operations(
     mut async_cmd_tracker: ResMut<AsyncCommandManager>,
     mut tasks_finished: EventReader<AsyncTaskFinishedEvent>,
     mut task_ready: EventWriter<AsyncTaskStartEvent>,
+    mut editor_events: EventWriter<EditorEvent>,
     thread_pool: Res<IoTaskPool>,
     terrain_config: Res<config::TerrainConfig>,
 ) {
     for task in tasks_finished.iter().copied() {
         async_cmd_tracker.update(task);
+        // generic task finished progress tracking event
+        editor_events.send(EditorEvent::ProgressTrackingUpdate(task.into()));
     }
 
     if let Some(mut new_tasks) = async_cmd_tracker.get_start_events() {
         use AsyncTaskStartEvent::*;
 
         for task in new_tasks.drain(..) {
+            // generic task started progress tracking event
+            editor_events.send(EditorEvent::ProgressTrackingUpdate(task.into()));
+
             match task {
                 // -- these tasks can be handled by futures
                 LoadHeightmap => {
@@ -240,5 +246,41 @@ impl AsyncTaskNode for WaitForTerrainLoaded {
     ]}
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::WaitForTerrainLoaded }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainLoaded }
+}
+// ----------------------------------------------------------------------------
+// mapping to progress tracking
+// ----------------------------------------------------------------------------
+impl From<AsyncTaskStartEvent> for TrackedProgress {
+    fn from(s: AsyncTaskStartEvent) -> Self {
+        use TrackedProgress::*;
+
+        match s {
+            AsyncTaskStartEvent::LoadHeightmap => LoadHeightmap(false),
+            AsyncTaskStartEvent::GenerateHeightmapNormals => GenerateHeightmapNormals(false),
+            AsyncTaskStartEvent::GenerateTerrainTiles => GenerateTerrainTiles(false),
+            AsyncTaskStartEvent::GenerateTerrainMeshErrorMaps => GeneratedTerrainErrorMaps(0, 1),
+            AsyncTaskStartEvent::GenerateTerrainMeshes => GeneratedTerrainMeshes(0, 1),
+            AsyncTaskStartEvent::LoadTerrainMaterialSet => LoadTerrainMaterialSet(0, 1),
+            AsyncTaskStartEvent::WaitForTerrainLoaded => Ignored,
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+impl From<AsyncTaskFinishedEvent> for TrackedProgress {
+    fn from(s: AsyncTaskFinishedEvent) -> Self {
+        use TrackedProgress::*;
+
+        match s {
+            AsyncTaskFinishedEvent::HeightmapLoaded => LoadHeightmap(true),
+            AsyncTaskFinishedEvent::HeightmapNormalsGenerated => GenerateHeightmapNormals(true),
+            AsyncTaskFinishedEvent::TerrainTilesGenerated => GenerateTerrainTiles(true),
+            AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated => {
+                GeneratedTerrainErrorMaps(1, 1)
+            }
+            AsyncTaskFinishedEvent::TerrainMeshesGenerated => GeneratedTerrainMeshes(1, 1),
+            AsyncTaskFinishedEvent::TerrainMaterialSetLoaded => LoadTerrainMaterialSet(1, 1),
+            AsyncTaskFinishedEvent::TerrainLoaded => Ignored,
+        }
+    }
 }
 // ----------------------------------------------------------------------------
