@@ -7,7 +7,7 @@
 /// payload!
 pub enum TrackedProgress {
     LoadHeightmap(bool),
-    GenerateHeightmapNormals(bool),
+    GeneratedHeightmapNormals(usize, usize),
     GeneratedTerrainErrorMaps(usize, usize),
     GenerateTerrainTiles(bool),
     GeneratedTerrainMeshes(usize, usize),
@@ -22,30 +22,28 @@ impl TrackedProgress {
     // ------------------------------------------------------------------------
     pub fn is_finished(&self) -> bool {
         match self {
-            Self::LoadHeightmap(b)
-            | Self::GenerateHeightmapNormals(b)
-            | Self::GenerateTerrainTiles(b) => *b,
-            Self::GeneratedTerrainErrorMaps(a, b) => *a == *b,
-            Self::GeneratedTerrainMeshes(a, b) => *a == *b,
-            Self::LoadTerrainMaterialSet(a, b) => *a == *b,
+            Self::LoadHeightmap(b) | Self::GenerateTerrainTiles(b) => *b,
+            Self::GeneratedHeightmapNormals(a, b)
+            | Self::GeneratedTerrainErrorMaps(a, b)
+            | Self::GeneratedTerrainMeshes(a, b)
+            | Self::LoadTerrainMaterialSet(a, b) => *a == *b,
             Self::Ignored => true,
         }
     }
     // ------------------------------------------------------------------------
     pub fn progress(&self) -> f32 {
         match self {
-            Self::LoadHeightmap(b)
-            | Self::GenerateHeightmapNormals(b)
-            | Self::GenerateTerrainTiles(b) => {
+            Self::LoadHeightmap(b) | Self::GenerateTerrainTiles(b) => {
                 if *b {
                     1.0
                 } else {
                     0.0
                 }
             }
-            Self::GeneratedTerrainErrorMaps(a, b) => *a as f32 / *b as f32,
-            Self::GeneratedTerrainMeshes(a, b) => *a as f32 / *b as f32,
-            Self::LoadTerrainMaterialSet(a, b) => *a as f32 / *b as f32,
+            Self::GeneratedHeightmapNormals(a, b)
+            | Self::GeneratedTerrainErrorMaps(a, b)
+            | Self::GeneratedTerrainMeshes(a, b)
+            | Self::LoadTerrainMaterialSet(a, b) => *a as f32 / *b as f32,
             Self::Ignored => 1.0,
         }
     }
@@ -57,7 +55,9 @@ impl TrackedProgress {
     pub fn progress_msg(&self) -> String {
         match self {
             Self::LoadHeightmap(_) => "loading heighmap...".to_string(),
-            Self::GenerateHeightmapNormals(_) => "generating normals...".to_string(),
+            Self::GeneratedHeightmapNormals(_, _) => {
+                Self::format_progress("generating normals", self.progress())
+            }
             Self::GenerateTerrainTiles(_) => "generating tiles...".to_string(),
             Self::GeneratedTerrainErrorMaps(_, _) => {
                 Self::format_progress("generating error maps", self.progress())
@@ -75,7 +75,7 @@ impl TrackedProgress {
     pub fn finished_msg(&self) -> &str {
         match self {
             Self::LoadHeightmap(_) => "heightmap loaded.",
-            Self::GenerateHeightmapNormals(_) => "heightmap normals generated.",
+            Self::GeneratedHeightmapNormals(_, _) => "heightmap normals generated.",
             Self::GenerateTerrainTiles(_) => "mesh tile info generated.",
             Self::GeneratedTerrainErrorMaps(_, _) => "terrain mesh generation finished.",
             Self::GeneratedTerrainMeshes(_, _) => "terrain mesh generation finished.",
@@ -95,7 +95,7 @@ impl hash::Hash for TrackedProgress {
         match self {
             Ignored => state.write_u8(0),
             LoadHeightmap(_) => state.write_u8(1),
-            GenerateHeightmapNormals(_) => state.write_u8(5),
+            GeneratedHeightmapNormals(_, _) => state.write_u8(5),
             GenerateTerrainTiles(_) => state.write_u8(6),
             GeneratedTerrainErrorMaps(_, _) => state.write_u8(7),
             GeneratedTerrainMeshes(_, _) => state.write_u8(8),
@@ -110,7 +110,7 @@ impl cmp::PartialEq for TrackedProgress {
         match self {
             Ignored => matches!(other, Ignored),
             LoadHeightmap(_) => matches!(other, LoadHeightmap(_)),
-            GenerateHeightmapNormals(_) => matches!(other, GenerateHeightmapNormals(_)),
+            GeneratedHeightmapNormals(_, _) => matches!(other, GeneratedHeightmapNormals(_, _)),
             GenerateTerrainTiles(_) => matches!(other, GenerateTerrainTiles(_)),
             GeneratedTerrainErrorMaps(_, _) => matches!(other, GeneratedTerrainErrorMaps(_, _)),
             GeneratedTerrainMeshes(_, _) => matches!(other, GeneratedTerrainMeshes(_, _)),

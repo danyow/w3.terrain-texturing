@@ -9,9 +9,10 @@ use bevy::ecs::schedule::StateData;
 use bevy::math::uvec2;
 use bevy::prelude::*;
 
-use crate::cmds::{AsyncTaskFinishedEvent, AsyncTaskStartEvent};
+use crate::cmds::{AsyncTaskFinishedEvent, AsyncTaskStartEvent, TrackedProgress};
 use crate::compute::{AppComputeNormalsTask, ComputeResultData, ComputeResults};
 use crate::config::{TerrainConfig, TILE_SIZE};
+use crate::EditorEvent;
 // ----------------------------------------------------------------------------
 pub struct HeightmapPlugin;
 // ----------------------------------------------------------------------------
@@ -113,6 +114,7 @@ fn generate_heightmap_normals(
     mut commands: Commands,
     mut tasks_queued: EventReader<AsyncTaskStartEvent>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
+    mut editor_events: EventWriter<EditorEvent>,
     mut terrain_normals: ResMut<TerrainNormals>,
     mut compute_queue: ResMut<ComputeNormalsTaskQueue>,
     terrain_heightmap: Res<TerrainHeightMap>,
@@ -221,6 +223,17 @@ fn generate_heightmap_normals(
 
         // cleanup finished compute task trigger
         commands.entity(taskid).despawn();
+
+        // progress update for GUI
+        let data_width = terrain_heightmap.size as usize;
+        let max_tasks = data_width / data_width.min(COMPUTE_NORMALS_MAX_ROWS);
+
+        editor_events.send(EditorEvent::ProgressTrackingUpdate(
+            TrackedProgress::GeneratedHeightmapNormals(
+                max_tasks.saturating_sub(compute_queue.pending),
+                max_tasks,
+            ),
+        ));
 
         if compute_queue.finished(1) {
             terrain_normals.set_changed();

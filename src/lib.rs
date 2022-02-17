@@ -123,7 +123,7 @@ fn setup_terrain_loading(
         "Loading Terrain".into(),
         vec![
             cmds::TrackedProgress::LoadHeightmap(false),
-            cmds::TrackedProgress::GenerateHeightmapNormals(false),
+            cmds::TrackedProgress::GeneratedHeightmapNormals(0, 1),
             cmds::TrackedProgress::GenerateTerrainTiles(false),
             cmds::TrackedProgress::GeneratedTerrainErrorMaps(0, terrain_config.tile_count()),
             cmds::TrackedProgress::GeneratedTerrainMeshes(0, terrain_config.tile_count()),

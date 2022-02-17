@@ -256,7 +256,7 @@ impl From<AsyncTaskStartEvent> for TrackedProgress {
 
         match s {
             AsyncTaskStartEvent::LoadHeightmap => LoadHeightmap(false),
-            AsyncTaskStartEvent::GenerateHeightmapNormals => GenerateHeightmapNormals(false),
+            AsyncTaskStartEvent::GenerateHeightmapNormals => GeneratedHeightmapNormals(0, 1),
             AsyncTaskStartEvent::GenerateTerrainTiles => GenerateTerrainTiles(false),
             AsyncTaskStartEvent::GenerateTerrainMeshErrorMaps => GeneratedTerrainErrorMaps(0, 1),
             AsyncTaskStartEvent::GenerateTerrainMeshes => GeneratedTerrainMeshes(0, 1),
@@ -272,7 +272,7 @@ impl From<AsyncTaskFinishedEvent> for TrackedProgress {
 
         match s {
             AsyncTaskFinishedEvent::HeightmapLoaded => LoadHeightmap(true),
-            AsyncTaskFinishedEvent::HeightmapNormalsGenerated => GenerateHeightmapNormals(true),
+            AsyncTaskFinishedEvent::HeightmapNormalsGenerated => GeneratedHeightmapNormals(1, 1),
             AsyncTaskFinishedEvent::TerrainTilesGenerated => GenerateTerrainTiles(true),
             AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated => {
                 GeneratedTerrainErrorMaps(1, 1)
