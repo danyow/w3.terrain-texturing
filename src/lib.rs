@@ -24,6 +24,7 @@ mod terrain_tiles;
 mod camera;
 mod compute;
 mod resource;
+mod terrain_render;
 mod texturearray;
 
 mod cmds;
@@ -167,6 +168,7 @@ impl Plugin for EditorPlugin {
             .add_plugin(heightmap::HeightmapPlugin)
             .add_plugin(terrain_material::MaterialSetPlugin)
             .add_plugin(terrain_tiles::TerrainTilesGeneratorPlugin)
+            .add_plugin(terrain_render::TerrainRenderPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012
                 movement_speed: 122.0,         // default: 12.0
@@ -234,9 +236,11 @@ impl EditorState {
     fn terrain_loading(app: &mut App) {
         use EditorState::TerrainLoading;
 
-        app.add_system_set(SystemSet::on_enter(TerrainLoading)
-            .with_system(signal_editor_state_change)
-            .with_system(setup_terrain_loading));
+        app.add_system_set(
+            SystemSet::on_enter(TerrainLoading)
+                .with_system(signal_editor_state_change)
+                .with_system(setup_terrain_loading),
+        );
 
         app.add_system_set(
             SystemSet::on_update(TerrainLoading)
@@ -256,8 +260,7 @@ impl EditorState {
     fn terrain_editing(app: &mut App) {
         use EditorState::Editing;
 
-        app.add_system_set(SystemSet::on_enter(Editing)
-            .with_system(signal_editor_state_change));
+        app.add_system_set(SystemSet::on_enter(Editing).with_system(signal_editor_state_change));
 
         app.add_system_set(
             SystemSet::on_update(Editing)
