@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use bevy::{
     ecs::schedule::StateData,
-    math::{vec3, Vec2, Vec3},
+    math::{vec3, Vec2, Vec3, Vec3Swizzles},
     prelude::*,
     render::primitives::Aabb,
     tasks::{AsyncComputeTaskPool, ComputeTaskPool, TaskPool},
@@ -30,6 +30,11 @@ use TerrainTileSystemLabel::*;
 use self::generator::TileHeightErrors;
 // ----------------------------------------------------------------------------
 pub struct TerrainTilesGeneratorPlugin;
+
+pub use self::settings::{LodSlot, TerrainMeshSettings};
+// ----------------------------------------------------------------------------
+#[derive(Component)]
+pub struct TerrainLodAnchor;
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Hash, Eq, PartialEq, SystemLabel)]
 pub enum TerrainTileSystemLabel {
@@ -39,13 +44,15 @@ pub enum TerrainTileSystemLabel {
 // ----------------------------------------------------------------------------
 impl TerrainTilesGeneratorPlugin {
     // ------------------------------------------------------------------------
-    /// async (re)generation of terrain tiles, errormaps, meshes based on camera
+    /// async (re)generation of terrain tiles, errormaps, meshes based on lod_anchor
     /// position changes
     pub fn lazy_generation<T: StateData>(state: T) -> SystemSet {
         SystemSet::on_update(state)
             .with_system(start_async_terraintile_tasks)
             .with_system(async_errormap_generation.label(ErrorMapGeneration))
             .with_system(async_tilemesh_generation.label(MeshGeneration))
+            .with_system(adjust_tile_mesh_lod.before(MeshGeneration))
+            .with_system(adjust_meshes_on_config_change.before(MeshGeneration))
     }
     // ------------------------------------------------------------------------
     pub fn reset_data<T: StateData>(state: T) -> SystemSet {
@@ -56,7 +63,9 @@ impl TerrainTilesGeneratorPlugin {
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainTilesGeneratorPlugin {
     // ------------------------------------------------------------------------
-    fn build(&self, _app: &mut App) {}
+    fn build(&self, app: &mut App) {
+        app.init_resource::<TerrainMeshSettings>();
+    }
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
@@ -78,6 +87,7 @@ struct MeshReduction {
 }
 // ----------------------------------------------------------------------------
 mod generator;
+mod settings;
 // ----------------------------------------------------------------------------
 impl TerrainTileComponent {
     // ------------------------------------------------------------------------
@@ -413,6 +423,63 @@ fn generate_tiles(
             )
         })
         .collect::<Vec<_>>()
+}
+// ----------------------------------------------------------------------------
+fn update_tilemesh_lods(
+    mut commands: Commands,
+    settings: Res<TerrainMeshSettings>,
+    lod_anchor: &Transform,
+    mut query: Query<(Entity, &ComputedVisibility, &mut TerrainTileComponent)>,
+) {
+    for (entity, vis, mut tile) in query.iter_mut() {
+        // FIXME either 2d or 3d distance to tilecenter
+        let distance = tile.pos_center.xz().distance(lod_anchor.translation.xz());
+        // let distance = tile.pos_center.distance(lod_anchor.translation);
+        let settings = settings.lod_settings_from_distance(distance);
+
+        tile.mesh_conf.target = settings.threshold;
+
+        if tile.mesh_conf.target != tile.mesh_conf.current {
+            commands.entity(entity).insert(TileMeshGenerationQueued);
+
+            // adjust priority based on distance from lod_anchor and visibility
+            tile.mesh_conf.priority = if vis.is_visible {
+                distance as u32
+            } else {
+                // adding big num will push priority after all visibles
+                // asummption: distance >= 1_000_000 are not used
+                distance as u32 + 1_000_000
+            };
+            tile.mesh_conf.current = tile.mesh_conf.target;
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+fn adjust_meshes_on_config_change(
+    commands: Commands,
+    settings: Res<TerrainMeshSettings>,
+    lod_anchor: Query<&Transform, With<TerrainLodAnchor>>,
+    query: Query<(Entity, &ComputedVisibility, &mut TerrainTileComponent)>,
+) {
+    if settings.is_changed() {
+        if let Ok(lod_anchor) = lod_anchor.get_single() {
+            update_tilemesh_lods(commands, settings, lod_anchor, query);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+fn adjust_tile_mesh_lod(
+    commands: Commands,
+    settings: Res<TerrainMeshSettings>,
+    lod_anchor: Query<&Transform, With<TerrainLodAnchor>>,
+    query: Query<(Entity, &ComputedVisibility, &mut TerrainTileComponent)>,
+) {
+    if !settings.ignore_anchor {
+        // TODO add hysteresis for current anchor pos
+        if let Ok(lod_anchor) = lod_anchor.get_single() {
+            update_tilemesh_lods(commands, settings, lod_anchor, query);
+        }
+    }
 }
 // ----------------------------------------------------------------------------
 fn despawn_tiles(mut commands: Commands, tiles: Query<Entity, With<TerrainTileComponent>>) {

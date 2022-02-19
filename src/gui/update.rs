@@ -3,9 +3,10 @@ use bevy::prelude::*;
 
 use crate::atmosphere::AtmosphereMat;
 use crate::terrain_material::{MaterialSlot, TerrainMaterialSet};
+use crate::terrain_tiles::TerrainMeshSettings;
 use crate::SunSettings;
 
-use super::{AtmosphereSetting, MaterialSetting, SunSetting};
+use super::{AtmosphereSetting, MaterialSetting, MeshSetting, SunSetting};
 // ----------------------------------------------------------------------------
 #[inline]
 pub(super) fn update_material_settings(
@@ -60,6 +61,25 @@ pub(super) fn update_atmosphere_settings(
             SetMieScaleHeight(scale) => atmosphere.set_mie_scale_height(*scale),
             SetMieScatteringDirection(direction) => atmosphere.set_mie_scattering_direction(*direction),
             ResetToDefault => **atmosphere = AtmosphereMat::default(),
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[rustfmt::skip]
+pub(super) fn update_mesh_settings(
+    action: &MeshSetting,
+    mesh_settings: &mut Option<ResMut<TerrainMeshSettings>>,
+) {
+    if let Some(mesh) = mesh_settings {
+        match action {
+            MeshSetting::SetLodCount(count) => mesh.set_lodcount(*count),
+            MeshSetting::SetLodMinError(error) => mesh.set_min_error(*error),
+            MeshSetting::SetLodMaxError(error) => mesh.set_max_error(*error),
+            MeshSetting::SetLodMaxDistance(distance) => mesh.set_max_distance(*distance),
+            MeshSetting::SetLodError(slot, error) => mesh.set_lod_error(*slot, *error),
+            MeshSetting::SetLodDistance(slot, distance) => mesh.set_lod_distance(*slot, *distance),
+            MeshSetting::FreezeLods => mesh.ignore_anchor = !mesh.ignore_anchor,
+            MeshSetting::ResetToDefault => **mesh = TerrainMeshSettings::default(),
         }
     }
 }

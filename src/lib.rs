@@ -269,7 +269,8 @@ impl EditorState {
         )
         // plugins
         .add_system_set(CameraPlugin::active_free_camera(Editing))
-        .add_system_set(MaterialSetPlugin::terrain_material_loading(Editing));
+        .add_system_set(MaterialSetPlugin::terrain_material_loading(Editing))
+        .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(Editing));
     }
     // ------------------------------------------------------------------------
 }

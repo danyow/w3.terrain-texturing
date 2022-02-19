@@ -5,6 +5,7 @@ use bevy_egui::EguiContext;
 use crate::atmosphere::AtmosphereMat;
 use crate::config;
 use crate::terrain_material::{MaterialSlot, TerrainMaterialSet, TextureType, TextureUpdatedEvent};
+use crate::terrain_tiles::{LodSlot, TerrainMeshSettings};
 use crate::texturearray::TextureArray;
 use crate::SunSettings;
 use crate::{EditorEvent, EditorState};
@@ -32,6 +33,7 @@ pub enum GuiAction {
     UpdateMaterial(MaterialSlot, MaterialSetting),
     UpdateSunSetting(SunSetting),
     UpdateAtmosphereSetting(AtmosphereSetting),
+    UpdateMeshSetting(MeshSetting),
     ToggleFullscreen,
     QuitRequest,
     DebugCloseProject,
@@ -69,6 +71,18 @@ pub enum AtmosphereSetting {
     SetMieScattering(f32),
     SetMieScaleHeight(f32),
     SetMieScatteringDirection(f32),
+    ResetToDefault,
+}
+// ----------------------------------------------------------------------------
+#[derive(Debug)]
+pub enum MeshSetting {
+    SetLodCount(u8),
+    SetLodMinError(f32),
+    SetLodMaxError(f32),
+    SetLodMaxDistance(f32),
+    SetLodError(LodSlot, f32),
+    SetLodDistance(LodSlot, f32),
+    FreezeLods,
     ResetToDefault,
 }
 // ----------------------------------------------------------------------------
@@ -189,6 +203,7 @@ fn handle_ui_actions(
     mut materialset: Option<ResMut<TerrainMaterialSet>>,
     mut sun_settings: Option<ResMut<SunSettings>>,
     mut atmosphere_settings: Option<ResMut<AtmosphereMat>>,
+    mut mesh_settings: Option<ResMut<TerrainMeshSettings>>,
 ) {
     for action in ui_action.iter() {
         match action {
@@ -212,6 +227,9 @@ fn handle_ui_actions(
             }
             GuiAction::UpdateAtmosphereSetting(setting) => {
                 update::update_atmosphere_settings(setting, &mut atmosphere_settings)
+            }
+            GuiAction::UpdateMeshSetting(setting) => {
+                update::update_mesh_settings(setting, &mut mesh_settings)
             }
             // TODO should be removed late
             GuiAction::DebugLoadTerrain(_) | GuiAction::DebugCloseProject => {}
