@@ -575,10 +575,6 @@ impl TileMesh {
     // ------------------------------------------------------------------------
     pub(super) fn mesh(mut self) -> TerrainMesh {
         let mut mesh = TerrainMesh::new(PrimitiveTopology::TriangleList);
-        mesh.set_attribute(
-            TerrainMesh::ATTRIBUTE_UV_0,
-            vec![[0.0; 2]; self.vertices.len()],
-        );
         mesh.set_attribute(TerrainMesh::ATTRIBUTE_POSITION, self.vertices);
         mesh.set_attribute(TerrainMesh::ATTRIBUTE_NORMAL, self.normals);
         if let Some(coords) = self.barycentric.take() {
