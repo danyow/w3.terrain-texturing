@@ -19,6 +19,8 @@ pub struct LodSlot(u8);
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct TerrainLodSettings {
+    /// level for debugging
+    pub level: u8,
     /// starting distance for lod in meters
     pub distance: f32,
     /// errormap threshold in meters
@@ -27,8 +29,9 @@ pub struct TerrainLodSettings {
 // ----------------------------------------------------------------------------
 impl TerrainLodSettings {
     // ------------------------------------------------------------------------
-    fn new(start_distance: f32, error_threshold: f32) -> Self {
+    fn new(level: u8, start_distance: f32, error_threshold: f32) -> Self {
         Self {
+            level,
             distance: start_distance,
             threshold: error_threshold,
         }
@@ -39,7 +42,7 @@ impl TerrainLodSettings {
 impl Default for TerrainMeshSettings {
     fn default() -> Self {
         let mut s = Self {
-            ignore_anchor: true,
+            ignore_anchor: false,
             lod_count: 3,
             min_error: 0.01,
             max_error: 1.0,
@@ -145,6 +148,7 @@ impl TerrainMeshSettings {
                     .map(|i| {
                         let step = (i - 1) as f32 / new_lods as f32;
                         TerrainLodSettings::new(
+                            (i - 1) as u8,
                             self.max_distance * step,
                             self.min_error + (self.max_error - self.min_error) * step,
                         )
@@ -161,6 +165,7 @@ impl TerrainMeshSettings {
                 for i in 1..=new_lods {
                     let step = i as f32 / new_lods as f32;
                     self.lods.push(TerrainLodSettings::new(
+                        self.lods.len() as u8,
                         last_lod_distance + (self.max_distance - last_lod_distance) * step,
                         last_lod_threshold + (self.max_error - last_lod_threshold) * step,
                     ));

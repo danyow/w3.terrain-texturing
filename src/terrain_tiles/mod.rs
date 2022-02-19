@@ -79,8 +79,17 @@ pub struct TerrainTileComponent {
     pos_center: Vec3,
 }
 // ----------------------------------------------------------------------------
+impl TerrainTileComponent {
+    // ------------------------------------------------------------------------
+    pub fn assigned_lod(&self) -> u8 {
+        self.mesh_conf.lod
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
 #[derive(Clone)]
 struct MeshReduction {
+    lod: u8,
     current: f32,
     target: f32,
     priority: u32,
@@ -432,9 +441,10 @@ fn update_tilemesh_lods(
     mut query: Query<(Entity, &ComputedVisibility, &mut TerrainTileComponent)>,
 ) {
     for (entity, vis, mut tile) in query.iter_mut() {
-        // FIXME either 2d or 3d distance to tilecenter
-        let distance = tile.pos_center.xz().distance(lod_anchor.translation.xz());
-        // let distance = tile.pos_center.distance(lod_anchor.translation);
+        // manhatten metric
+        let distance = (tile.pos_center.xz() - lod_anchor.translation.xz())
+            .abs()
+            .max_element();
         let settings = settings.lod_settings_from_distance(distance);
 
         tile.mesh_conf.target = settings.threshold;
@@ -450,6 +460,7 @@ fn update_tilemesh_lods(
                 // asummption: distance >= 1_000_000 are not used
                 distance as u32 + 1_000_000
             };
+            tile.mesh_conf.lod = settings.level;
             tile.mesh_conf.current = tile.mesh_conf.target;
         }
     }
@@ -491,6 +502,7 @@ fn despawn_tiles(mut commands: Commands, tiles: Query<Entity, With<TerrainTileCo
 impl Default for MeshReduction {
     fn default() -> Self {
         Self {
+            lod: 255,
             current: f32::MAX,
             // make target error threshold "high" by default so new terrain is
             // showed quicker and only near tiles are "upgraded"

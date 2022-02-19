@@ -29,6 +29,8 @@ use bevy::{
     },
 };
 
+use crate::terrain_tiles::TerrainTileComponent;
+
 use super::TerrainMesh;
 // ----------------------------------------------------------------------------
 // render cmds
@@ -176,6 +178,7 @@ impl SpecializedPipeline for TerrainMeshRenderPipeline {
 pub struct TerrainMeshUniform {
     pub transform: Mat4,
     inverse_transpose_model: Mat4,
+    lod: u32,
 }
 // ----------------------------------------------------------------------------
 pub struct TerrainMeshBindGroup {
@@ -262,10 +265,11 @@ pub(super) fn extract_meshes(
         &ComputedVisibility,
         &GlobalTransform,
         &Handle<TerrainMesh>,
+        &TerrainTileComponent,
     )>,
 ) {
     let mut tiles = Vec::with_capacity(*previous_tile_count);
-    for (entity, computed_visibility, transform, mesh_handle) in terrainmesh_query.iter() {
+    for (entity, computed_visibility, transform, mesh_handle, tile) in terrainmesh_query.iter() {
         if !computed_visibility.is_visible {
             continue;
         }
@@ -276,6 +280,7 @@ pub(super) fn extract_meshes(
                 TerrainMeshUniform {
                     transform,
                     inverse_transpose_model: transform.inverse().transpose(),
+                    lod: tile.assigned_lod() as u32,
                 },
                 mesh_handle.clone_weak(),
             ),
