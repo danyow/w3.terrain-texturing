@@ -8,18 +8,17 @@
 use bevy::prelude::{App, ClearColor, Color, WindowDescriptor};
 use bevy::DefaultPlugins;
 
-use bevy::render::options::{WgpuFeatures, WgpuOptions};
+use bevy::render::settings::{WgpuFeatures, WgpuSettings};
 use terrain_editor::EditorPlugin;
 // ----------------------------------------------------------------------------
 fn main() {
     let mut app = App::new();
 
     app.insert_resource(ClearColor(Color::rgb(0.4, 0.4, 0.4)))
-        .insert_resource(WgpuOptions {
+        .insert_resource(WgpuSettings {
             // The Wireframe requires NonFillPolygonMode feature
             features: WgpuFeatures::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
-                | WgpuFeatures::TEXTURE_FORMAT_16BIT_NORM
-                | WgpuFeatures::POLYGON_MODE_LINE,
+                | WgpuFeatures::TEXTURE_FORMAT_16BIT_NORM,
             ..Default::default()
         })
         // .insert_resource(bevy::log::LogSettings {

@@ -109,7 +109,7 @@ use bevy::{
     prelude::*,
     render::mesh::Indices,
     render::render_resource::PrimitiveTopology,
-    utils::{AHashExt, HashMap},
+    utils::HashMap,
 };
 
 use super::{TerrainDataView, TerrainMesh, TerrainTileId, TILE_SIZE};

@@ -1,11 +1,11 @@
 // ----------------------------------------------------------------------------
 #[inline]
 pub fn show(
-    egui_ctx: &Res<EguiContext>,
+    egui_ctx: &mut EguiContext,
     ui_state: &UiState,
     gui_event: &mut EventWriter<GuiAction>,
 ) {
-    egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx(), |ui| {
+    egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx_mut(), |ui| {
         egui::menu::bar(ui, |ui| {
             ui.menu_button("Project", |ui| {
                 if ui.button("Quit").clicked() {
@@ -22,7 +22,7 @@ pub fn show(
     });
 }
 // ----------------------------------------------------------------------------
-use bevy::prelude::{EventWriter, Res};
+use bevy::prelude::EventWriter;
 use bevy_egui::{egui, EguiContext};
 
 use super::{GuiAction, UiState};

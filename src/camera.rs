@@ -94,9 +94,7 @@ fn setup_cam(mut commands: Commands, mut state: ResMut<CameraState>) {
         global_transform: Default::default(),
     };
 
-    commands
-        .spawn_bundle(perspective_cam)
-        .insert(FreeCam);
+    commands.spawn_bundle(perspective_cam).insert(FreeCam);
 }
 // ----------------------------------------------------------------------------
 // systems
@@ -156,21 +154,23 @@ fn camera_mouse_rotation(
     let window = windows.get_primary().unwrap();
     if window.cursor_locked() {
         for mut transform in query.iter_mut() {
+            let mut pitch = state.pitch;
+            let mut yaw = state.yaw;
             for ev in state.reader_motion.iter(&motion) {
                 // Using smallest of height or width ensures equal vertical and horizontal sensitivity
                 let window_scale = window.height().min(window.width());
 
-                state.pitch -=
-                    (settings.rotation_sensitivity * ev.delta.y * window_scale).to_radians();
-                state.yaw -=
-                    (settings.rotation_sensitivity * ev.delta.x * window_scale).to_radians();
+                pitch -= (settings.rotation_sensitivity * ev.delta.y * window_scale).to_radians();
+                yaw -= (settings.rotation_sensitivity * ev.delta.x * window_scale).to_radians();
 
-                state.pitch = state.pitch.clamp(-1.54, 1.54);
+                pitch = pitch.clamp(-1.54, 1.54);
 
                 // Order is important to prevent unintended roll
-                transform.rotation = Quat::from_axis_angle(Vec3::Y, state.yaw)
-                    * Quat::from_axis_angle(Vec3::X, state.pitch);
+                transform.rotation =
+                    Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);
             }
+            state.pitch = pitch;
+            state.yaw = yaw;
         }
     }
 }
