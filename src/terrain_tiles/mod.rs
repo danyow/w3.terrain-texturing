@@ -441,7 +441,7 @@ fn update_tilemesh_lods(
     mut query: Query<(Entity, &ComputedVisibility, &mut TerrainTileComponent)>,
 ) {
     for (entity, vis, mut tile) in query.iter_mut() {
-        // manhatten metric
+        // maximum metric
         let distance = (tile.pos_center.xz() - lod_anchor.translation.xz())
             .abs()
             .max_element();
