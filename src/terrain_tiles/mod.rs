@@ -143,6 +143,12 @@ impl TerrainTileComponent {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
+/// Marks a tile to be usable for mesh lod assignment based on (some) distance
+/// measure to TerrainLodAnchor. In general all mesh tiles should have adaptive
+/// lods. But if errormaps are (re)calculated any lod changes have to be stopped.
+#[derive(Component)]
+struct AdaptiveTileMeshLods;
+// ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments)]
@@ -177,7 +183,12 @@ fn start_async_terraintile_tasks(
             GenerateTerrainMeshes => {
                 debug!("generating tile meshes...");
                 tiles.iter().for_each(|entity| {
-                    commands.entity(entity).insert(TileMeshGenerationQueued);
+                    commands
+                        .entity(entity)
+                        .insert(TileMeshGenerationQueued)
+                        // from this point on the lod for the meshes may be
+                        // changed by a dedicated system
+                        .insert(AdaptiveTileMeshLods);
                 });
             }
             _ => {}
@@ -438,7 +449,10 @@ fn update_tilemesh_lods(
     mut commands: Commands,
     settings: Res<TerrainMeshSettings>,
     lod_anchor: &Transform,
-    mut query: Query<(Entity, &ComputedVisibility, &mut TerrainTileComponent)>,
+    mut query: Query<
+        (Entity, &ComputedVisibility, &mut TerrainTileComponent),
+        With<AdaptiveTileMeshLods>,
+    >,
 ) {
     for (entity, vis, mut tile) in query.iter_mut() {
         // maximum metric
@@ -470,7 +484,10 @@ fn adjust_meshes_on_config_change(
     commands: Commands,
     settings: Res<TerrainMeshSettings>,
     lod_anchor: Query<&Transform, With<TerrainLodAnchor>>,
-    query: Query<(Entity, &ComputedVisibility, &mut TerrainTileComponent)>,
+    query: Query<
+        (Entity, &ComputedVisibility, &mut TerrainTileComponent),
+        With<AdaptiveTileMeshLods>,
+    >,
 ) {
     if settings.is_changed() {
         if let Ok(lod_anchor) = lod_anchor.get_single() {
@@ -483,7 +500,10 @@ fn adjust_tile_mesh_lod(
     commands: Commands,
     settings: Res<TerrainMeshSettings>,
     lod_anchor: Query<&Transform, With<TerrainLodAnchor>>,
-    query: Query<(Entity, &ComputedVisibility, &mut TerrainTileComponent)>,
+    query: Query<
+        (Entity, &ComputedVisibility, &mut TerrainTileComponent),
+        With<AdaptiveTileMeshLods>,
+    >,
 ) {
     if !settings.ignore_anchor {
         // TODO add hysteresis for current anchor pos
