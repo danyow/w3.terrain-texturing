@@ -77,7 +77,7 @@ impl TrackedProgress {
             Self::LoadHeightmap(_) => "heightmap loaded.",
             Self::GeneratedHeightmapNormals(_, _) => "heightmap normals generated.",
             Self::GenerateTerrainTiles(_) => "mesh tile info generated.",
-            Self::GeneratedTerrainErrorMaps(_, _) => "terrain mesh generation finished.",
+            Self::GeneratedTerrainErrorMaps(_, _) => "terrain error maps generation finished.",
             Self::GeneratedTerrainMeshes(_, _) => "terrain mesh generation finished.",
             Self::LoadTerrainMaterialSet(_, _) => "materials loaded.",
             Self::Ignored => "",
