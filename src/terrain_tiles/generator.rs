@@ -4,14 +4,14 @@
 //
 // This implementation works on a 2^k fullsized heightmap but generates a mesh
 // for a smaller tile (e.g 64x64 or 256x256) at the appropriate position. The
-// mesh is generated from a precalculaed errormap.
+// mesh is generated from precalculated per tile errormap.
 //
 // Tile seams are problematic because errormaps accumulate from different points
 // in the tile (see below) and thus have different *accumulated* error values at
 // the same positions in an overlapping seams resulting in different triangles.
 // -> For now a brute force approach of using a full res triangulation for the
 // seam is implemented.
-// TODO find a better way to mkae proper seams.
+// TODO find a better way to make proper seams.
 //
 // [1] https://www.cs.ubc.ca/~will/papers/rtin.pdf
 // [2] https://observablehq.com/@mourner/martin-real-time-rtin-terrain-mesh
@@ -119,8 +119,59 @@ pub struct TileHeightErrors {
     errors: Vec<f32>,
 }
 // ----------------------------------------------------------------------------
-pub(super) fn generate_errormap(heightmap: &TerrainDataView) -> TileHeightErrors {
-    // let mut errors = TileHeightErrors::new(tilesize);
+/// Holds the table for mapping triangle labels to precalculated triangles.
+#[derive(Default)]
+pub(super) struct TileTriangleLookup(Vec<PrecalculatedTriangle>);
+// ----------------------------------------------------------------------------
+impl TileTriangleLookup {
+    // ------------------------------------------------------------------------
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+    // ------------------------------------------------------------------------
+    /// Precalculates all possible triangles for a tile and stores their
+    /// coordinates as well as some offsets required for errormap generation in
+    /// a lookuptable.
+    pub fn generate(&mut self) {
+        // all possible triangles and their child triangles are stored in full
+        // binary tree:
+        //  - lowest level has tilesize * tilesize triangles
+        //      - > binary tree depth log(tilesize^2)
+        //  - full binary tree has 2^(depth + 1) - 1 elements -> 2 * 2^(depth) -1
+        //      -> 2 * 2^log(tilesize^2) -1
+        //      -> 2 * tilesize^2 - 1
+        let smallest_triangle_count = TILE_SIZE * TILE_SIZE;
+        let node_count = smallest_triangle_count * 2 - 1;
+
+        let last_triangle_label = node_count;
+
+        let mut table = vec![PrecalculatedTriangle::default(); 1 + last_triangle_label as usize];
+
+        // no root triangle -> ignore label 1
+        for triangle_label in (2..=last_triangle_label).rev() {
+            // reconstruct triangle coordinates by splitting from top along path as
+            // defined by label and precalculate all offsets into lookup version.
+            table[triangle_label as usize] =
+                TileTriangle::new_from_path(triangle_label, TILE_SIZE).cook();
+        }
+        self.0 = table;
+    }
+    // ------------------------------------------------------------------------
+    pub fn clear(&mut self) {
+        self.0 = Vec::default()
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn get(&self, tirangle_id: u32) -> &PrecalculatedTriangle {
+        &self.0[tirangle_id as usize]
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+pub(super) fn generate_errormap(
+    tile_triangles: &TileTriangleLookup,
+    heightmap: &TerrainDataView,
+) -> TileHeightErrors {
     let mut errors = TileHeightErrors::new();
 
     // all possible triangles and their child triangles are stored in full
@@ -130,7 +181,6 @@ pub(super) fn generate_errormap(heightmap: &TerrainDataView) -> TileHeightErrors
     //  - full binary tree has 2^(depth + 1) - 1 elements -> 2 * 2^(depth) -1
     //      -> 2 * 2^log(tilesize^2) -1
     //      -> 2 * tilesize^2 - 1
-    // let smallest_triangle_count = tilesize * tilesize;
     let smallest_triangle_count = TILE_SIZE * TILE_SIZE;
     let node_count = smallest_triangle_count * 2 - 1;
 
@@ -139,10 +189,9 @@ pub(super) fn generate_errormap(heightmap: &TerrainDataView) -> TileHeightErrors
 
     // no root triangle -> ignore label 1
     for triangle_label in (2..=last_triangle_label).rev() {
-        // reconstruct triangle coordinates by splitting from top along path as
-        // defined by label
-        // let triangle = TileTriangle::new(triangle_label, tilesize);
-        let triangle = TileTriangle::new_from_path(triangle_label, TILE_SIZE);
+        // use pregenerated triangle from lookup table
+        let triangle = tile_triangles.get(triangle_label);
+
         //
         //    .-->  x
         //    |   b
@@ -157,27 +206,28 @@ pub(super) fn generate_errormap(heightmap: &TerrainDataView) -> TileHeightErrors
         // temporaery brute force workaround for seams: set max error to ensure
         // full resolution triangulation at seams so it's guaranteed neighboring
         // tiles will be matching
-        if triangle.m().x == 0
-            || triangle.m().y == 0
-            || triangle.m().x == TILE_SIZE
-            || triangle.m().y == TILE_SIZE
-        {
-            errors.set(triangle.m(), f32::MAX);
+        if triangle.is_seam(TILE_SIZE as u16) {
+            // force subdivision
+            errors.set_unchecked(triangle.middle(), f32::MAX);
         } else {
-            let middle_error =
-                heightmap.sample_interpolated_height_error(triangle.a, triangle.b, triangle.m());
+            let middle_error = heightmap.sample_interpolated_height_error(
+                triangle.a(),
+                triangle.b(),
+                triangle.m(),
+            );
 
             if triangle_label >= smallest_triangle_first_label {
-                // no need to check for previously set error
-                errors.set(triangle.m(), middle_error);
+                // for highest res triangle there is no need to check for any
+                // previously set error
+                errors.set_unchecked(triangle.middle(), middle_error);
             } else {
                 // error in middle point of hypothenuse of left child triangle
-                let left_child_error = errors.get(triangle.left_middle());
+                let left_child_error = errors.get_unchecked(triangle.left_middle());
                 // error in middle point of hypothenuse of right child triangle
-                let right_child_error = errors.get(triangle.right_middle());
+                let right_child_error = errors.get_unchecked(triangle.right_middle());
 
-                errors.update(
-                    triangle.m(),
+                errors.update_unchecked(
+                    triangle.middle(),
                     middle_error.max(left_child_error).max(right_child_error),
                 );
             }
@@ -239,8 +289,8 @@ fn process_triangle(
     }
 }
 // ----------------------------------------------------------------------------
-/// right-angled triangle with counter clockwise vertices [a, b, c] where c is
-/// vertex of right angle (opposite to hypothenuse)
+/// Right-angled triangle with counter clockwise vertices [a, b, c] where c is
+/// vertex of right angle (opposite to hypothenuse).
 struct TileTriangle {
     a: UVec2,
     b: UVec2,
@@ -429,6 +479,99 @@ impl TileTriangle {
         diff_x + diff_y > 1
     }
     // ------------------------------------------------------------------------
+    /// Generate precalculated triangle for errormap generation lookup table.
+    #[inline(always)]
+    fn cook(self) -> PrecalculatedTriangle {
+        //
+        //    .-->  x
+        //    |   b
+        //    |   |\
+        //    V   | \           m: middle point of triangle
+        //        R--m          R: right child middle point
+        //    y   | /|\         L: left child middle point
+        //        |/ | \
+        //        c--L--a
+        //
+        // required data for errormap generation:
+        //  - coordinates for a, b, m
+        //  - direct offsets into errormap array for
+        //      - left triangle error
+        //      - right triangle error
+        //      - current triangle
+        //
+        // Note1: coordinates are tile relative so u16 is enough
+        // Note2: errormap offset u32 (4 bytes) instead of usize (8 bytes)
+        //
+        let m = self.m();
+
+        PrecalculatedTriangle {
+            a_x: self.a.x as u16,
+            a_y: self.a.y as u16,
+            b_x: self.b.x as u16,
+            b_y: self.b.y as u16,
+            m_x: m.x as u16,
+            m_y: m.y as u16,
+            left_middle_offset: TileHeightErrors::coordinate_to_offset(self.left_middle()) as u32,
+            right_middle_offset: TileHeightErrors::coordinate_to_offset(self.right_middle()) as u32,
+            middle_offset: TileHeightErrors::coordinate_to_offset(m) as u32,
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+/// Same as TileTriangle but contains precalculated offsets and packed
+/// coordinates (u32 -> u16) for fast(er) errormap creation. Is not used for
+/// actual tile mesh creation!
+#[derive(Default, Clone, Copy)]
+struct PrecalculatedTriangle {
+    a_x: u16,
+    a_y: u16,
+    b_x: u16,
+    b_y: u16,
+    m_x: u16,
+    m_y: u16,
+    left_middle_offset: u32,
+    right_middle_offset: u32,
+    middle_offset: u32,
+}
+// ----------------------------------------------------------------------------
+impl PrecalculatedTriangle {
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn is_seam(&self, tile_size: u16) -> bool {
+        self.m_x == 0 || self.m_y == 0 || self.m_x == tile_size || self.m_y == tile_size
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn a(&self) -> UVec2 {
+        uvec2(self.a_x as u32, self.a_y as u32)
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn b(&self) -> UVec2 {
+        uvec2(self.b_x as u32, self.b_y as u32)
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn m(&self) -> UVec2 {
+        uvec2(self.m_x as u32, self.m_y as u32)
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn middle(&self) -> usize {
+        self.middle_offset as usize
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn left_middle(&self) -> usize {
+        self.left_middle_offset as usize
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn right_middle(&self) -> usize {
+        self.right_middle_offset as usize
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 impl TileHeightErrors {
@@ -440,27 +583,29 @@ impl TileHeightErrors {
     }
     // ------------------------------------------------------------------------
     #[inline(always)]
-    fn coordinate_to_offset(&self, p: UVec2) -> usize {
+    fn coordinate_to_offset(p: UVec2) -> usize {
         (p.y.min(TILE_SIZE) * (TILE_SIZE + 1) + p.x.min(TILE_SIZE)) as usize
     }
     // ------------------------------------------------------------------------
     fn get(&self, pos: UVec2) -> f32 {
-        self.errors[self.coordinate_to_offset(pos)]
+        self.errors[Self::coordinate_to_offset(pos)]
     }
     // ------------------------------------------------------------------------
-    fn set(&mut self, pos: UVec2, value: f32) {
-        let offset = self.coordinate_to_offset(pos);
+    #[inline(always)]
+    fn get_unchecked(&self, offset: usize) -> f32 {
+        self.errors[offset]
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn set_unchecked(&mut self, offset: usize, value: f32) {
         self.errors[offset] = value;
     }
     // ------------------------------------------------------------------------
-    fn update(&mut self, pos: UVec2, value: f32) -> f32 {
-        let offset = self.coordinate_to_offset(pos);
+    #[inline(always)]
+    fn update_unchecked(&mut self, offset: usize, value: f32) {
         let previous = self.errors[offset];
         if value > previous {
             self.errors[offset] = value;
-            value
-        } else {
-            previous
         }
     }
     // ------------------------------------------------------------------------

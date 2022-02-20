@@ -64,7 +64,8 @@ impl TerrainTilesGeneratorPlugin {
 impl Plugin for TerrainTilesGeneratorPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
-        app.init_resource::<TerrainMeshSettings>();
+        app.init_resource::<TerrainMeshSettings>()
+            .init_resource::<generator::TileTriangleLookup>();
     }
     // ------------------------------------------------------------------------
 }
@@ -210,6 +211,7 @@ fn async_errormap_generation(
     thread_pool: Res<ComputeTaskPool>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
     mut editor_events: EventWriter<EditorEvent>,
+    mut triangle_table: ResMut<generator::TileTriangleLookup>,
 ) {
     if !tiles.is_empty() {
         use instant::Instant;
@@ -228,6 +230,17 @@ fn async_errormap_generation(
         // divide into packets that are parallelized...
         let queue = &mut tiles_to_process.chunks(MESH_GENERATION_QUEUE_CHUNKSIZE);
 
+        // since all tiles are triangulated at the same local coordinates
+        // (within the tile!) all possible triangle coordinates can be
+        // precalculated once and shared for the errormap generation of all
+        // tiles. speeds up generation significantly.
+        if triangle_table.is_empty() {
+            triangle_table.generate();
+        }
+
+        // sharable reference for scoped threads
+        let triangles = &triangle_table;
+
         // ...measure duration after every packet
         while Instant::now().duration_since(start_time) < MAX_MESH_GENERATION_TIME_MS {
             match queue.next() {
@@ -239,9 +252,11 @@ fn async_errormap_generation(
                                 heightmap.clone(),
                                 normals.clone(),
                             );
-
                             s.spawn(async move {
-                                (*entity, generator::generate_errormap(&terraindata_view))
+                                (
+                                    *entity,
+                                    generator::generate_errormap(triangles, &terraindata_view),
+                                )
                             })
                         }
                     });
@@ -267,6 +282,8 @@ fn async_errormap_generation(
 
         if queue.next().is_none() {
             task_finished.send(AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated);
+            // remove precalculated data as it is not needed anymore
+            triangle_table.clear();
         }
     }
 }
