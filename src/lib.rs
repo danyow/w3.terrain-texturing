@@ -20,6 +20,8 @@ mod loader;
 mod heightmap;
 mod terrain_material;
 mod terrain_tiles;
+mod texturecontrol;
+mod tintmap;
 
 mod camera;
 mod compute;
@@ -120,6 +122,8 @@ type TaskResult = Task<Result<TaskResultData, String>>;
 // ----------------------------------------------------------------------------
 enum TaskResultData {
     HeightmapData(heightmap::TerrainHeightMap),
+    TextureControl(texturecontrol::TextureControl),
+    TintMap(tintmap::TintMap),
 }
 // ----------------------------------------------------------------------------
 fn setup_terrain_loading(
@@ -129,6 +133,8 @@ fn setup_terrain_loading(
 ) {
     task_manager.add_new(cmds::WaitForTerrainLoaded::default().into());
     task_manager.add_new(cmds::LoadHeightmap::default().into());
+    task_manager.add_new(cmds::LoadTextureMap::default().into());
+    task_manager.add_new(cmds::LoadTintMap::default().into());
     task_manager.add_new(cmds::LoadTerrainMaterialSet::default().into());
 
     // bigger terrains may take > 10s of loading. show a progress bar by tracking
@@ -137,6 +143,8 @@ fn setup_terrain_loading(
         "Loading Terrain".into(),
         vec![
             cmds::TrackedProgress::LoadHeightmap(false),
+            cmds::TrackedProgress::LoadTextureMap(false),
+            cmds::TrackedProgress::LoadTintMap(false),
             cmds::TrackedProgress::GeneratedHeightmapNormals(0, 1),
             cmds::TrackedProgress::GenerateTerrainTiles(false),
             cmds::TrackedProgress::GeneratedTerrainErrorMaps(0, terrain_config.tile_count()),

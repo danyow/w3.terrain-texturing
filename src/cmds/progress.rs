@@ -7,6 +7,8 @@
 /// payload!
 pub enum TrackedProgress {
     LoadHeightmap(bool),
+    LoadTextureMap(bool),
+    LoadTintMap(bool),
     GeneratedHeightmapNormals(usize, usize),
     GeneratedTerrainErrorMaps(usize, usize),
     GenerateTerrainTiles(bool),
@@ -22,7 +24,10 @@ impl TrackedProgress {
     // ------------------------------------------------------------------------
     pub fn is_finished(&self) -> bool {
         match self {
-            Self::LoadHeightmap(b) | Self::GenerateTerrainTiles(b) => *b,
+            Self::LoadHeightmap(b)
+            | Self::LoadTextureMap(b)
+            | Self::LoadTintMap(b)
+            | Self::GenerateTerrainTiles(b) => *b,
             Self::GeneratedHeightmapNormals(a, b)
             | Self::GeneratedTerrainErrorMaps(a, b)
             | Self::GeneratedTerrainMeshes(a, b)
@@ -33,7 +38,10 @@ impl TrackedProgress {
     // ------------------------------------------------------------------------
     pub fn progress(&self) -> f32 {
         match self {
-            Self::LoadHeightmap(b) | Self::GenerateTerrainTiles(b) => {
+            Self::LoadHeightmap(b)
+            | Self::LoadTextureMap(b)
+            | Self::LoadTintMap(b)
+            | Self::GenerateTerrainTiles(b) => {
                 if *b {
                     1.0
                 } else {
@@ -55,6 +63,8 @@ impl TrackedProgress {
     pub fn progress_msg(&self) -> String {
         match self {
             Self::LoadHeightmap(_) => "loading heighmap...".to_string(),
+            Self::LoadTextureMap(_) => "loading texturing map...".to_string(),
+            Self::LoadTintMap(_) => "loading tintmap...".to_string(),
             Self::GeneratedHeightmapNormals(_, _) => {
                 Self::format_progress("generating normals", self.progress())
             }
@@ -75,6 +85,8 @@ impl TrackedProgress {
     pub fn finished_msg(&self) -> &str {
         match self {
             Self::LoadHeightmap(_) => "heightmap loaded.",
+            Self::LoadTextureMap(_) => "texturing map loaded.",
+            Self::LoadTintMap(_) => "tintmap loaded.",
             Self::GeneratedHeightmapNormals(_, _) => "heightmap normals generated.",
             Self::GenerateTerrainTiles(_) => "mesh tile info generated.",
             Self::GeneratedTerrainErrorMaps(_, _) => "terrain error maps generation finished.",
@@ -95,6 +107,8 @@ impl hash::Hash for TrackedProgress {
         match self {
             Ignored => state.write_u8(0),
             LoadHeightmap(_) => state.write_u8(1),
+            LoadTextureMap(_) => state.write_u8(2),
+            LoadTintMap(_) => state.write_u8(3),
             GeneratedHeightmapNormals(_, _) => state.write_u8(5),
             GenerateTerrainTiles(_) => state.write_u8(6),
             GeneratedTerrainErrorMaps(_, _) => state.write_u8(7),
@@ -110,6 +124,8 @@ impl cmp::PartialEq for TrackedProgress {
         match self {
             Ignored => matches!(other, Ignored),
             LoadHeightmap(_) => matches!(other, LoadHeightmap(_)),
+            LoadTextureMap(_) => matches!(other, LoadTextureMap(_)),
+            LoadTintMap(_) => matches!(other, LoadTintMap(_)),
             GeneratedHeightmapNormals(_, _) => matches!(other, GeneratedHeightmapNormals(_, _)),
             GenerateTerrainTiles(_) => matches!(other, GenerateTerrainTiles(_)),
             GeneratedTerrainErrorMaps(_, _) => matches!(other, GeneratedTerrainErrorMaps(_, _)),

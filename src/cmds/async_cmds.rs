@@ -11,7 +11,7 @@ use crate::{EditorEvent, TaskResult, TaskResultData};
 use super::{
     AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, GenerateHeightmapNormals,
     GenerateTerrainMeshErrorMaps, GenerateTerrainMeshes, GenerateTerrainTiles, LoadHeightmap,
-    LoadTerrainMaterialSet, TrackedProgress, WaitForTerrainLoaded,
+    LoadTerrainMaterialSet, LoadTextureMap, LoadTintMap, TrackedProgress, WaitForTerrainLoaded,
 };
 // ----------------------------------------------------------------------------
 pub struct AsyncCmdsPlugin;
@@ -117,6 +117,14 @@ pub(crate) fn start_async_operations(
                     let task = thread_pool.spawn(LoaderPlugin::load_heightmap(&terrain_config));
                     commands.spawn().insert(task);
                 }
+                LoadTextureMap => {
+                    let task = thread_pool.spawn(LoaderPlugin::load_texturemap(&terrain_config));
+                    commands.spawn().insert(task);
+                }
+                LoadTintMap => {
+                    let task = thread_pool.spawn(LoaderPlugin::load_tintmap(&terrain_config));
+                    commands.spawn().insert(task);
+                }
                 LoadTerrainMaterialSet => task_ready.send(LoadTerrainMaterialSet),
                 // -- these tasks are more involved and will be handled by specialized systems
                 GenerateHeightmapNormals => task_ready.send(GenerateHeightmapNormals),
@@ -154,6 +162,14 @@ pub(crate) fn poll_async_task_state(
                         terrain_heightmap.update(new_heightmap);
 
                         task_finished.send(AsyncTaskFinishedEvent::HeightmapLoaded);
+                    }
+                    TaskResultData::TextureControl(new_controlmap_data) => {
+                        // TODO
+                        task_finished.send(AsyncTaskFinishedEvent::TextureMapLoaded);
+                    }
+                    TaskResultData::TintMap(new_tintmap_data) => {
+                        // TODO
+                        task_finished.send(AsyncTaskFinishedEvent::TintMapLoaded);
                     }
                 },
                 Err(e) => {
@@ -196,6 +212,18 @@ impl AsyncTaskNode for LoadHeightmap {
             GenerateTerrainMeshErrorMaps::default().into(),
         ]
     }
+}
+// ----------------------------------------------------------------------------
+#[rustfmt::skip]
+impl AsyncTaskNode for LoadTextureMap {
+    fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::LoadTextureMap }
+    fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TextureMapLoaded }
+}
+// ----------------------------------------------------------------------------
+#[rustfmt::skip]
+impl AsyncTaskNode for LoadTintMap {
+    fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::LoadTintMap }
+    fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TintMapLoaded }
 }
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
@@ -242,6 +270,8 @@ impl AsyncTaskNode for LoadTerrainMaterialSet {
 impl AsyncTaskNode for WaitForTerrainLoaded {
     fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[
         AsyncTaskFinishedEvent::TerrainMeshesGenerated,
+        AsyncTaskFinishedEvent::TextureMapLoaded,
+        AsyncTaskFinishedEvent::TintMapLoaded,
         AsyncTaskFinishedEvent::TerrainMaterialSetLoaded,
     ]}
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::WaitForTerrainLoaded }
@@ -256,6 +286,8 @@ impl From<AsyncTaskStartEvent> for TrackedProgress {
 
         match s {
             AsyncTaskStartEvent::LoadHeightmap => LoadHeightmap(false),
+            AsyncTaskStartEvent::LoadTextureMap => LoadTextureMap(false),
+            AsyncTaskStartEvent::LoadTintMap => LoadTintMap(false),
             AsyncTaskStartEvent::GenerateHeightmapNormals => GeneratedHeightmapNormals(0, 1),
             AsyncTaskStartEvent::GenerateTerrainTiles => GenerateTerrainTiles(false),
             AsyncTaskStartEvent::GenerateTerrainMeshErrorMaps => GeneratedTerrainErrorMaps(0, 1),
@@ -272,6 +304,8 @@ impl From<AsyncTaskFinishedEvent> for TrackedProgress {
 
         match s {
             AsyncTaskFinishedEvent::HeightmapLoaded => LoadHeightmap(true),
+            AsyncTaskFinishedEvent::TextureMapLoaded => LoadTextureMap(true),
+            AsyncTaskFinishedEvent::TintMapLoaded => LoadTintMap(true),
             AsyncTaskFinishedEvent::HeightmapNormalsGenerated => GeneratedHeightmapNormals(1, 1),
             AsyncTaskFinishedEvent::TerrainTilesGenerated => GenerateTerrainTiles(true),
             AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated => {

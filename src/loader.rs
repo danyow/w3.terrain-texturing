@@ -9,6 +9,8 @@ use png::{BitDepth, ColorType};
 
 use crate::config;
 use crate::heightmap::TerrainHeightMap;
+use crate::texturecontrol::TextureControl;
+use crate::tintmap::TintMap;
 use crate::TaskResultData;
 // ----------------------------------------------------------------------------
 pub struct LoaderPlugin;
@@ -48,6 +50,81 @@ impl LoaderPlugin {
 
             let heightmap = TerrainHeightMap::new(size, height_scaling, data);
             Ok(TaskResultData::HeightmapData(heightmap))
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub(crate) fn load_texturemap(
+        config: &config::TerrainConfig,
+    ) -> impl Future<Output = Result<TaskResultData, String>> {
+        let (size, texturing) = (config.map_size(), config.texturemaps().clone());
+        async move {
+            let (background, overlay, blendcontrol) = (
+                texturing.background(),
+                texturing.overlay(),
+                texturing.blendcontrol(),
+            );
+
+            let background = if background.is_empty() {
+                vec![1u8; (size * size) as usize]
+            } else {
+                debug!("loading background texturing map...");
+                Self::load_texturing_data(size, "background texture id", 31, background)?
+            };
+
+            let overlay = if overlay.is_empty() {
+                vec![2u8; (size * size) as usize]
+            } else {
+                debug!("loading overlay texturing map...");
+                Self::load_texturing_data(size, "overlay texture id", 31, overlay)?
+            };
+
+            let blendcontrol = if blendcontrol.is_empty() {
+                vec![18u8; (size * size) as usize]
+            } else {
+                debug!("loading blendcontrol texturing map...");
+                Self::load_texturing_data(size, "texture blendcontrol param", 63, blendcontrol)?
+            };
+
+            if overlay.len() != background.len() || blendcontrol.len() != background.len() {
+                return Err("size of texture maps is not equal!".to_string());
+            }
+
+            let controlmap = background
+                .iter()
+                .zip(overlay.iter())
+                .zip(blendcontrol.iter())
+                .map(|((background, overlay), blendcontrol)| {
+                    // 0..4 overlay texture idx
+                    // 5..9 background textures idx
+                    // 10..16 blend control
+                    //   10..12 UV scale
+                    //   13..16 slope threshold
+                    u16::from(*overlay)
+                        + u16::from(*background) * 32
+                        + u16::from(*blendcontrol) * 32 * 32
+                })
+                .collect::<Vec<u16>>();
+
+            Ok(TaskResultData::TextureControl(TextureControl::new(
+                controlmap,
+            )))
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub(crate) fn load_tintmap(
+        config: &config::TerrainConfig,
+    ) -> impl Future<Output = Result<TaskResultData, String>> {
+        use png::{BitDepth::Eight, ColorType::Rgba};
+
+        let (filepath, size) = (config.tintmap().to_string(), config.map_size());
+        async move {
+            let tintmap = if filepath.is_empty() {
+                vec![0x80u8; 4 * (size * size) as usize]
+            } else {
+                debug!("loading tintmap...");
+                Self::load_png_data(Rgba, Eight, size, &filepath)?
+            };
+            Ok(TaskResultData::TintMap(TintMap::new(tintmap)))
         }
     }
     // ------------------------------------------------------------------------
@@ -99,6 +176,34 @@ impl LoaderPlugin {
             ));
         }
 
+        Ok(img_data)
+    }
+    // ------------------------------------------------------------------------
+    fn load_texturing_data(
+        resolution: u32,
+        dataname: &str,
+        max: u8,
+        filepath: &str,
+    ) -> Result<Vec<u8>, String> {
+        use png::{BitDepth::Eight, ColorType::Indexed};
+
+        let img_data = Self::load_png_data(Indexed, Eight, resolution, filepath)?;
+
+        // check value range
+        for (i, pix) in img_data.iter().enumerate() {
+            if *pix > max {
+                let y = i / resolution as usize;
+                let x = i - y * resolution as usize;
+                return Err(format!(
+                    "valid range for {} is [0..{}]. found: {} at line {} in pixel {}",
+                    dataname,
+                    max,
+                    pix,
+                    y + 1,
+                    x + 1
+                ));
+            }
+        }
         Ok(img_data)
     }
     // ------------------------------------------------------------------------
