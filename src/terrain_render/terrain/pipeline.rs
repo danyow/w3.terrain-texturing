@@ -14,6 +14,7 @@ use bevy::{
     },
 };
 
+use super::terrain_material::materialset_bind_group_layout;
 use super::terrain_mesh::{
     mesh_bind_group_layout, mesh_vertex_buffer_layout, mesh_view_bind_group_layout,
 };
@@ -52,10 +53,11 @@ impl FromWorld for TerrainMeshRenderPipeline {
             entries: &mesh_bind_group_layout(),
         });
 
-        let materialset_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("terrain_mesh_layout"),
-            entries: &mesh_bind_group_layout(),
-        });
+        let materialset_layout =
+            render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("terrain_mesh_layout"),
+                entries: &materialset_bind_group_layout(),
+            });
 
         TerrainMeshRenderPipeline {
             shader_vert,
@@ -121,7 +123,11 @@ impl SpecializedPipeline for TerrainMeshRenderPipeline {
                     write_mask: ColorWrites::ALL,
                 }],
             }),
-            layout: Some(vec![self.view_layout.clone(), self.mesh_layout.clone()]),
+            layout: Some(vec![
+                self.view_layout.clone(),
+                self.mesh_layout.clone(),
+                self.materialset_layout.clone(),
+            ]),
             primitive: PrimitiveState {
                 front_face: FrontFace::Ccw,
                 cull_mode: Some(Face::Back),

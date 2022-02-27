@@ -11,6 +11,8 @@ use bevy::{
     },
 };
 
+use crate::resource::RenderResourcePlugin;
+
 use crate::terrain_tiles::TerrainTileComponent;
 
 use self::terrain_mesh::extract_meshes as extract_terrain_meshes;
@@ -20,9 +22,10 @@ use self::terrain_mesh::TerrainMeshUniform;
 
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
-use super::TerrainMesh;
+use super::{TerrainMaterialParam, TerrainMaterialSet, TerrainMesh};
 // ----------------------------------------------------------------------------
 mod pipeline;
+mod terrain_material;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
 pub struct TerrainMeshRenderPlugin;
@@ -31,6 +34,7 @@ impl Plugin for TerrainMeshRenderPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
         app.add_plugin(UniformComponentPlugin::<TerrainMeshUniform>::default())
+            .add_plugin(RenderResourcePlugin::<TerrainMaterialSet>::default())
             //TODO remove as soon as terrain mesh is dedicated type ?
             .add_plugin(ExtractComponentPlugin::<TerrainTileComponent>::default());
 
@@ -84,6 +88,7 @@ type DrawCmdTerrain = (
     SetItemPipeline,
     terrain_mesh::SetMeshViewBindGroup<0>,
     terrain_mesh::SetMeshBindGroup<1>,
+    terrain_material::SetTerrainMaterialSetBindGroup<2>,
     terrain_mesh::DrawMesh,
 );
 // ----------------------------------------------------------------------------
