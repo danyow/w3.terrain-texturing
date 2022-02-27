@@ -119,6 +119,11 @@ pub(super) fn setup_default_materialset(
 
     debug!("generating default material pallete.start");
 
+    // remove previous materialset arrays
+    texture_arrays.remove(&materialset.diffuse);
+    texture_arrays.remove(&materialset.normal);
+
+    // generate new ones
     let logo = textures.get(&placeholder.logo).expect("loaded logo");
 
     // create placeholder texture arrays
