@@ -6,12 +6,12 @@ pub struct TerrainRenderPlugin;
 //TODO make proper specialized mesh type so updates just take data instead clone (?)
 pub type TerrainMesh = Mesh;
 // ----------------------------------------------------------------------------
-mod render;
+mod terrain;
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainRenderPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
-        app.add_plugin(render::TerrainMeshRenderPlugin);
+        app.add_plugin(terrain::TerrainMeshRenderPlugin);
     }
     // ------------------------------------------------------------------------
 }
