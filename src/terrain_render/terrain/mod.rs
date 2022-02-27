@@ -3,7 +3,7 @@ use bevy::{
     core_pipeline::Opaque3d,
     prelude::*,
     render::{
-        render_component::{UniformComponentPlugin, ExtractComponentPlugin},
+        render_component::{ExtractComponentPlugin, UniformComponentPlugin},
         render_phase::{AddRenderCommand, DrawFunctions, RenderPhase, SetItemPipeline},
         render_resource::{RenderPipelineCache, SpecializedPipelines},
         view::ExtractedView,
@@ -16,10 +16,13 @@ use crate::terrain_tiles::TerrainTileComponent;
 use self::terrain_mesh::extract_meshes as extract_terrain_meshes;
 use self::terrain_mesh::queue_mesh_bind_group as queue_terrain_mesh_bind_group;
 use self::terrain_mesh::queue_mesh_view_bind_group as queue_terrain_mesh_view_bind_group;
-use self::terrain_mesh::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline, TerrainMeshUniform};
+use self::terrain_mesh::TerrainMeshUniform;
+
+use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
 use super::TerrainMesh;
 // ----------------------------------------------------------------------------
+mod pipeline;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
 pub struct TerrainMeshRenderPlugin;
@@ -52,7 +55,10 @@ fn queue_terrain_rendering(
     msaa: Res<Msaa>,
     mut pipelines: ResMut<SpecializedPipelines<TerrainMeshRenderPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
-    terrain_meshes: Query<(Entity, &TerrainMeshUniform), (With<Handle<TerrainMesh>>, With<TerrainTileComponent>)>,
+    terrain_meshes: Query<
+        (Entity, &TerrainMeshUniform),
+        (With<Handle<TerrainMesh>>, With<TerrainTileComponent>),
+    >,
     mut views: Query<(&ExtractedView, &mut RenderPhase<Opaque3d>)>,
 ) {
     let draw_terrain = draw_functions.read().get_id::<DrawCmdTerrain>().unwrap();
