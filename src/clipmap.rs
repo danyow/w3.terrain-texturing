@@ -240,7 +240,7 @@ impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
     }
     // ------------------------------------------------------------------------
     fn generate_cache(&mut self) {
-        debug!("generating {} clipmap cache...", self.label);
+        debug!("generating {} cache...", self.label);
         let mut cache = Vec::with_capacity(self.layer_sizes.len() - 1);
 
         // current assumption: layersize can be divided by next layer size
