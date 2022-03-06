@@ -5,9 +5,6 @@ use bevy::{
 };
 
 use crate::texturearray::{TextureArray, TextureArrayBuilder};
-
-//TODO make const param
-use crate::config::CLIPMAP_SIZE;
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone, Debug)]
 pub struct Rectangle {
@@ -43,7 +40,7 @@ pub trait ClipmapData: Default {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-pub struct Clipmap<D: ClipmapData> {
+pub struct Clipmap<const CLIPMAP_SIZE: u32, D: ClipmapData> {
     /// debug name
     label: String,
     /// full res source data
@@ -60,7 +57,7 @@ pub struct Clipmap<D: ClipmapData> {
     cache: Vec<Vec<D::DataType>>,
 }
 // ----------------------------------------------------------------------------
-impl<D: ClipmapData> Clipmap<D> {
+impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
     // ------------------------------------------------------------------------
     pub fn label(&self) -> &str {
         &self.label
@@ -87,14 +84,14 @@ impl<D: ClipmapData> Clipmap<D> {
 // ----------------------------------------------------------------------------
 // Helper clipmap builder to hide cache generation and texture array init.
 // ----------------------------------------------------------------------------
-pub struct ClipmapBuilder<D: ClipmapData> {
-    clipmap: Clipmap<D>,
+pub struct ClipmapBuilder<const CLIPMAP_SIZE: u32, D: ClipmapData> {
+    clipmap: Clipmap<CLIPMAP_SIZE, D>,
     /// texture format of used data (required to setup texture array)
     format: TextureFormat,
     enable_cache: bool,
 }
 // ----------------------------------------------------------------------------
-impl<D: ClipmapData> ClipmapBuilder<D> {
+impl<const CLIPMAP_SIZE: u32, D: ClipmapData> ClipmapBuilder<CLIPMAP_SIZE, D> {
     // ------------------------------------------------------------------------
     pub fn new(label: &str, clipmap_data: D, full_size: u32, layer_sizes: Vec<u32>) -> Self {
         #[rustfmt::skip]
@@ -145,7 +142,7 @@ impl<D: ClipmapData> ClipmapBuilder<D> {
         self,
         rectangles: Vec<Rectangle>,
         texture_arrays: &mut Assets<TextureArray>,
-    ) -> Clipmap<D> {
+    ) -> Clipmap<CLIPMAP_SIZE, D> {
         // WORKAROUND to enable usage of data_size == clipmap_size usecase (e.g. debugging)
         // texture_array requires at least two entries
         let mut rectangles = rectangles;
@@ -177,7 +174,7 @@ impl<D: ClipmapData> ClipmapBuilder<D> {
 // ----------------------------------------------------------------------------
 // private impl
 // ----------------------------------------------------------------------------
-impl<D: ClipmapData> Clipmap<D> {
+impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
     // ------------------------------------------------------------------------
     fn extract(
         &self,
@@ -269,7 +266,7 @@ impl<D: ClipmapData> Clipmap<D> {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-impl<D: ClipmapData> Default for Clipmap<D> {
+impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Default for Clipmap<CLIPMAP_SIZE, D> {
     fn default() -> Self {
         Self {
             label: "uninitialized".into(),
