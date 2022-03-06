@@ -106,6 +106,7 @@ impl LoaderPlugin {
                 .collect::<Vec<u16>>();
 
             Ok(TaskResultData::TextureControl(TextureControl::new(
+                size,
                 controlmap,
             )))
         }
@@ -124,7 +125,7 @@ impl LoaderPlugin {
                 debug!("loading tintmap...");
                 Self::load_png_data(Rgba, Eight, size, &filepath)?
             };
-            Ok(TaskResultData::TintMap(TintMap::new(tintmap)))
+            Ok(TaskResultData::TintMap(TintMap::new(size, tintmap)))
         }
     }
     // ------------------------------------------------------------------------
