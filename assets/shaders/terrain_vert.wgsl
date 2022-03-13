@@ -12,7 +12,7 @@ struct View {
 struct Mesh {
     model: mat4x4<f32>;
     inverse_transpose_model: mat4x4<f32>;
-    lod: u32;
+    clipmap_and_lod: u32;
 };
 
 [[group(0), binding(0)]] var<uniform> view: View;
