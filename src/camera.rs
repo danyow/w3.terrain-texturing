@@ -97,7 +97,8 @@ fn setup_cam(mut commands: Commands, mut state: ResMut<CameraState>) {
     commands
         .spawn_bundle(perspective_cam)
         .insert(FreeCam)
-        .insert(crate::terrain_tiles::TerrainLodAnchor);
+        .insert(crate::terrain_tiles::TerrainLodAnchor)
+        .insert(crate::terrain_clipmap::ClipmapAnchor);
 }
 // ----------------------------------------------------------------------------
 // systems
