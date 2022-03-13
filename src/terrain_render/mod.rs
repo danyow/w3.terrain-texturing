@@ -2,8 +2,9 @@
 use bevy::{prelude::*, reflect::TypeUuid};
 
 use crate::clipmap::Rectangle;
-use crate::terrain_clipmap::{TextureControlClipmap, TintClipmap};
 use crate::texturearray::TextureArray;
+
+use crate::terrain_clipmap::{TextureControlClipmap, TintClipmap};
 // ----------------------------------------------------------------------------
 pub struct TerrainRenderPlugin;
 // ----------------------------------------------------------------------------
@@ -67,7 +68,8 @@ mod terrain;
 impl Plugin for TerrainRenderPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
-        app.add_plugin(terrain::TerrainMeshRenderPlugin);
+        app.init_resource::<TerrainMaterialSet>()
+            .add_plugin(terrain::TerrainMeshRenderPlugin);
     }
     // ------------------------------------------------------------------------
 }

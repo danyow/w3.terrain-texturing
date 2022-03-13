@@ -1,10 +1,6 @@
 //FIXME this is used for a constant sized array in clipmap gpu buffer. can / should this be dynamic?
 const MAX_SUPPORTED_CLIPMAP_LEVEL: u8 = 10;
 // ----------------------------------------------------------------------------
-use crate::{
-    resource::{PrepareResourceError, PreparedRenderResource, RenderResource},
-    texturearray::TextureArray,
-};
 use bevy::{
     ecs::system::{lifetimeless::SRes, SystemParamItem},
     math::{UVec2, Vec2},
@@ -22,7 +18,11 @@ use bevy::{
     },
 };
 
-use super::{pipeline::TerrainMeshRenderPipeline, TerrainClipmap};
+use crate::resource::{PrepareResourceError, PreparedRenderResource, RenderResource};
+use crate::texturearray::TextureArray;
+
+use super::pipeline::TerrainMeshRenderPipeline;
+use super::TerrainClipmap;
 // ----------------------------------------------------------------------------
 // render cmds
 // ----------------------------------------------------------------------------

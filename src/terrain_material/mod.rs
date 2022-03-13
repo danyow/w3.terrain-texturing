@@ -51,8 +51,7 @@ impl MaterialSetPlugin {
 // ----------------------------------------------------------------------------
 impl Plugin for MaterialSetPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<TerrainMaterialSet>()
-            .init_resource::<MaterialLoadingTaskQueue>();
+        app.init_resource::<MaterialLoadingTaskQueue>();
     }
 }
 // ----------------------------------------------------------------------------
