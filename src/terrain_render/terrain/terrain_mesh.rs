@@ -145,7 +145,7 @@ pub(super) fn extract_meshes(
                     transform,
                     inverse_transpose_model: transform.inverse().transpose(),
                     clipmap_and_lod: clipmap_assignment.level as u32
-                        | (tile.assigned_lod() as u32) >> 16,
+                        | (tile.assigned_lod() as u32) << 16,
                 },
                 mesh_handle.clone_weak(),
             ),
