@@ -9,24 +9,10 @@ pub(super) fn show_ui(
     sun_settings: Option<Res<SunSettings>>,
     atmosphere_settings: Option<Res<AtmosphereMat>>,
     mut gui_event: EventWriter<GuiAction>,
-    // dbg
-    clipmap_tracker: Res<crate::terrain_clipmap::ClipmapTracker>,
-    texture_clipmap: Res<TextureControlClipmap>,
-    tint_clipmap: Res<TintClipmap>,
 ) {
     if ui_state.fullscreen {
         return;
     }
-    debug::show_windows(
-        &mut egui_ctx,
-        &ui_images,
-        &ui_state,
-        &clipmap_tracker,
-        &texture_clipmap,
-        &tint_clipmap,
-        &mut gui_event,
-    );
-
     menu::show(&mut egui_ctx, &ui_state, &mut gui_event);
 
     egui::SidePanel::right("side_panel")
@@ -71,7 +57,6 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
 
 use crate::atmosphere::AtmosphereMat;
-use crate::terrain_clipmap::{TextureControlClipmap, TintClipmap};
 use crate::terrain_material::TerrainMaterialSet;
 use crate::terrain_tiles::TerrainMeshSettings;
 use crate::SunSettings;
@@ -82,6 +67,4 @@ mod atmosphere;
 mod materialpalette;
 mod menu;
 mod mesh;
-
-mod debug;
 // ----------------------------------------------------------------------------

@@ -16,7 +16,7 @@ pub fn show(
             {
                 ui.add_space(50.0);
                 ui.separator();
-                super::debug::show_debug_menu(ui, ui_state, gui_event);
+                crate::gui::debug::show_menu(ui, ui_state, gui_event);
             }
         });
     });
