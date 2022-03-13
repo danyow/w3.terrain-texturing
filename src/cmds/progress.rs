@@ -9,6 +9,7 @@ pub enum TrackedProgress {
     LoadHeightmap(bool),
     LoadTextureMap(bool),
     LoadTintMap(bool),
+    GenerateClipmap(bool),
     GeneratedHeightmapNormals(usize, usize),
     GeneratedTerrainErrorMaps(usize, usize),
     GenerateTerrainTiles(bool),
@@ -27,6 +28,7 @@ impl TrackedProgress {
             Self::LoadHeightmap(b)
             | Self::LoadTextureMap(b)
             | Self::LoadTintMap(b)
+            | Self::GenerateClipmap(b)
             | Self::GenerateTerrainTiles(b) => *b,
             Self::GeneratedHeightmapNormals(a, b)
             | Self::GeneratedTerrainErrorMaps(a, b)
@@ -41,6 +43,7 @@ impl TrackedProgress {
             Self::LoadHeightmap(b)
             | Self::LoadTextureMap(b)
             | Self::LoadTintMap(b)
+            | Self::GenerateClipmap(b)
             | Self::GenerateTerrainTiles(b) => {
                 if *b {
                     1.0
@@ -65,6 +68,7 @@ impl TrackedProgress {
             Self::LoadHeightmap(_) => "loading heighmap...".to_string(),
             Self::LoadTextureMap(_) => "loading texturing map...".to_string(),
             Self::LoadTintMap(_) => "loading tintmap...".to_string(),
+            Self::GenerateClipmap(_) => "generating clipmap...".to_string(),
             Self::GeneratedHeightmapNormals(_, _) => {
                 Self::format_progress("generating normals", self.progress())
             }
@@ -87,6 +91,7 @@ impl TrackedProgress {
             Self::LoadHeightmap(_) => "heightmap loaded.",
             Self::LoadTextureMap(_) => "texturing map loaded.",
             Self::LoadTintMap(_) => "tintmap loaded.",
+            Self::GenerateClipmap(_) => "clipmap generated.",
             Self::GeneratedHeightmapNormals(_, _) => "heightmap normals generated.",
             Self::GenerateTerrainTiles(_) => "mesh tile info generated.",
             Self::GeneratedTerrainErrorMaps(_, _) => "terrain error maps generation finished.",
@@ -109,6 +114,7 @@ impl hash::Hash for TrackedProgress {
             LoadHeightmap(_) => state.write_u8(1),
             LoadTextureMap(_) => state.write_u8(2),
             LoadTintMap(_) => state.write_u8(3),
+            GenerateClipmap(_) => state.write_u8(4),
             GeneratedHeightmapNormals(_, _) => state.write_u8(5),
             GenerateTerrainTiles(_) => state.write_u8(6),
             GeneratedTerrainErrorMaps(_, _) => state.write_u8(7),
@@ -126,6 +132,7 @@ impl cmp::PartialEq for TrackedProgress {
             LoadHeightmap(_) => matches!(other, LoadHeightmap(_)),
             LoadTextureMap(_) => matches!(other, LoadTextureMap(_)),
             LoadTintMap(_) => matches!(other, LoadTintMap(_)),
+            GenerateClipmap(_) => matches!(other, GenerateClipmap(_)),
             GeneratedHeightmapNormals(_, _) => matches!(other, GeneratedHeightmapNormals(_, _)),
             GenerateTerrainTiles(_) => matches!(other, GenerateTerrainTiles(_)),
             GeneratedTerrainErrorMaps(_, _) => matches!(other, GeneratedTerrainErrorMaps(_, _)),

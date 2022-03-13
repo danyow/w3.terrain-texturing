@@ -13,6 +13,7 @@ pub enum AsyncTask {
     LoadHeightmap,
     LoadTextureMap,
     LoadTintMap,
+    GenerateClipmap,
     GenerateHeightmapNormals,
     GenerateTerrainTiles,
     GenerateTerrainMeshErrorMaps,
@@ -28,6 +29,7 @@ pub enum AsyncTaskStartEvent {
     LoadHeightmap,
     LoadTextureMap,
     LoadTintMap,
+    GenerateClipmap,
     GenerateHeightmapNormals,
     GenerateTerrainTiles,
     GenerateTerrainMeshErrorMaps,
@@ -41,6 +43,7 @@ pub enum AsyncTaskFinishedEvent {
     HeightmapLoaded,
     TextureMapLoaded,
     TintMapLoaded,
+    ClipmapGenerated,
     HeightmapNormalsGenerated,
     TerrainTilesGenerated,
     TerrainMeshErrorMapsGenerated,
@@ -69,6 +72,9 @@ pub struct GenerateTerrainMeshErrorMaps;
 // ----------------------------------------------------------------------------
 #[derive(Debug, Default)]
 pub struct GenerateTerrainMeshes;
+// ----------------------------------------------------------------------------
+#[derive(Debug, Default)]
+pub struct GenerateClipmap;
 // ----------------------------------------------------------------------------
 #[derive(Debug, Default)]
 pub struct LoadTerrainMaterialSet;

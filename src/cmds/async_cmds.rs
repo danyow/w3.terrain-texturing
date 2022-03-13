@@ -1,17 +1,27 @@
+use std::ops::DerefMut;
+
 // ----------------------------------------------------------------------------
 use enum_dispatch::enum_dispatch;
 
 use bevy::{prelude::*, tasks::IoTaskPool, utils::HashSet};
 
 use crate::config;
+use crate::config::CLIPMAP_SIZE;
+
+use crate::clipmap::ClipmapBuilder;
 use crate::heightmap::TerrainHeightMap;
 use crate::loader::LoaderPlugin;
+use crate::terrain_clipmap::{ClipmapTracker, TerrainClipmap, TextureControlClipmap, TintClipmap};
+use crate::texturearray::TextureArray;
+use crate::texturecontrol::TextureControl;
+use crate::tintmap::TintMap;
 use crate::{EditorEvent, TaskResult, TaskResultData};
 
 use super::{
-    AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, GenerateHeightmapNormals,
-    GenerateTerrainMeshErrorMaps, GenerateTerrainMeshes, GenerateTerrainTiles, LoadHeightmap,
-    LoadTerrainMaterialSet, LoadTextureMap, LoadTintMap, TrackedProgress, WaitForTerrainLoaded,
+    AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, GenerateClipmap,
+    GenerateHeightmapNormals, GenerateTerrainMeshErrorMaps, GenerateTerrainMeshes,
+    GenerateTerrainTiles, LoadHeightmap, LoadTerrainMaterialSet, LoadTextureMap, LoadTintMap,
+    TrackedProgress, WaitForTerrainLoaded,
 };
 // ----------------------------------------------------------------------------
 pub struct AsyncCmdsPlugin;
@@ -94,7 +104,11 @@ pub(crate) fn start_async_operations(
     mut async_cmd_tracker: ResMut<AsyncCommandManager>,
     mut tasks_finished: EventReader<AsyncTaskFinishedEvent>,
     mut task_ready: EventWriter<AsyncTaskStartEvent>,
+    mut clipmap_tracker: ResMut<ClipmapTracker>,
+    mut terrain_clipmap: ResMut<TerrainClipmap>,
     mut editor_events: EventWriter<EditorEvent>,
+    texture_clipmap: Res<TextureControlClipmap>,
+    tint_clipmap: Res<TintClipmap>,
     thread_pool: Res<IoTaskPool>,
     terrain_config: Res<config::TerrainConfig>,
 ) {
@@ -126,7 +140,26 @@ pub(crate) fn start_async_operations(
                     commands.spawn().insert(task);
                 }
                 LoadTerrainMaterialSet => task_ready.send(LoadTerrainMaterialSet),
-                // -- these tasks are more involved and will be handled by specialized systems
+                // -- these tasks are more involved and may be handled by specialized systems
+                GenerateClipmap => {
+                    // dedicated clipmaps will update their texturearray but the clipmap
+                    // for the rendering (terrain_clipmap) must track all texture arrays
+                    // so it can provide synced data (offset + texture binding) in the
+                    // renderworld
+                    terrain_clipmap.set_texture_clipmap(&texture_clipmap);
+                    terrain_clipmap.set_tint_clipmap(&tint_clipmap);
+
+                    // -> regenerate for the current position
+                    clipmap_tracker.force_update();
+
+                    // task finished cannot be sent from this system (mut access conflict)
+                    // but it needs to be send to drive progress and mark all events as finished!
+                    // Workaround: set directly in tracker and ignore in global ui progress
+                    async_cmd_tracker.update(AsyncTaskFinishedEvent::ClipmapGenerated);
+                    editor_events.send(EditorEvent::ProgressTrackingUpdate(
+                        AsyncTaskFinishedEvent::ClipmapGenerated.into(),
+                    ));
+                }
                 GenerateHeightmapNormals => task_ready.send(GenerateHeightmapNormals),
                 GenerateTerrainTiles => task_ready.send(GenerateTerrainTiles),
                 GenerateTerrainMeshErrorMaps => task_ready.send(GenerateTerrainMeshErrorMaps),
@@ -145,6 +178,12 @@ pub(crate) fn poll_async_task_state(
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
     mut task_ready: EventReader<AsyncTaskStartEvent>,
     mut terrain_heightmap: ResMut<TerrainHeightMap>,
+    mut texture_clipmap: ResMut<TextureControlClipmap>,
+    mut tint_clipmap: ResMut<TintClipmap>,
+    mut texture_arrays: ResMut<Assets<TextureArray>>,
+
+    clipmap_tracker: ResMut<ClipmapTracker>,
+    terrain_config: Res<config::TerrainConfig>,
 ) {
     use futures_lite::future;
 
@@ -164,11 +203,31 @@ pub(crate) fn poll_async_task_state(
                         task_finished.send(AsyncTaskFinishedEvent::HeightmapLoaded);
                     }
                     TaskResultData::TextureControl(new_controlmap_data) => {
-                        // TODO
+                        // inplace update required (cmds.insert_resource is queued)
+                        *texture_clipmap = ClipmapBuilder::<CLIPMAP_SIZE, TextureControl>::new(
+                            "texture clipmap",
+                            new_controlmap_data,
+                            terrain_config.map_size(),
+                            clipmap_tracker.data_view_sizes(),
+                        )
+                        .enable_cache(true)
+                        .build(clipmap_tracker.rectangles(), texture_arrays.deref_mut())
+                        .into();
+
                         task_finished.send(AsyncTaskFinishedEvent::TextureMapLoaded);
                     }
                     TaskResultData::TintMap(new_tintmap_data) => {
-                        // TODO
+                        // inplace update required (cmds.insert_resource is queued)
+                        *tint_clipmap = ClipmapBuilder::<CLIPMAP_SIZE, TintMap>::new(
+                            "tint clipmap",
+                            new_tintmap_data,
+                            terrain_config.map_size(),
+                            clipmap_tracker.data_view_sizes(),
+                        )
+                        .enable_cache(true)
+                        .build(clipmap_tracker.rectangles(), texture_arrays.deref_mut())
+                        .into();
+
                         task_finished.send(AsyncTaskFinishedEvent::TintMapLoaded);
                     }
                 },
@@ -218,12 +277,24 @@ impl AsyncTaskNode for LoadHeightmap {
 impl AsyncTaskNode for LoadTextureMap {
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::LoadTextureMap }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TextureMapLoaded }
+    fn subsequent_tasks(&self) -> Vec<AsyncTask> { vec![GenerateClipmap::default().into()] }
 }
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
 impl AsyncTaskNode for LoadTintMap {
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::LoadTintMap }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TintMapLoaded }
+    fn subsequent_tasks(&self) -> Vec<AsyncTask> { vec![GenerateClipmap::default().into()] }
+}
+// ----------------------------------------------------------------------------
+#[rustfmt::skip]
+impl AsyncTaskNode for GenerateClipmap {
+    fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[
+        AsyncTaskFinishedEvent::TextureMapLoaded,
+        AsyncTaskFinishedEvent::TintMapLoaded
+    ]}
+    fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::GenerateClipmap }
+    fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::ClipmapGenerated }
 }
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
@@ -270,8 +341,7 @@ impl AsyncTaskNode for LoadTerrainMaterialSet {
 impl AsyncTaskNode for WaitForTerrainLoaded {
     fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[
         AsyncTaskFinishedEvent::TerrainMeshesGenerated,
-        AsyncTaskFinishedEvent::TextureMapLoaded,
-        AsyncTaskFinishedEvent::TintMapLoaded,
+        AsyncTaskFinishedEvent::ClipmapGenerated,
         AsyncTaskFinishedEvent::TerrainMaterialSetLoaded,
     ]}
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::WaitForTerrainLoaded }
@@ -288,6 +358,7 @@ impl From<AsyncTaskStartEvent> for TrackedProgress {
             AsyncTaskStartEvent::LoadHeightmap => LoadHeightmap(false),
             AsyncTaskStartEvent::LoadTextureMap => LoadTextureMap(false),
             AsyncTaskStartEvent::LoadTintMap => LoadTintMap(false),
+            AsyncTaskStartEvent::GenerateClipmap => GenerateClipmap(false),
             AsyncTaskStartEvent::GenerateHeightmapNormals => GeneratedHeightmapNormals(0, 1),
             AsyncTaskStartEvent::GenerateTerrainTiles => GenerateTerrainTiles(false),
             AsyncTaskStartEvent::GenerateTerrainMeshErrorMaps => GeneratedTerrainErrorMaps(0, 1),
@@ -306,6 +377,7 @@ impl From<AsyncTaskFinishedEvent> for TrackedProgress {
             AsyncTaskFinishedEvent::HeightmapLoaded => LoadHeightmap(true),
             AsyncTaskFinishedEvent::TextureMapLoaded => LoadTextureMap(true),
             AsyncTaskFinishedEvent::TintMapLoaded => LoadTintMap(true),
+            AsyncTaskFinishedEvent::ClipmapGenerated => GenerateClipmap(true),
             AsyncTaskFinishedEvent::HeightmapNormalsGenerated => GeneratedHeightmapNormals(1, 1),
             AsyncTaskFinishedEvent::TerrainTilesGenerated => GenerateTerrainTiles(true),
             AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated => {
