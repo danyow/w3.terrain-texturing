@@ -1,9 +1,10 @@
 // ----------------------------------------------------------------------------
 use bevy::{
     core_pipeline::Opaque3d,
+    ecs::query::QueryItem,
     prelude::*,
     render::{
-        render_component::{ExtractComponentPlugin, UniformComponentPlugin},
+        render_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin},
         render_phase::{AddRenderCommand, DrawFunctions, RenderPhase, SetItemPipeline},
         render_resource::{RenderPipelineCache, SpecializedPipelines},
         view::ExtractedView,
@@ -22,9 +23,12 @@ use self::terrain_mesh::TerrainMeshUniform;
 
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
-use super::{TerrainMaterialParam, TerrainMaterialSet, TerrainMesh};
+use super::{
+    ClipmapAssignment, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet, TerrainMesh,
+};
 // ----------------------------------------------------------------------------
 mod pipeline;
+mod terrain_clipmap;
 mod terrain_material;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
@@ -33,8 +37,11 @@ pub struct TerrainMeshRenderPlugin;
 impl Plugin for TerrainMeshRenderPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
-        app.add_plugin(UniformComponentPlugin::<TerrainMeshUniform>::default())
+        app.init_resource::<TerrainClipmap>()
+            .add_plugin(UniformComponentPlugin::<TerrainMeshUniform>::default())
             .add_plugin(RenderResourcePlugin::<TerrainMaterialSet>::default())
+            .add_plugin(RenderResourcePlugin::<TerrainClipmap>::default())
+            .add_plugin(ExtractComponentPlugin::<ClipmapAssignment>::default())
             //TODO remove as soon as terrain mesh is dedicated type ?
             .add_plugin(ExtractComponentPlugin::<TerrainTileComponent>::default());
 
@@ -52,7 +59,7 @@ impl Plugin for TerrainMeshRenderPlugin {
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn queue_terrain_rendering(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     terrain_pipeline: Res<TerrainMeshRenderPipeline>,
@@ -61,7 +68,11 @@ fn queue_terrain_rendering(
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     terrain_meshes: Query<
         (Entity, &TerrainMeshUniform),
-        (With<Handle<TerrainMesh>>, With<TerrainTileComponent>),
+        (
+            With<Handle<TerrainMesh>>,
+            With<ClipmapAssignment>,
+            With<TerrainTileComponent>,
+        ),
     >,
     mut views: Query<(&ExtractedView, &mut RenderPhase<Opaque3d>)>,
 ) {
@@ -89,6 +100,7 @@ type DrawCmdTerrain = (
     terrain_mesh::SetMeshViewBindGroup<0>,
     terrain_mesh::SetMeshBindGroup<1>,
     terrain_material::SetTerrainMaterialSetBindGroup<2>,
+    terrain_clipmap::SetTerrainClipmapBindGroup<3>,
     terrain_mesh::DrawMesh,
 );
 // ----------------------------------------------------------------------------
@@ -101,6 +113,17 @@ impl bevy::render::render_component::ExtractComponent for TerrainTileComponent {
 
     fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
         item.clone()
+    }
+}
+// ----------------------------------------------------------------------------
+// must be in renderworld to extract level into TerrainMeshUniform
+impl ExtractComponent for ClipmapAssignment {
+    type Query = &'static ClipmapAssignment;
+
+    type Filter = ();
+
+    fn extract_component(item: QueryItem<Self::Query>) -> Self {
+        *item
     }
 }
 // ----------------------------------------------------------------------------

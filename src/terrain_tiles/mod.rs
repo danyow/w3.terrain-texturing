@@ -23,6 +23,7 @@ use crate::config::{TerrainConfig, TILE_SIZE};
 use crate::heightmap::{
     TerrainDataView, TerrainHeightMap, TerrainHeightMapView, TerrainNormals, TerrainTileId,
 };
+use crate::terrain_clipmap::ClipmapAssignment;
 use crate::EditorEvent;
 
 use TerrainTileSystemLabel::*;
@@ -398,6 +399,7 @@ fn async_tilemesh_generation(
 // ----------------------------------------------------------------------------
 type TerrainTileBundle = (
     TerrainTileComponent,
+    ClipmapAssignment,
     GlobalTransform,
     Transform,
     Aabb,
@@ -452,6 +454,11 @@ fn generate_tiles(
             // default component bundle for terrain tile
             (
                 tile_info,
+                ClipmapAssignment::new(
+                    terrain_config.max_clipmap_level(), // assign max level as default (covers complete map)
+                    tile_center.xz(),
+                    Vec2::ONE * TILE_SIZE as f32 * map_resolution,
+                ),
                 GlobalTransform::default(),
                 Transform::from_translation(tile_center),
                 aabb,

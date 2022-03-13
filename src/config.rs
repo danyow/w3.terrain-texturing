@@ -1,5 +1,16 @@
 // ----------------------------------------------------------------------------
+// 256 seems to be a good compromise for 16k x 16k terrains.
 pub const TILE_SIZE: u32 = 256;
+// Since a clipmap level is assigned to a tile which is completely covered by
+// clipmap level the clipmap size should be at least 4 * TILE_SIZE to make sure
+// that at least 3 tiles (>= 1.5 tiles in all directions from camera) are
+// highest res. Good value is 1024.
+pub const CLIPMAP_SIZE: u32 = TILE_SIZE * 4;
+// Granularity of clipmap view positions in full data. Since clipmap levels are
+// assigned to tiles this should be the same size (lower granularity will update
+// clipmap data more often but tiles will only be updated if they are fully
+// covered).
+pub const CLIPMAP_GRANULARITY: u32 = TILE_SIZE;
 // ----------------------------------------------------------------------------
 /// config for texturing maps
 #[derive(Clone)]
@@ -30,6 +41,8 @@ pub struct TerrainConfig {
     texturemaps: TextureMaps,
     /// path to tint/pigment/color map
     tintmap: String,
+    /// clipmnap levels
+    clipmap_levels: u8,
     /// currently assigned materialset info
     materialset: MaterialSetConfig,
 }
@@ -98,6 +111,14 @@ impl TerrainConfig {
     // ------------------------------------------------------------------------
     pub fn texturemaps(&self) -> &TextureMaps {
         &self.texturemaps
+    }
+    // ------------------------------------------------------------------------
+    pub fn clipmap_levels(&self) -> u8 {
+        self.clipmap_levels
+    }
+    // ------------------------------------------------------------------------
+    pub fn max_clipmap_level(&self) -> u8 {
+        self.clipmap_levels - 1
     }
     // ------------------------------------------------------------------------
     pub fn materialset(&self) -> &MaterialSetConfig {
@@ -236,6 +257,7 @@ impl TerrainConfig {
                 blendcontrol: format!("{}/test.blendcontrol.{}x{}.png", basepath, size, size),
             },
             tintmap: format!("{}/test.tint.{}x{}.png", basepath, size, size),
+            clipmap_levels: 3,
             materialset: MaterialSetConfig::prolog_village(),
         }
     }
@@ -259,6 +281,7 @@ impl TerrainConfig {
                 blendcontrol: format!("{}/test.blendcontrol.{}x{}.png", basepath, size, size),
             },
             tintmap: format!("{}/test.tint.{}x{}.png", basepath, size, size),
+            clipmap_levels: 5,
             materialset: MaterialSetConfig::kaer_morhen(),
         }
     }

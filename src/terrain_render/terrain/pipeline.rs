@@ -14,6 +14,7 @@ use bevy::{
     },
 };
 
+use super::terrain_clipmap::clipmap_bind_group_layout;
 use super::terrain_material::materialset_bind_group_layout;
 use super::terrain_mesh::{
     mesh_bind_group_layout, mesh_vertex_buffer_layout, mesh_view_bind_group_layout,
@@ -28,6 +29,7 @@ pub struct TerrainMeshRenderPipeline {
     pub(super) view_layout: BindGroupLayout,
     pub(super) mesh_layout: BindGroupLayout,
     pub(super) materialset_layout: BindGroupLayout,
+    pub(super) clipmap_layout: BindGroupLayout,
 }
 // ----------------------------------------------------------------------------
 impl FromWorld for TerrainMeshRenderPipeline {
@@ -55,9 +57,14 @@ impl FromWorld for TerrainMeshRenderPipeline {
 
         let materialset_layout =
             render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("terrain_mesh_layout"),
+                label: Some("terrain_material_layout"),
                 entries: &materialset_bind_group_layout(),
             });
+
+        let clipmap_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("terrain_clipmap_layout"),
+            entries: &clipmap_bind_group_layout(),
+        });
 
         TerrainMeshRenderPipeline {
             shader_vert,
@@ -66,6 +73,7 @@ impl FromWorld for TerrainMeshRenderPipeline {
             view_layout,
             mesh_layout,
             materialset_layout,
+            clipmap_layout,
         }
     }
     // ------------------------------------------------------------------------
@@ -127,6 +135,7 @@ impl SpecializedPipeline for TerrainMeshRenderPipeline {
                 self.view_layout.clone(),
                 self.mesh_layout.clone(),
                 self.materialset_layout.clone(),
+                self.clipmap_layout.clone(),
             ]),
             primitive: PrimitiveState {
                 front_face: FrontFace::Ccw,

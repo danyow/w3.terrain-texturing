@@ -10,6 +10,7 @@ use cmds::AsyncTaskFinishedEvent;
 use gui::{GuiAction, UiImages};
 
 use crate::heightmap::HeightmapPlugin;
+use crate::terrain_clipmap::TerrainClipmapPlugin;
 use crate::terrain_material::MaterialSetPlugin;
 use crate::terrain_tiles::TerrainTilesGeneratorPlugin;
 // ----------------------------------------------------------------------------
@@ -18,6 +19,7 @@ mod config;
 mod loader;
 
 mod heightmap;
+mod terrain_clipmap;
 mod terrain_material;
 mod terrain_tiles;
 mod texturecontrol;
@@ -28,6 +30,7 @@ mod compute;
 mod resource;
 mod terrain_render;
 mod texturearray;
+mod clipmap;
 
 mod cmds;
 mod gui;
@@ -46,6 +49,11 @@ enum EditorEvent {
     ProgressTrackingStart(cmds::TrackedTaskname, Vec<cmds::TrackedProgress>),
     ProgressTrackingUpdate(cmds::TrackedProgress),
     StateChange(EditorState),
+    Debug(DebugEvent),
+}
+// ----------------------------------------------------------------------------
+enum DebugEvent {
+    ClipmapUpdate(String, u8, Handle<texturearray::TextureArray>),
 }
 // ----------------------------------------------------------------------------
 #[derive(Default)]
@@ -174,6 +182,7 @@ impl Plugin for EditorPlugin {
             .add_plugin(cmds::AsyncCmdsPlugin)
             .add_plugin(texturearray::TextureArrayPlugin)
             .add_plugin(heightmap::HeightmapPlugin)
+            .add_plugin(terrain_clipmap::TerrainClipmapPlugin)
             .add_plugin(terrain_material::MaterialSetPlugin)
             .add_plugin(terrain_tiles::TerrainTilesGeneratorPlugin)
             .add_plugin(terrain_render::TerrainRenderPlugin)
@@ -235,6 +244,7 @@ impl EditorState {
                 .with_system(daylight_cycle),
         )
         // plugins
+        .add_system_set(TerrainClipmapPlugin::reset_data(NoTerrainData))
         .add_system_set(TerrainTilesGeneratorPlugin::reset_data(NoTerrainData))
         .add_system_set(MaterialSetPlugin::setup_default_materialset(NoTerrainData))
         .add_system_set(CameraPlugin::active_free_camera(NoTerrainData));
@@ -248,7 +258,10 @@ impl EditorState {
             SystemSet::on_enter(TerrainLoading)
                 .with_system(signal_editor_state_change)
                 .with_system(setup_terrain_loading),
-        );
+        )
+        // clipmap tracker must be intialized with new config data
+        // before loading starts
+        .add_system_set(TerrainClipmapPlugin::init_tracker(TerrainLoading));
 
         app.add_system_set(
             SystemSet::on_update(TerrainLoading)
@@ -278,6 +291,7 @@ impl EditorState {
         // plugins
         .add_system_set(CameraPlugin::active_free_camera(Editing))
         .add_system_set(MaterialSetPlugin::terrain_material_loading(Editing))
+        .add_system_set(TerrainClipmapPlugin::update_tracker(Editing))
         .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(Editing));
     }
     // ------------------------------------------------------------------------
