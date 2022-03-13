@@ -109,7 +109,7 @@ impl ClipmapTracker {
         ((pos - self.world_offset) / self.world_resolution)
             .as_uvec2()
             // clamp to data size
-            .min(uvec2(self.data_size, self.data_size))
+            .min(uvec2(self.data_size-1, self.data_size-1))
     }
     // ------------------------------------------------------------------------
     pub fn force_update(&mut self) {
