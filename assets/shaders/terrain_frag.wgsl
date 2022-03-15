@@ -138,8 +138,9 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     // pointlight direction
     // let lightDirection = normalize(lightPos - fragmentPos);
+    // let viewDirection = normalize(view.world_position.xyz - fragmentPos);
     let lightDirection = normalize(-sunDirectionalLight);
-    let viewDirection = normalize(view.world_position.xyz - fragmentPos);
+    let viewDirection = normalize(view.world_position.xyz);
     let halfwayDirection = normalize(lightDirection + viewDirection);
 
     let ambientStrength = 0.03;
