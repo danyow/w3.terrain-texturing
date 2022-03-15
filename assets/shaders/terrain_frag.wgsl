@@ -1,3 +1,16 @@
+// view
+struct View {
+    view_proj: mat4x4<f32>;
+    inverse_view: mat4x4<f32>;
+    projection: mat4x4<f32>;
+    world_position: vec3<f32>;
+    near: f32;
+    far: f32;
+    width: f32;
+    height: f32;
+};
+
+// mesh
 struct Mesh {
     model: mat4x4<f32>;
     inverse_transpose_model: mat4x4<f32>;
@@ -33,6 +46,8 @@ struct ClipmapInfo {
     layers: array<ClipmapLayerInfo, 10u>;
 };
 
+// view
+[[group(0), binding(0)]] var<uniform> view: View;
 
 [[group(1), binding(0)]] var<uniform> mesh: Mesh;
 
@@ -52,11 +67,17 @@ struct ClipmapInfo {
 struct FragmentInput {
     [[builtin(position)]] frag_coord: vec4<f32>;
     [[location(0)]] world_position: vec4<f32>;
-    [[location(1)]] uv: vec2<f32>;
+    [[location(1)]] normal: vec3<f32>;
+    [[location(2)]] uv: vec2<f32>;
 };
 
 [[stage(fragment)]]
 fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
+    let fragmentPos = in.world_position.xyz;
+
+    let lightColor = vec3<f32>(1.0, 1.0, 1.0);
+    let lightPos = vec3<f32>(5000.0, 1000.0, 5000.0);
+
     // https://catlikecoding.com/unity/tutorials/advanced-rendering/flat-and-wireframe-shading/
     let barys = vec3<f32>(in.uv.x, in.uv.y, 1.0 - in.uv.x - in.uv.y);
     let minBarys = min(barys.x, min(barys.y, barys.z));
@@ -77,24 +98,24 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     // test texturing
     // xyz -> xyz
-    let vertexPosFlipped = in.world_position.xzy;
+    let fragmentPosFlipped = in.world_position.xzy;
 
     // test clipmap
     let mapOffset = vec2<f32>(clipmap.layers[clipmap_level].map_offset);
     let mapScaling: f32 = clipmap.layers[clipmap_level].resolution;
     let mapSize: f32 = clipmap.layers[clipmap_level].size;
 
-    var controlMapPos: vec2<f32> = (vertexPosFlipped.xy - clipmap.world_offset) / clipmap.world_res;
+    var controlMapPos: vec2<f32> = (fragmentPosFlipped.xy - clipmap.world_offset) / clipmap.world_res;
     controlMapPos = (controlMapPos - mapOffset) / mapScaling;
 
     let controlMapPosCoord: vec2<i32> =  clamp(vec2<i32>(controlMapPos), vec2<i32>(0), vec2<i32>(i32(mapSize)));
     let controlMapValueA: vec4<u32> = textureLoad(controlMap, controlMapPosCoord, i32(clipmap_level));
 
     // scale texture
-    let texturingPos = vec2<f32>(0.333) * vertexPosFlipped.xy;
+    let texturingPos = vec2<f32>(0.333) * fragmentPosFlipped.xy;
 
-    let partialDDX: vec2<f32> = dpdx(vertexPosFlipped.xy);
-    let partialDDY: vec2<f32> = dpdy(vertexPosFlipped.xy);
+    let partialDDX: vec2<f32> = dpdx(fragmentPosFlipped.xy);
+    let partialDDY: vec2<f32> = dpdy(fragmentPosFlipped.xy);
     // scale derivatives
     let scaledDDX = partialDDX * 0.333;
     let scaledDDY = partialDDY * 0.333;
@@ -106,6 +127,37 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     var fragmentCol = textureSampleGrad(
         // textureArray, terrainTextureSampler, texturingPos, i32(bkgrndTextureA), scaledDDX, scaledDDY);
         textureArray, terrainTextureSampler, texturingPos, i32(overlayTextureA), scaledDDX, scaledDDY);
+
+
+    // --- lighting
+    // phong-blinn
+    let fragmentNormal = normalize(in.normal);
+    // directional light
+    // sun light coming from the sun
+    let sunDirectionalLight = -lightPos;
+
+    // pointlight direction
+    // let lightDirection = normalize(lightPos - fragmentPos);
+    let lightDirection = normalize(-sunDirectionalLight);
+    let viewDirection = normalize(view.world_position.xyz - fragmentPos);
+    let halfwayDirection = normalize(lightDirection + viewDirection);
+
+    let ambientStrength = 0.03;
+    let diffuseStrength = max(dot(fragmentNormal, lightDirection), 0.0);
+    let specularStrength = 0.75;
+    // shininess
+    let specularExp = 32.0;
+    // let reflectDirection = reflect(-lightDirection, fragmentNormal);
+    // let specular = pow(max(dot(viewDirection, reflectDirection), 0.0), specularExp); // phong
+    let specular = pow(max(dot(fragmentNormal, halfwayDirection), 0.0), 1.0 * specularExp);
+
+    let ambientCol = lightColor * ambientStrength;
+    let diffuseCol = diffuseStrength * lightColor;
+    let specularCol = specularStrength * specular * lightColor;
+
+    let col = ambientCol + diffuseCol + specularCol;
+
+    fragmentCol = vec4<f32>(col * fragmentCol.rgb, 1.0);
 
     // debug visualization for wireframes and clipmap level
     // fragmentCol = mix(wireframeCol, fragmentCol, smoothStep(0.0, wireframeWidth, minBarys));
