@@ -77,6 +77,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     let lightColor = vec3<f32>(1.0, 1.0, 1.0);
     let lightPos = vec3<f32>(5000.0, 1000.0, 5000.0);
+    let gamma = 2.2;
 
     // https://catlikecoding.com/unity/tutorials/advanced-rendering/flat-and-wireframe-shading/
     let barys = vec3<f32>(in.uv.x, in.uv.y, 1.0 - in.uv.x - in.uv.y);
@@ -128,6 +129,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
         // textureArray, terrainTextureSampler, texturingPos, i32(bkgrndTextureA), scaledDDX, scaledDDY);
         textureArray, terrainTextureSampler, texturingPos, i32(overlayTextureA), scaledDDX, scaledDDY);
 
+    fragmentCol = vec4<f32>(pow(fragmentCol.rgb, vec3<f32>(gamma)), 1.0);
 
     // --- lighting
     // phong-blinn
@@ -145,7 +147,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     let ambientStrength = 0.03;
     let diffuseStrength = max(dot(fragmentNormal, lightDirection), 0.0);
-    let specularStrength = 0.75;
+    let specularStrength = 0.5;
     // shininess
     let specularExp = 32.0;
     // let reflectDirection = reflect(-lightDirection, fragmentNormal);
@@ -163,6 +165,9 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     // debug visualization for wireframes and clipmap level
     // fragmentCol = mix(wireframeCol, fragmentCol, smoothStep(0.0, wireframeWidth, minBarys));
     // fragmentCol = mix(fragmentCol, clipmapCol, f32(clipmap_level) / 6.0);
+
+    // --- gamma correction
+    fragmentCol = pow(fragmentCol, vec4<f32>(1.0 / gamma));
 
     return fragmentCol;
 }
