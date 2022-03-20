@@ -15,10 +15,9 @@ use bevy::{
 };
 
 use super::terrain_clipmap::clipmap_bind_group_layout;
+use super::terrain_environment::mesh_view_bind_group_layout;
 use super::terrain_material::materialset_bind_group_layout;
-use super::terrain_mesh::{
-    mesh_bind_group_layout, mesh_vertex_buffer_layout, mesh_view_bind_group_layout,
-};
+use super::terrain_mesh::{mesh_bind_group_layout, mesh_vertex_buffer_layout};
 // ----------------------------------------------------------------------------
 // pipeline
 // ----------------------------------------------------------------------------

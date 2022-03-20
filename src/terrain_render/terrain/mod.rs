@@ -16,9 +16,9 @@ use crate::resource::RenderResourcePlugin;
 
 use crate::terrain_tiles::TerrainTileComponent;
 
+use self::terrain_environment::queue_mesh_view_bind_group as queue_terrain_mesh_view_bind_group;
 use self::terrain_mesh::extract_meshes as extract_terrain_meshes;
 use self::terrain_mesh::queue_mesh_bind_group as queue_terrain_mesh_bind_group;
-use self::terrain_mesh::queue_mesh_view_bind_group as queue_terrain_mesh_view_bind_group;
 use self::terrain_mesh::TerrainMeshUniform;
 
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
@@ -29,6 +29,7 @@ use super::{
 // ----------------------------------------------------------------------------
 mod pipeline;
 mod terrain_clipmap;
+mod terrain_environment;
 mod terrain_material;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
@@ -97,7 +98,7 @@ fn queue_terrain_rendering(
 // ----------------------------------------------------------------------------
 type DrawCmdTerrain = (
     SetItemPipeline,
-    terrain_mesh::SetMeshViewBindGroup<0>,
+    terrain_environment::SetMeshViewBindGroup<0>,
     terrain_mesh::SetMeshBindGroup<1>,
     terrain_material::SetTerrainMaterialSetBindGroup<2>,
     terrain_clipmap::SetTerrainClipmapBindGroup<3>,
