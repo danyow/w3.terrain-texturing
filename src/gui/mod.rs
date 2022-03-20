@@ -3,11 +3,11 @@ use bevy::{math::Vec3, prelude::*};
 use bevy_egui::EguiContext;
 
 use crate::atmosphere::AtmosphereMat;
+use crate::environment::SunSettings;
 use crate::config;
 use crate::terrain_material::{MaterialSlot, TerrainMaterialSet, TextureType, TextureUpdatedEvent};
 use crate::terrain_tiles::{LodSlot, TerrainMeshSettings};
 use crate::texturearray::TextureArray;
-use crate::SunSettings;
 use crate::{EditorEvent, EditorState};
 // ----------------------------------------------------------------------------
 pub struct EditorUiPlugin;
@@ -58,10 +58,12 @@ pub enum MaterialSetting {
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub enum SunSetting {
-    SetPosition(f32),
-    SetDistance(f32),
-    ToggleCycle,
-    SetCycleSpeed(f32),
+    SetTimeOfDay(f32),
+    SetPlaneTilt(u16),
+    SetPlaneYaw(u16),
+    SetPlaneHeight(u16),
+    SetCycleSpeed(u16),
+    ToggleDebugMesh,
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug)]

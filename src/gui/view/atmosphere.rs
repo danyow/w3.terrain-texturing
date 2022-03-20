@@ -12,30 +12,35 @@ pub(super) fn show_sun_settings(
     egui::CollapsingHeader::new("Sun settings")
         .default_open(false)
         .show(ui, |ui| {
-            let mut s = SunSettings {
-                cycle_active: settings.cycle_active,
-                cycle_speed: settings.cycle_speed,
-                pos: settings.pos,
-                distance: settings.distance,
+            let mut s = SunGuiSettings {
+                time: settings.time_of_day().normalized(),
+                cycle_speed: settings.daylight_cycle_speed(),
+                yaw: settings.plane_yaw().value(),
+                tilt: settings.plane_tilt().value(),
+                height: settings.plane_height(),
+                show_debug_mesh: settings.show_debug_mesh(),
             };
 
-            ui.add_enabled_ui(!settings.cycle_active, |ui| {
-                if ui.add(Slider::new(&mut s.pos, 0.0..=1.0).text("position")).changed() {
-                    gui_event.send(UpdateSunSetting(SetPosition(s.pos)));
-                }
-                if ui.add(Slider::new(&mut s.distance, 5.0..=10.0).text("distance")).changed() {
-                    gui_event.send(UpdateSunSetting(SetDistance(s.distance)));
-                }
-            });
-            ui.separator();
-            if ui.checkbox(&mut s.cycle_active, "auto cycle").changed() {
-                gui_event.send(UpdateSunSetting(ToggleCycle));
+            if ui.add(Slider::new(&mut s.time, 0.0..=1.0)
+                .show_value(false).text(format!("{} Time [HH:mm]", settings.time_of_day().as_str())))
+                .changed() {
+                    gui_event.send(UpdateSunSetting(SetTimeOfDay(s.time)));
             }
-            if ui
-                .add_enabled(settings.cycle_active, Slider::new(&mut s.cycle_speed, 1.0..=10.0).text("cycle speed"))
-                .changed()
-            {
+            if ui.add(Slider::new(&mut s.cycle_speed, 0..=100).text("daylight cycle speed")).changed() {
                 gui_event.send(UpdateSunSetting(SetCycleSpeed(s.cycle_speed)));
+            }
+            ui.separator();
+            if ui.add(Slider::new(&mut s.tilt, 0..=90).text("sun plane tilt [°]")).changed() {
+                gui_event.send(UpdateSunSetting(SetPlaneTilt(s.tilt)));
+            }
+            if ui.add(Slider::new(&mut s.yaw, 0..=360).text("sun plane yaw [°]")).changed() {
+                gui_event.send(UpdateSunSetting(SetPlaneYaw(s.yaw)));
+            }
+            if ui.add(Slider::new(&mut s.height, 0..=100).text("sun plane height")).changed() {
+                gui_event.send(UpdateSunSetting(SetPlaneHeight(s.height)));
+            }
+            if ui.checkbox(&mut s.show_debug_mesh, "show visualization").changed() {
+                gui_event.send(UpdateSunSetting(ToggleDebugMesh));
             }
             ui.separator();
         });
@@ -135,8 +140,9 @@ use bevy::prelude::{EventWriter, Res};
 use bevy_egui::egui::{self, Slider};
 
 use crate::atmosphere::AtmosphereMat;
+use crate::environment::SunSettings;
 use crate::gui::{AtmosphereSetting, SunSetting};
-use crate::{GuiAction, SunSettings};
+use crate::GuiAction;
 // ----------------------------------------------------------------------------
 struct AtmosphereSettings {
     ray_origin: Vec3,
@@ -148,5 +154,14 @@ struct AtmosphereSettings {
     mie_scattering: f32,
     mie_scale_height: f32,
     mie_scattering_direction: f32,
+}
+// ----------------------------------------------------------------------------
+struct SunGuiSettings {
+    time: f32,
+    cycle_speed: u16,
+    yaw: u16,
+    tilt: u16,
+    height: u16,
+    show_debug_mesh: bool,
 }
 // ----------------------------------------------------------------------------

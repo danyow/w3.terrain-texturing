@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::atmosphere::AtmosphereMat;
 use crate::terrain_material::{MaterialSlot, TerrainMaterialSet};
 use crate::terrain_tiles::TerrainMeshSettings;
-use crate::SunSettings;
+use crate::environment::SunSettings;
 
 use super::{AtmosphereSetting, MaterialSetting, MeshSetting, SunSetting};
 // ----------------------------------------------------------------------------
@@ -34,10 +34,18 @@ pub(super) fn update_sun_settings(action: &SunSetting, sun: &mut Option<ResMut<S
 
     if let Some(sun) = sun {
         match action {
-            SetPosition(v) => sun.pos = *v,
-            SetDistance(v) => sun.distance = *v,
-            ToggleCycle => sun.cycle_active = !sun.cycle_active,
-            SetCycleSpeed(v) => sun.cycle_speed = *v,
+            SetTimeOfDay(v) => {
+                sun.update_time_of_day(*v);
+                sun.set_daylight_cycle_speed(0);
+            }
+            SetCycleSpeed(v) => {
+                sun.set_daylight_cycle_speed(*v);
+                sun.activate_daylight_cycle(*v > 0);
+            }
+            SetPlaneTilt(v) => sun.set_plane_tilt(*v),
+            SetPlaneYaw(v) => sun.set_plane_yaw(*v),
+            SetPlaneHeight(v) => sun.set_plane_height(*v),
+            ToggleDebugMesh => sun.toggle_debug_mesh(),
         }
     }
 }

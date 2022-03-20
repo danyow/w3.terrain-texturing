@@ -9,6 +9,7 @@ use camera::CameraPlugin;
 use cmds::AsyncTaskFinishedEvent;
 use gui::{GuiAction, UiImages};
 
+use crate::environment::EnvironmentPlugin;
 use crate::heightmap::HeightmapPlugin;
 use crate::terrain_clipmap::TerrainClipmapPlugin;
 use crate::terrain_material::MaterialSetPlugin;
@@ -25,12 +26,15 @@ mod terrain_tiles;
 mod texturecontrol;
 mod tintmap;
 
+mod environment;
+mod terrain_render;
+
 mod camera;
+mod clipmap;
 mod compute;
 mod resource;
-mod terrain_render;
+mod shapes;
 mod texturearray;
-mod clipmap;
 
 mod cmds;
 mod gui;
@@ -115,7 +119,7 @@ fn handle_setup_errors(
     }
 }
 // ----------------------------------------------------------------------------
-fn finish_intialization(mut app_state: ResMut<State<EditorState>>) {
+fn finish_initialization(mut app_state: ResMut<State<EditorState>>) {
     app_state.overwrite_set(EditorState::NoTerrainData).unwrap();
 }
 // ----------------------------------------------------------------------------
@@ -195,8 +199,7 @@ impl Plugin for EditorPlugin {
             .add_plugin(gui::EditorUiPlugin)
             .insert_resource(atmosphere::AtmosphereMat::default())
             .add_plugin(atmosphere::AtmospherePlugin { dynamic: true })
-            .init_resource::<SunSettings>()
-            .add_startup_system(setup_lighting_environment);
+            .add_plugin(environment::EnvironmentPlugin);
 
         // --- state systems definition ---------------------------------------
         EditorState::initialization(app);
@@ -227,7 +230,9 @@ impl EditorState {
                 .after("default_materialset"),
         )
         // there is no update phase in initialization, just transit to next state
-        .add_startup_system(finish_intialization.after("init_ui"));
+        .add_startup_system(finish_initialization.after("init_ui"))
+        // plugins
+        .add_startup_system_set(EnvironmentPlugin::startup());
     }
     // ------------------------------------------------------------------------
     /// close project / unload terrain state
@@ -238,16 +243,13 @@ impl EditorState {
             SystemSet::on_enter(NoTerrainData).with_system(signal_editor_state_change),
         );
 
-        app.add_system_set(
-            SystemSet::on_update(NoTerrainData)
-                .with_system(hotkeys)
-                .with_system(daylight_cycle),
-        )
-        // plugins
-        .add_system_set(TerrainClipmapPlugin::reset_data(NoTerrainData))
-        .add_system_set(TerrainTilesGeneratorPlugin::reset_data(NoTerrainData))
-        .add_system_set(MaterialSetPlugin::setup_default_materialset(NoTerrainData))
-        .add_system_set(CameraPlugin::active_free_camera(NoTerrainData));
+        app.add_system_set(SystemSet::on_update(NoTerrainData).with_system(hotkeys))
+            // plugins
+            .add_system_set(TerrainClipmapPlugin::reset_data(NoTerrainData))
+            .add_system_set(TerrainTilesGeneratorPlugin::reset_data(NoTerrainData))
+            .add_system_set(MaterialSetPlugin::setup_default_materialset(NoTerrainData))
+            .add_system_set(CameraPlugin::active_free_camera(NoTerrainData))
+            .add_system_set(EnvironmentPlugin::activate_dynamic_updates(NoTerrainData));
     }
     // ------------------------------------------------------------------------
     /// load project / terrain data state
@@ -283,16 +285,13 @@ impl EditorState {
 
         app.add_system_set(SystemSet::on_enter(Editing).with_system(signal_editor_state_change));
 
-        app.add_system_set(
-            SystemSet::on_update(Editing)
-                .with_system(hotkeys)
-                .with_system(daylight_cycle),
-        )
-        // plugins
-        .add_system_set(CameraPlugin::active_free_camera(Editing))
-        .add_system_set(MaterialSetPlugin::terrain_material_loading(Editing))
-        .add_system_set(TerrainClipmapPlugin::update_tracker(Editing))
-        .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(Editing));
+        app.add_system_set(SystemSet::on_update(Editing).with_system(hotkeys))
+            // plugins
+            .add_system_set(CameraPlugin::active_free_camera(Editing))
+            .add_system_set(EnvironmentPlugin::activate_dynamic_updates(Editing))
+            .add_system_set(MaterialSetPlugin::terrain_material_loading(Editing))
+            .add_system_set(TerrainClipmapPlugin::update_tracker(Editing))
+            .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(Editing));
     }
     // ------------------------------------------------------------------------
 }
@@ -305,71 +304,5 @@ fn hotkeys(keys: Res<Input<KeyCode>>, mut gui_event: EventWriter<GuiAction>) {
             _ => (),
         }
     }
-}
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-// atmosphere tests (TODO rework)
-// ----------------------------------------------------------------------------
-// Marker for updating the position of the light, not needed unless we have multiple lights
-#[derive(Component)]
-struct Sun;
-// ----------------------------------------------------------------------------
-struct SunSettings {
-    cycle_active: bool,
-    cycle_speed: f32,
-    pos: f32,
-    distance: f32,
-}
-// ----------------------------------------------------------------------------
-impl Default for SunSettings {
-    fn default() -> Self {
-        Self {
-            cycle_active: false,
-            cycle_speed: 4.0,
-            pos: 0.25,
-            distance: 10.0,
-        }
-    }
-}
-// ----------------------------------------------------------------------------
-fn daylight_cycle(
-    mut sky_mat: ResMut<atmosphere::AtmosphereMat>,
-    mut settings: ResMut<SunSettings>,
-    mut query: Query<&mut Transform, With<Sun>>,
-    time: Res<Time>,
-) {
-    if let Some(mut light_trans) = query.iter_mut().next() {
-        use std::f32::consts::PI;
-
-        let basepos = Vec3::new(0.0, 0.0, 0.0);
-        let mut pos = (light_trans.translation - basepos) / ((11.0 - settings.distance) * 10000.0);
-
-        if settings.cycle_active {
-            let t = time.time_since_startup().as_millis() as f32
-                / ((11.0 - settings.cycle_speed) * 500.0);
-            pos.y = t.sin();
-            pos.z = t.cos();
-            settings.pos = (t / (2.0 * PI)) % 1.0;
-        } else {
-            let current = 2.0 * PI * settings.pos;
-            pos.y = current.sin();
-            pos.z = current.cos();
-        }
-
-        sky_mat.set_sun_position(pos);
-
-        light_trans.translation = basepos + pos * (settings.distance * 10000.0);
-    }
-}
-// ----------------------------------------------------------------------------
-// Simple environment
-fn setup_lighting_environment(mut commands: Commands) {
-    info!("startup_system: setup_lighting_environment");
-    // Our Sun
-    commands
-        .spawn()
-        .insert(GlobalTransform::default())
-        .insert(Transform::default())
-        .insert(Sun);
 }
 // ----------------------------------------------------------------------------

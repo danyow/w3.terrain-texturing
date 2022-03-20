@@ -57,9 +57,9 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
 
 use crate::atmosphere::AtmosphereMat;
+use crate::environment::SunSettings;
 use crate::terrain_material::TerrainMaterialSet;
 use crate::terrain_tiles::TerrainMeshSettings;
-use crate::SunSettings;
 
 use super::{GuiAction, UiImages, UiState};
 // ----------------------------------------------------------------------------
