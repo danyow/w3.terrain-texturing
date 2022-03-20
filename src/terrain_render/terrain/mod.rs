@@ -33,6 +33,8 @@ mod terrain_environment;
 mod terrain_material;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
+pub use self::terrain_environment::TerrainEnvironment;
+// ----------------------------------------------------------------------------
 pub struct TerrainMeshRenderPlugin;
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainMeshRenderPlugin {
@@ -42,6 +44,7 @@ impl Plugin for TerrainMeshRenderPlugin {
             .add_plugin(UniformComponentPlugin::<TerrainMeshUniform>::default())
             .add_plugin(RenderResourcePlugin::<TerrainMaterialSet>::default())
             .add_plugin(RenderResourcePlugin::<TerrainClipmap>::default())
+            .add_plugin(RenderResourcePlugin::<TerrainEnvironment>::default())
             .add_plugin(ExtractComponentPlugin::<ClipmapAssignment>::default())
             //TODO remove as soon as terrain mesh is dedicated type ?
             .add_plugin(ExtractComponentPlugin::<TerrainTileComponent>::default());

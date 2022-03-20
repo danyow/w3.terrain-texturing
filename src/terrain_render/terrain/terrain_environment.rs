@@ -10,19 +10,48 @@ use bevy::{
     render::{
         render_phase::{EntityRenderCommand, RenderCommandResult, TrackedRenderPass},
         render_resource::{
-            std140::AsStd140, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutEntry,
-            BindingType, BufferBindingType, BufferSize, ShaderStages,
+            std140::{AsStd140, Std140},
+            BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutEntry, BindingType,
+            Buffer, BufferBindingType, BufferInitDescriptor, BufferSize, BufferUsages,
+            ShaderStages,
         },
         renderer::RenderDevice,
         view::{ViewUniform, ViewUniformOffset, ViewUniforms},
     },
 };
 
+use crate::resource::{PrepareResourceError, PreparedRenderResource, RenderResource};
+
 use super::pipeline::TerrainMeshRenderPipeline;
+// ----------------------------------------------------------------------------
+#[derive(Clone)]
+pub struct DirectionalLight {
+    pub color: Color,
+    pub brightness: f32,
+    pub direction: Vec3,
+}
+// ----------------------------------------------------------------------------
+#[derive(Default, Clone)]
+pub struct TerrainEnvironment {
+    pub sun: DirectionalLight,
+}
 // ----------------------------------------------------------------------------
 // render cmds
 // ----------------------------------------------------------------------------
 pub struct SetMeshViewBindGroup<const I: usize>;
+// ----------------------------------------------------------------------------
+// gpu representation of environment params
+// ----------------------------------------------------------------------------
+#[derive(AsStd140, Clone)]
+pub struct GpuDirectionalLight {
+    color: Vec3,
+    brightness: f32,
+    direction: Vec3,
+}
+// ----------------------------------------------------------------------------
+pub struct GpuTerrainEnvironment {
+    sun_buffer: Buffer,
+}
 // ----------------------------------------------------------------------------
 // mesh view
 // ----------------------------------------------------------------------------
@@ -30,7 +59,7 @@ pub struct TerrainMeshViewBindGroup {
     value: BindGroup,
 }
 // ----------------------------------------------------------------------------
-pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 1] {
+pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 2] {
     [
         // View
         BindGroupLayoutEntry {
@@ -43,7 +72,17 @@ pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 1] {
             },
             count: None,
         },
-        // TODO Lights: Sunlight maybe Moonlight
+        // Sun
+        BindGroupLayoutEntry {
+            binding: 1,
+            visibility: ShaderStages::FRAGMENT | ShaderStages::VERTEX,
+            ty: BindingType::Buffer {
+                ty: BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: BufferSize::new(GpuDirectionalLight::std140_size_static() as u64),
+            },
+            count: None,
+        },
     ]
 }
 // ----------------------------------------------------------------------------
@@ -54,13 +93,22 @@ pub(super) fn queue_mesh_view_bind_group(
     render_device: Res<RenderDevice>,
     mesh_pipeline: Res<TerrainMeshRenderPipeline>,
     view_uniforms: Res<ViewUniforms>,
+    environment: Res<PreparedRenderResource<TerrainEnvironment>>,
 ) {
-    if let (Some(view_binding),) = (view_uniforms.uniforms.binding(),) {
+    if let (Some(view_binding), Some(env)) =
+        (view_uniforms.uniforms.binding(), environment.as_ref())
+    {
         let view_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: view_binding.clone(),
-            }],
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: view_binding.clone(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: env.sun_buffer.as_entire_binding(),
+                },
+            ],
             label: Some("terrain_mesh_view_bind_group"),
             layout: &mesh_pipeline.view_layout,
         });
@@ -69,6 +117,44 @@ pub(super) fn queue_mesh_view_bind_group(
             value: view_bind_group,
         });
     }
+}
+// ----------------------------------------------------------------------------
+// terrain environment -> renderresource processing
+// ----------------------------------------------------------------------------
+impl RenderResource for TerrainEnvironment {
+    // In RenderStage::Extract step the resource is extracted from "app world" to
+    // "render world" into an "ExtractedResource".
+    type ExtractedResource = TerrainEnvironment;
+    // in RenderStage::Prepare step the extracted resource is transformed into its
+    // GPU representation "PreparedResource"
+    type PreparedResource = GpuTerrainEnvironment;
+    // defines query for ecs data in the prepare resource step
+    type Param = SRes<RenderDevice>;
+    // ------------------------------------------------------------------------
+    fn extract_resource(&self) -> Self::ExtractedResource {
+        self.clone()
+    }
+    // ------------------------------------------------------------------------
+    fn prepare_resource(
+        environment: Self::ExtractedResource,
+        render_device: &mut SystemParamItem<Self::Param>,
+    ) -> Result<Self::PreparedResource, PrepareResourceError<Self::ExtractedResource>> {
+        let sun = &environment.sun;
+        let sun = GpuDirectionalLight {
+            color: Vec3::from_slice(&sun.color.as_linear_rgba_f32()),
+            brightness: sun.brightness,
+            direction: sun.direction,
+        };
+
+        let sun_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("sunlight_buffer"),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            contents: sun.as_std140().as_bytes(),
+        });
+
+        Ok(GpuTerrainEnvironment { sun_buffer })
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 // render cmds
@@ -96,6 +182,16 @@ impl<const I: usize> EntityRenderCommand for SetMeshViewBindGroup<I> {
         );
 
         RenderCommandResult::Success
+    }
+}
+// ----------------------------------------------------------------------------
+impl Default for DirectionalLight {
+    fn default() -> Self {
+        Self {
+            color: Color::rgb(1.0, 1.0, 1.0),
+            brightness: 0.5,
+            direction: Vec3::new(0.0, 1.0, 0.0),
+        }
     }
 }
 // ----------------------------------------------------------------------------

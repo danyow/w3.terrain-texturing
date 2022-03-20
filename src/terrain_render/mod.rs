@@ -11,6 +11,8 @@ pub struct TerrainRenderPlugin;
 //TODO make proper specialized mesh type so updates just take data instead clone (?)
 pub type TerrainMesh = Mesh;
 // ----------------------------------------------------------------------------
+pub use terrain::TerrainEnvironment;
+// ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
 /// handles to all diffuse and normal textures and parameter settings
 pub struct TerrainMaterialSet {
@@ -68,6 +70,7 @@ impl Plugin for TerrainRenderPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainMaterialSet>()
+            .init_resource::<TerrainEnvironment>()
             .add_plugin(terrain::TerrainMeshRenderPlugin);
     }
     // ------------------------------------------------------------------------

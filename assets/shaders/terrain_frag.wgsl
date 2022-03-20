@@ -10,6 +10,13 @@ struct View {
     height: f32;
 };
 
+// lights
+struct DirectionalLight {
+    color: vec3<f32>;
+    brightness: f32;
+    direction: vec3<f32>;
+};
+
 // mesh
 struct Mesh {
     model: mat4x4<f32>;
@@ -48,6 +55,7 @@ struct ClipmapInfo {
 
 // view
 [[group(0), binding(0)]] var<uniform> view: View;
+[[group(0), binding(1)]] var<uniform> sunlight: DirectionalLight;
 
 [[group(1), binding(0)]] var<uniform> mesh: Mesh;
 
@@ -75,8 +83,6 @@ struct FragmentInput {
 fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let fragmentPos = in.world_position.xyz;
 
-    let lightColor = vec3<f32>(1.0, 1.0, 1.0);
-    let lightPos = vec3<f32>(5000.0, 1000.0, 5000.0);
     let gamma = 2.2;
 
     // https://catlikecoding.com/unity/tutorials/advanced-rendering/flat-and-wireframe-shading/
@@ -136,12 +142,11 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let fragmentNormal = normalize(in.normal);
     // directional light
     // sun light coming from the sun
-    let sunDirectionalLight = -lightPos;
+    let lightDirection = normalize(-sunlight.direction);
 
     // pointlight direction
     // let lightDirection = normalize(lightPos - fragmentPos);
     // let viewDirection = normalize(view.world_position.xyz - fragmentPos);
-    let lightDirection = normalize(-sunDirectionalLight);
     let viewDirection = normalize(view.world_position.xyz);
     let halfwayDirection = normalize(lightDirection + viewDirection);
 
@@ -154,9 +159,9 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     // let specular = pow(max(dot(viewDirection, reflectDirection), 0.0), specularExp); // phong
     let specular = pow(max(dot(fragmentNormal, halfwayDirection), 0.0), 1.0 * specularExp);
 
-    let ambientCol = lightColor * ambientStrength;
-    let diffuseCol = diffuseStrength * lightColor;
-    let specularCol = specularStrength * specular * lightColor;
+    let ambientCol = sunlight.color * ambientStrength;
+    let diffuseCol = diffuseStrength * sunlight.color;
+    let specularCol = specularStrength * specular * sunlight.color;
 
     let col = ambientCol + diffuseCol + specularCol;
 
