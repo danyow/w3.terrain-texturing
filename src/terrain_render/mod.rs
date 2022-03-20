@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-use bevy::{prelude::*, reflect::TypeUuid};
+use bevy::prelude::*;
 
 use crate::clipmap::Rectangle;
 use crate::texturearray::TextureArray;
@@ -11,8 +11,7 @@ pub struct TerrainRenderPlugin;
 //TODO make proper specialized mesh type so updates just take data instead clone (?)
 pub type TerrainMesh = Mesh;
 // ----------------------------------------------------------------------------
-#[derive(Default, Clone, TypeUuid)]
-#[uuid = "867a207f-7ada-4fdd-8319-df7d383fa6ff"]
+#[derive(Default, Clone)]
 /// handles to all diffuse and normal textures and parameter settings
 pub struct TerrainMaterialSet {
     pub diffuse: Handle<TextureArray>,
