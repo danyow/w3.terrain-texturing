@@ -90,7 +90,7 @@ pub(super) fn setup_default_materialset(
     mut editor_events: EventWriter<EditorEvent>,
 ) {
     use EditorEvent::TerrainTextureUpdated;
-    use TextureFormat::Rgba8UnormSrgb;
+    use TextureFormat::{Rgba8Unorm, Rgba8UnormSrgb};
     use TextureType::*;
 
     debug!("generating default material pallete.start");
@@ -148,8 +148,9 @@ pub(super) fn setup_default_materialset(
     }
     materialset.diffuse = texture_arrays.add(diffuse_array.build());
 
+    // Note: must not be loaded as SRGB!
     let mut normal_array =
-        TextureArrayBuilder::new(dim as u32, 31, Rgba8UnormSrgb, TERRAIN_TEXTURE_MIP_LEVELS);
+        TextureArrayBuilder::new(dim as u32, 31, Rgba8Unorm, TERRAIN_TEXTURE_MIP_LEVELS);
     for slot in 0..31 {
         normal_array.add_texture_with_mips(placeholder_normal.clone());
 

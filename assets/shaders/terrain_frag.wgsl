@@ -81,31 +81,16 @@ struct FragmentInput {
 
 [[stage(fragment)]]
 fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
-    let fragmentPos = in.world_position.xyz;
 
     let gamma = 2.2;
-
-    // https://catlikecoding.com/unity/tutorials/advanced-rendering/flat-and-wireframe-shading/
-    let barys = vec3<f32>(in.uv.x, in.uv.y, 1.0 - in.uv.x - in.uv.y);
-    let minBarys = min(barys.x, min(barys.y, barys.z));
-    // fwidth = abs(dpdx(minBarys)) + abs(dpdy(minBarys));
-    let delta = fwidth(minBarys);
 
     // color mesh depending on current lod level
     let lod = mesh.clipmap_and_lod >> 16u;
     let clipmap_level = mesh.clipmap_and_lod & 15u;
 
-    let r = lod % 2u;
-    let g = r + lod % 4u;
-    let b = r + lod % 3u;
-    let wireframeCol = 0.2 * vec4<f32>((1.0 + f32(r)) / 2.0, f32(g) / 3.0, f32(b) / 2.0, 0.0);
-    let clipmapCol = vec4<f32>(1.0);
-
-    let wireframeWidth = 0.75 * delta;
-
-    // test texturing
-    // xyz -> xyz
+    // xyz -> xyz (to prevent stupid mistakes when adressing into textures)
     let fragmentPosFlipped = in.world_position.xzy;
+    let fragmentPos = in.world_position.xyz;
 
     // test clipmap
     let mapOffset = vec2<f32>(clipmap.layers[clipmap_level].map_offset);
@@ -119,13 +104,14 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let controlMapValueA: vec4<u32> = textureLoad(controlMap, controlMapPosCoord, i32(clipmap_level));
 
     // scale texture
-    let texturingPos = vec2<f32>(0.333) * fragmentPosFlipped.xy;
+    let baseScale = 0.333;
+    let texturingPos = vec2<f32>(baseScale) * fragmentPosFlipped.xy;
 
     let partialDDX: vec2<f32> = dpdx(fragmentPosFlipped.xy);
     let partialDDY: vec2<f32> = dpdy(fragmentPosFlipped.xy);
     // scale derivatives
-    let scaledDDX = partialDDX * 0.333;
-    let scaledDDY = partialDDY * 0.333;
+    let scaledDDX = partialDDX * baseScale;
+    let scaledDDY = partialDDY * baseScale;
 
     // test texture
     let overlayTextureA: u32 = (controlMapValueA.x & 31u) - 1u;
@@ -137,9 +123,29 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     fragmentCol = vec4<f32>(pow(fragmentCol.rgb, vec3<f32>(gamma)), 1.0);
 
+    var overlayNormalA = textureSampleGrad(
+        normalArray, terrainNormalSampler, texturingPos, i32(overlayTextureA), scaledDDX, scaledDDY);
+    // W3 uses dirextX normals -> invert green channel
+    // TODO move to normalmap loading
+    overlayNormalA.g = 1.0 - overlayNormalA.g;
+
+    // TBN matrix for normals
+    let fragmentNormal = normalize(in.normal.xyz);
+    // Note: because terrain is generated from heightmap a base tangent vector is
+    // assumed to be (1, 0, 0) (in the heightmap plane)
+    // renorthogonalize tangent with respect to normal
+    let fragmentTangent: vec3<f32> = normalize(vec3<f32>(1.0, 0.0, 0.0) - fragmentNormal * dot(vec3<f32>(1.0, 0.0, 0.0), fragmentNormal));
+    let biTangent: vec3<f32> = cross(fragmentNormal, fragmentTangent);
+    let TBN = mat3x3<f32>(fragmentTangent, biTangent, fragmentNormal);
+
+    // normal vectors range is [-1..1] and mapped in texture to [0..1], so remap:
+    var overlayNormal = normalize(overlayNormalA.rgb * 2.0 - 1.0);
+    // transform normalmap normal into world space
+    overlayNormal = TBN * overlayNormal;
+
     // --- lighting
     // phong-blinn
-    let fragmentNormal = normalize(in.normal);
+
     // directional light
     // sun light coming from the sun
     let lightDirection = normalize(-sunlight.direction);
@@ -150,8 +156,8 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let viewDirection = normalize(view.world_position.xyz);
     let halfwayDirection = normalize(lightDirection + viewDirection);
 
-    let ambientStrength = 0.03;
-    let diffuseStrength = max(dot(fragmentNormal, lightDirection), 0.0);
+    let ambientStrength = 0.003;
+    let diffuseStrength = max(dot(overlayNormal, lightDirection), 0.0);
     let specularStrength = 0.5;
     // shininess
     let specularExp = 32.0;
@@ -167,9 +173,26 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     fragmentCol = vec4<f32>(col * fragmentCol.rgb, 1.0);
 
+    // --------------------------------------------------------------------------------------------
     // debug visualization for wireframes and clipmap level
+
+    // https://catlikecoding.com/unity/tutorials/advanced-rendering/flat-and-wireframe-shading/
+    let barys = vec3<f32>(in.uv.x, in.uv.y, 1.0 - in.uv.x - in.uv.y);
+    let minBarys = min(barys.x, min(barys.y, barys.z));
+    // fwidth = abs(dpdx(minBarys)) + abs(dpdy(minBarys));
+    let delta = fwidth(minBarys);
+
+    let r = lod % 2u;
+    let g = r + lod % 4u;
+    let b = r + lod % 3u;
+    let wireframeCol = 0.2 * vec4<f32>((1.0 + f32(r)) / 2.0, f32(g) / 3.0, f32(b) / 2.0, 0.0);
+    let clipmapCol = vec4<f32>(1.0);
+
+    let wireframeWidth = 0.75 * delta;
+
     // fragmentCol = mix(wireframeCol, fragmentCol, smoothStep(0.0, wireframeWidth, minBarys));
     // fragmentCol = mix(fragmentCol, clipmapCol, f32(clipmap_level) / 6.0);
+    // --------------------------------------------------------------------------------------------
 
     // --- gamma correction
     fragmentCol = pow(fragmentCol, vec4<f32>(1.0 / gamma));
