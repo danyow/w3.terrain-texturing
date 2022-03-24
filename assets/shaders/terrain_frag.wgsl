@@ -72,6 +72,103 @@ struct ClipmapInfo {
 [[group(3), binding(2)]] var tintmapSampler: sampler;
 [[group(3), binding(3)]] var<uniform> clipmap: ClipmapInfo;
 
+struct TextureMapping {
+    diffuse: vec3<f32>;
+    normal: vec3<f32>;
+};
+
+fn sample_texture(
+    textureSlot: u32,
+    texturingPos: vec2<f32>,
+    scaleValue: f32,
+    ddx: vec2<f32>,
+    ddy: vec2<f32>,
+) -> TextureMapping {
+    var out: TextureMapping;
+
+    // scale position and derivatives
+    let texturingPos = texturingPos * scaleValue;
+    let scaledDDX = ddx * scaleValue;
+    let scaledDDY = ddy * scaleValue;
+
+    out.diffuse = textureSampleGrad(
+            textureArray, terrainTextureSampler, texturingPos, i32(textureSlot), scaledDDX, scaledDDY).rgb;
+
+    out.normal = textureSampleGrad(
+        normalArray, terrainNormalSampler, texturingPos, i32(textureSlot), scaledDDX, scaledDDY).xyz;
+
+    // W3 uses dirextX normals -> invert green channel
+    // TODO move to normalmap loading
+    out.normal.g = 1.0 - out.normal.g;
+
+    return out;
+}
+
+fn triplanar_mapping(
+    triplanarWeights: vec3<f32>,
+    worldPosition: vec3<f32>,
+    worldNormal: vec3<f32>,
+
+    textureSlot: u32,
+    scaleValue: f32,
+
+    partialDDX_xy: vec2<f32>,
+    partialDDY_xy: vec2<f32>,
+
+    partialDDX_xz: vec2<f32>,
+    partialDDY_xz: vec2<f32>,
+
+    partialDDX_yz: vec2<f32>,
+    partialDDY_yz: vec2<f32>,
+
+) -> TextureMapping {
+    var output: TextureMapping;
+
+    // initialize to zero
+    output.diffuse = vec3<f32>(0.0);
+    output.normal = vec3<f32>(0.0);
+
+    // from presentation: prefer branching than sampling
+    if (triplanarWeights.z > 0.0) {
+        var texturingPos = vec2<f32>(worldPosition.x, -worldPosition.y);
+
+        if (worldNormal.z < 0.0) {
+            texturingPos.y = -texturingPos.y;
+        }
+
+        let a = sample_texture(textureSlot, texturingPos, scaleValue, partialDDX_xy, partialDDY_xy);
+        output.diffuse = triplanarWeights.z * a.diffuse;
+        output.normal = triplanarWeights.z * a.normal;
+    }
+
+    if (triplanarWeights.y > 0.0) {
+        let texturingPos = worldPosition.xz;
+
+        // terrain normal never points down
+        // if (worldNormal.y < 0.0) {
+        //     texturingPos.x = -texturingPos.x;
+        // }
+
+        let a = sample_texture(textureSlot, texturingPos, scaleValue, partialDDX_xz, partialDDY_xz);
+        output.diffuse = output.diffuse + triplanarWeights.y * a.diffuse;
+        output.normal = output.normal + triplanarWeights.y * a.normal;
+    }
+
+    if (triplanarWeights.x > 0.0) {
+        var texturingPos = vec2<f32>(-worldPosition.y, worldPosition.z);
+
+        if (worldNormal.x < 0.0) {
+            texturingPos.x = -texturingPos.x;
+        }
+
+        let a = sample_texture(textureSlot, texturingPos, scaleValue, partialDDX_yz, partialDDY_yz);
+        output.diffuse = output.diffuse + triplanarWeights.x * a.diffuse;
+        output.normal = output.normal + triplanarWeights.x * a.normal;
+    }
+
+    return output;
+}
+
 struct FragmentInput {
     [[builtin(position)]] frag_coord: vec4<f32>;
     [[location(0)]] world_position: vec4<f32>;
@@ -88,16 +185,15 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let lod = mesh.clipmap_and_lod >> 16u;
     let clipmap_level = mesh.clipmap_and_lod & 15u;
 
-    // xyz -> xyz (to prevent stupid mistakes when adressing into textures)
-    let fragmentPosFlipped = in.world_position.xzy;
     let fragmentPos = in.world_position.xyz;
+    let fragmentNormal = normalize(in.normal.xyz);
 
     // test clipmap
     let mapOffset = vec2<f32>(clipmap.layers[clipmap_level].map_offset);
     let mapScaling: f32 = clipmap.layers[clipmap_level].resolution;
     let mapSize: f32 = clipmap.layers[clipmap_level].size;
 
-    var controlMapPos: vec2<f32> = (fragmentPosFlipped.xy - clipmap.world_offset) / clipmap.world_res;
+    var controlMapPos: vec2<f32> = (fragmentPos.xz - clipmap.world_offset) / clipmap.world_res;
     controlMapPos = (controlMapPos - mapOffset) / mapScaling;
 
     let controlMapPosCoord: vec2<i32> =  clamp(vec2<i32>(controlMapPos), vec2<i32>(0), vec2<i32>(i32(mapSize)));
@@ -105,32 +201,48 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     // scale texture
     let baseScale = 0.333;
-    let texturingPos = vec2<f32>(baseScale) * fragmentPosFlipped.xy;
 
-    let partialDDX: vec2<f32> = dpdx(fragmentPosFlipped.xy);
-    let partialDDY: vec2<f32> = dpdy(fragmentPosFlipped.xy);
-    // scale derivatives
-    let scaledDDX = partialDDX * baseScale;
-    let scaledDDY = partialDDY * baseScale;
+    let partialDDX_xy: vec2<f32> = dpdx(fragmentPos.xy);
+    let partialDDY_xy: vec2<f32> = dpdy(fragmentPos.xy);
+
+    let partialDDX_xz: vec2<f32> = dpdx(fragmentPos.xz);
+    let partialDDY_xz: vec2<f32> = dpdy(fragmentPos.xz);
+
+    let partialDDX_yz: vec2<f32> = dpdx(fragmentPos.yz);
+    let partialDDY_yz: vec2<f32> = dpdy(fragmentPos.yz);
 
     // test texture
     let overlayTextureA: u32 = (controlMapValueA.x & 31u) - 1u;
     let bkgrndTextureA: u32 = ((controlMapValueA.x >> 5u) & 31u) - 1u;
 
-    var fragmentCol = textureSampleGrad(
-        // textureArray, terrainTextureSampler, texturingPos, i32(bkgrndTextureA), scaledDDX, scaledDDY);
-        textureArray, terrainTextureSampler, texturingPos, i32(overlayTextureA), scaledDDX, scaledDDY);
+    // ------------------------------------------------------------------------
+    // triplanar mapping of background texture
 
-    fragmentCol = vec4<f32>(pow(fragmentCol.rgb, vec3<f32>(gamma)), 1.0);
+    // const from presentation
+    let tighten = vec3<f32>(0.576);
+    // must be > 0.0 to normalize properly
+    var triplanarWeights: vec3<f32> = max(vec3<f32>(0.00), abs(fragmentNormal) - tighten);
 
-    var overlayNormalA = textureSampleGrad(
-        normalArray, terrainNormalSampler, texturingPos, i32(overlayTextureA), scaledDDX, scaledDDY);
-    // W3 uses dirextX normals -> invert green channel
-    // TODO move to normalmap loading
-    overlayNormalA.g = 1.0 - overlayNormalA.g;
+    // normalize
+    triplanarWeights = triplanarWeights / (triplanarWeights.x + triplanarWeights.y + triplanarWeights.z);
+
+    let tri = triplanar_mapping(
+        triplanarWeights,
+        fragmentPos,
+        fragmentNormal,
+        bkgrndTextureA,
+        baseScale,
+        partialDDX_xy, partialDDY_xy,
+        partialDDX_xz, partialDDY_xz,
+        partialDDX_yz, partialDDY_yz
+    );
+    // ------------------------------------------------------------------------
+
+    let overlayDiffuse = vec4<f32>(pow(tri.diffuse.rgb, vec3<f32>(gamma)), 1.0);
+    let overlayNormalA = tri.normal;
+
 
     // TBN matrix for normals
-    let fragmentNormal = normalize(in.normal.xyz);
     // Note: because terrain is generated from heightmap a base tangent vector is
     // assumed to be (1, 0, 0) (in the heightmap plane)
     // renorthogonalize tangent with respect to normal
@@ -171,7 +283,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     let col = ambientCol + diffuseCol + specularCol;
 
-    fragmentCol = vec4<f32>(col * fragmentCol.rgb, 1.0);
+    var fragmentCol = vec4<f32>(col * overlayDiffuse.rgb, 1.0);
 
     // --------------------------------------------------------------------------------------------
     // debug visualization for wireframes and clipmap level
