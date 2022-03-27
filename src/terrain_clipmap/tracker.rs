@@ -201,6 +201,7 @@ impl ClipmapTracker {
         ClipmapInfo::new(
             self.world_offset,
             self.world_resolution,
+            CLIPMAP_SIZE,
             self.layer_rectangles
                 .iter()
                 .map(|l| ClipmapLayerInfo::new(l.rectangle(), CLIPMAP_SIZE))

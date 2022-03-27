@@ -40,6 +40,7 @@ pub struct GpuTerrainClipmap {
 struct GpuClipmapInfo {
     world_offset: Vec2,
     world_res: f32,
+    size: f32,
     info: [GpuClipmapLayerInfo; MAX_SUPPORTED_CLIPMAP_LEVEL as usize],
 }
 // ----------------------------------------------------------------------------
@@ -145,6 +146,7 @@ impl RenderResource for TerrainClipmap {
         let info_buffer = GpuClipmapInfo {
             world_offset: terrain_clipmap.clipmap.world_offset,
             world_res: terrain_clipmap.clipmap.world_res,
+            size: terrain_clipmap.clipmap.size as f32,
             info: layer_infos,
         };
 

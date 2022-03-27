@@ -53,6 +53,7 @@ pub struct TerrainClipmap {
 pub struct ClipmapInfo {
     world_offset: Vec2,
     world_res: f32,
+    size: u32,
     info: Vec<ClipmapLayerInfo>,
     info_last: Vec<ClipmapLayerInfo>,
 }
@@ -108,10 +109,16 @@ impl ClipmapAssignment {
 // ----------------------------------------------------------------------------
 impl ClipmapInfo {
     // ------------------------------------------------------------------------
-    pub fn new(world_offset: Vec2, world_res: f32, info: Vec<ClipmapLayerInfo>) -> Self {
+    pub fn new(
+        world_offset: Vec2,
+        world_res: f32,
+        clipmap_size: u32,
+        info: Vec<ClipmapLayerInfo>,
+    ) -> Self {
         Self {
             world_offset,
             world_res,
+            size: clipmap_size,
             info,
             info_last: Vec::default(),
         }

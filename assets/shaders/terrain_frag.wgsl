@@ -51,6 +51,7 @@ struct ClipmapLayerInfo {
 struct ClipmapInfo {
     world_offset: vec2<f32>;
     world_res: f32;
+    size: f32;
     layers: array<ClipmapLayerInfo, 10u>;
 };
 // ----------------------------------------------------------------------------
@@ -327,16 +328,16 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     // --- clipmap position calculation
     let mapOffset = vec2<f32>(clipmap.layers[clipmap_level].map_offset);
-    let mapScaling: f32 = clipmap.layers[clipmap_level].resolution;
-    let mapSize: f32 = clipmap.layers[clipmap_level].size;
+    let mapScaling = clipmap.layers[clipmap_level].resolution;
+    let mapSize = clipmap.layers[clipmap_level].size;
 
-    var clipmapPos: vec2<f32> = (fragmentPos.xz - clipmap.world_offset) / clipmap.world_res;
+    var clipmapPos = (fragmentPos.xz - clipmap.world_offset) / clipmap.world_res;
     clipmapPos = (clipmapPos - mapOffset) / mapScaling;
 
-    let clipmapPosCoord: vec2<i32> =  clamp(vec2<i32>(clipmapPos), vec2<i32>(0), vec2<i32>(i32(mapSize)));
+    let clipmapPosCoord = clamp(vec2<i32>(clipmapPos), vec2<i32>(0), vec2<i32>(i32(mapSize)));
 
     //  clipmap weighting of neighboring pixels
-    let clipmapPosFrac: vec2<f32> = fract(clipmapPos);
+    let clipmapPosFrac = fract(clipmapPos);
 
     let fractionalWeights = vec4<f32>(
         (1.0 - clipmapPosFrac.x) * (1.0 - clipmapPosFrac.y),
@@ -497,6 +498,20 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     // combine based on slope tangent
     var diffuse = mix(overlay.diffuse.rgb, bkgrnd.diffuse.rgb, surfaceSlopeBlend);
     var normal = normalize(mix(overlayNormal, bkgrndNormal, surfaceSlopeBlend));
+
+    // --------------------------------------------------------------------------------------------
+    // apply tint from clipmap
+    // --------------------------------------------------------------------------------------------
+    let normalizedPos = clipmapPos / clipmap.size;
+
+    let tintmapColor = textureSample(tintmapArray, tintmapSampler, normalizedPos, i32(clipmap_level));
+    let darkenedTint = 2.0 * tintmapColor.rgb * diffuse.rgb;
+    let screenblendTint = vec3<f32>(1.0) - 2.0 * (vec3<f32>(1.0) - tintmapColor.rgb) * (vec3<f32>(1.0) - diffuse.rgb);
+
+    if (tintmapColor.r < 0.5) { diffuse.r = darkenedTint.r; } else { diffuse.r = screenblendTint.r; }
+    if (tintmapColor.g < 0.5) { diffuse.g = darkenedTint.g; } else { diffuse.g = screenblendTint.g; }
+    if (tintmapColor.b < 0.5) { diffuse.b = darkenedTint.b; } else { diffuse.b = screenblendTint.b; }
+    // --------------------------------------------------------------------------------------------
 
     // --- lighting
     // phong-blinn
