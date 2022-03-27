@@ -455,40 +455,51 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     bkgrndNormal = TBN * bkgrndNormal.xyz;
 
     // ------------------------------------------------------------------------
-    // interpolate background texture material params based on neighboring controlmap textures
+    // interpolate background texture material paramss based on neighboring controlmap textures
     // ------------------------------------------------------------------------
-    let textureParamsA = textureParams.param[bkgrndTextureSlots.x];
-    let textureParamsB = textureParams.param[bkgrndTextureSlots.y];
-    let textureParamsC = textureParams.param[bkgrndTextureSlots.z];
-    let textureParamsD = textureParams.param[bkgrndTextureSlots.w];
-
-    let bkgrndBlendSharpness =
-          fractionalWeights.x * textureParamsA.blend_sharpness
-        + fractionalWeights.y * textureParamsB.blend_sharpness
-        + fractionalWeights.z * textureParamsC.blend_sharpness
-        + fractionalWeights.w * textureParamsD.blend_sharpness;
+    let bkgrndTextureParamsA = textureParams.param[bkgrndTextureSlots.x];
+    let bkgrndTextureParamsB = textureParams.param[bkgrndTextureSlots.y];
+    let bkgrndTextureParamsC = textureParams.param[bkgrndTextureSlots.z];
+    let bkgrndTextureParamsD = textureParams.param[bkgrndTextureSlots.w];
 
     let bkgrndBaseDampening =
-          fractionalWeights.x * textureParamsA.slope_base_dampening
-        + fractionalWeights.y * textureParamsB.slope_base_dampening
-        + fractionalWeights.z * textureParamsC.slope_base_dampening
-        + fractionalWeights.w * textureParamsD.slope_base_dampening;
+          fractionalWeights.x * bkgrndTextureParamsA.slope_base_dampening
+        + fractionalWeights.y * bkgrndTextureParamsB.slope_base_dampening
+        + fractionalWeights.z * bkgrndTextureParamsC.slope_base_dampening
+        + fractionalWeights.w * bkgrndTextureParamsD.slope_base_dampening;
 
     let bkgrndNormalDampening =
-          fractionalWeights.x * textureParamsA.slope_normal_dampening
-        + fractionalWeights.y * textureParamsB.slope_normal_dampening
-        + fractionalWeights.z * textureParamsC.slope_normal_dampening
-        + fractionalWeights.w * textureParamsD.slope_normal_dampening;
+          fractionalWeights.x * bkgrndTextureParamsA.slope_normal_dampening
+        + fractionalWeights.y * bkgrndTextureParamsB.slope_normal_dampening
+        + fractionalWeights.z * bkgrndTextureParamsC.slope_normal_dampening
+        + fractionalWeights.w * bkgrndTextureParamsD.slope_normal_dampening;
+
+    // ------------------------------------------------------------------------
+    // interpolate overlay texture material params based on neighboring controlmap textures
+    // ------------------------------------------------------------------------
+    let overlayTextureParamsA = textureParams.param[overlayTextureSlots.x];
+    let overlayTextureParamsB = textureParams.param[overlayTextureSlots.y];
+    let overlayTextureParamsC = textureParams.param[overlayTextureSlots.z];
+    let overlayTextureParamsD = textureParams.param[overlayTextureSlots.w];
+
+    let overlayBlendSharpness =
+          fractionalWeights.x * overlayTextureParamsA.blend_sharpness
+        + fractionalWeights.y * overlayTextureParamsB.blend_sharpness
+        + fractionalWeights.z * overlayTextureParamsC.blend_sharpness
+        + fractionalWeights.w * overlayTextureParamsD.blend_sharpness;
+
     // ------------------------------------------------------------------------
     // blending between background and overlay texture based on terrain slope
     // and controlmap slope threshold
     // ------------------------------------------------------------------------
+    // bgrnd texture params are used for dampening and overlay texture defines
+    // blending sharpness (edges)
     let surfaceSlopeBlend = compute_slope_blend(
         fragmentNormal,
         bkgrndNormal,
         bkgrndBaseDampening,
         slopeThreshold,
-        bkgrndBlendSharpness,
+        overlayBlendSharpness,
     );
 
     // TODO: normalCombination = CombineNormalsDerivates(
@@ -514,7 +525,7 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     // --------------------------------------------------------------------------------------------
 
     // --- lighting
-    // phong-blinn
+    // blinn-phong
 
     // directional light
     // sun light coming from the sun
