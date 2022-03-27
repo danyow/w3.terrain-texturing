@@ -276,6 +276,36 @@ fn sample_overlay_texture(
     return overlay;
 }
 // ----------------------------------------------------------------------------
+fn compute_slope_blend(
+    fragmentNormal: vec3<f32>,
+    bkgrndNormal: vec3<f32>,
+    baseDampening: f32,
+    slopeThreshold: f32,
+    blendSharpness: f32,
+) -> f32 {
+
+    // apply dampening to background normal
+    let vertexSlope = dot(fragmentNormal, vec3<f32>(0.0, 1.0, 0.0));
+    let flattenedBkgrndNormal = mix(bkgrndNormal, vec3<f32>(0.0, 1.0, 0.0), vertexSlope);
+    let biasedBkgrndNormal = normalize(mix(bkgrndNormal, flattenedBkgrndNormal, baseDampening));
+
+    // compute slope tangent
+    // according to presentation (linear step between slopeThreshold and (slopeThreshold + blendSharpness)):
+    // float verticalSurfaceTangent = ComputeSlopeTangent(
+    //     biasedBkgrndNormal, slopeThreshold, saturate(slopeThreshold + bkgrndBlendSharpness) );
+    //
+    // rough approximation of slope (since it's a heightmap y will always be > 0)
+    // TODO make it more accurate with trigonometric functions (tan(acos(y))) ?
+    let slopeValue = (abs(biasedBkgrndNormal.x) + abs(biasedBkgrndNormal.z)) / biasedBkgrndNormal.y;
+
+    // linear step (remap x \in [a..b] to parametric value t in [0..1] and clamp to [0, 1])
+    let a = slopeThreshold;
+    let b = slopeThreshold + blendSharpness;  // TODO clamp?
+    let surfaceSlopeBlend = clamp((slopeValue - a) / (b - a), 0.0, 1.0);
+
+    return surfaceSlopeBlend;
+}
+// ----------------------------------------------------------------------------
 struct FragmentInput {
     [[builtin(position)]] frag_coord: vec4<f32>;
     [[location(0)]] world_position: vec4<f32>;
@@ -345,21 +375,31 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
         ((controlMapValueD.x >> 5u) & 31u) - 1u
     );
 
-    // --- uv scaling (only background texture)
-    let slopeThresholds = vec4<u32>(
+    // --- slope threshold
+    let slopeThreshold = vec4<u32>(
         (controlMapValueA.x >> 10u) & 3u,
         (controlMapValueB.x >> 10u) & 3u,
         (controlMapValueC.x >> 10u) & 3u,
         (controlMapValueD.x >> 10u) & 3u
     );
 
-    // --- slope threshold
+    // --- uv scaling (only background texture)
     let bkgrndUvScaling = vec4<u32>(
         (controlMapValueA.x >> 13u) & 3u,
         (controlMapValueB.x >> 13u) & 3u,
         (controlMapValueC.x >> 13u) & 3u,
         (controlMapValueD.x >> 13u) & 3u
     );
+    // ------------------------------------------------------------------------
+    // interpolate slope threshold from controlmap values
+    // ------------------------------------------------------------------------
+    var slopeThresholdMapping = array<f32,8u>(0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.98);
+
+    let slopeThreshold =
+          fractionalWeights.x * slopeThresholdMapping[slopeThreshold.x]
+        + fractionalWeights.y * slopeThresholdMapping[slopeThreshold.y]
+        + fractionalWeights.z * slopeThresholdMapping[slopeThreshold.z]
+        + fractionalWeights.w * slopeThresholdMapping[slopeThreshold.w];
     // ------------------------------------------------------------------------
     // partial derivatives for triplanar mapping (background texture)
     let partialDDX_xy: vec2<f32> = dpdx(fragmentPos.xy);
@@ -411,12 +451,52 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     overlayNormal = TBN * overlayNormal;
 
     var bkgrndNormal = normalize(bkgrnd.normal.rgb * 2.0 - 1.0);
-    bkgrndNormal = TBN * bkgrndNormal;
+    bkgrndNormal = TBN * bkgrndNormal.xyz;
 
-    // TODO proper blending based on slope. TEST 1:1 blending
-    let blendValue = 0.5;
-    var diffuse = mix(bkgrnd.diffuse.rgb, overlay.diffuse.rgb, blendValue);
-    var normal = normalize(mix(bkgrndNormal, overlayNormal, blendValue));
+    // ------------------------------------------------------------------------
+    // interpolate background texture material params based on neighboring controlmap textures
+    // ------------------------------------------------------------------------
+    let textureParamsA = textureParams.param[bkgrndTextureSlots.x];
+    let textureParamsB = textureParams.param[bkgrndTextureSlots.y];
+    let textureParamsC = textureParams.param[bkgrndTextureSlots.z];
+    let textureParamsD = textureParams.param[bkgrndTextureSlots.w];
+
+    let bkgrndBlendSharpness =
+          fractionalWeights.x * textureParamsA.blend_sharpness
+        + fractionalWeights.y * textureParamsB.blend_sharpness
+        + fractionalWeights.z * textureParamsC.blend_sharpness
+        + fractionalWeights.w * textureParamsD.blend_sharpness;
+
+    let bkgrndBaseDampening =
+          fractionalWeights.x * textureParamsA.slope_base_dampening
+        + fractionalWeights.y * textureParamsB.slope_base_dampening
+        + fractionalWeights.z * textureParamsC.slope_base_dampening
+        + fractionalWeights.w * textureParamsD.slope_base_dampening;
+
+    let bkgrndNormalDampening =
+          fractionalWeights.x * textureParamsA.slope_normal_dampening
+        + fractionalWeights.y * textureParamsB.slope_normal_dampening
+        + fractionalWeights.z * textureParamsC.slope_normal_dampening
+        + fractionalWeights.w * textureParamsD.slope_normal_dampening;
+    // ------------------------------------------------------------------------
+    // blending between background and overlay texture based on terrain slope
+    // and controlmap slope threshold
+    // ------------------------------------------------------------------------
+    let surfaceSlopeBlend = compute_slope_blend(
+        fragmentNormal,
+        bkgrndNormal,
+        bkgrndBaseDampening,
+        slopeThreshold,
+        bkgrndBlendSharpness,
+    );
+
+    // TODO: normalCombination = CombineNormalsDerivates(
+    //          bkgrndNormal, overlayNormal, float3(1.0 - bkgrndNormalDampening, bkgrndNormalDampening, 1.0)
+    //
+
+    // combine based on slope tangent
+    var diffuse = mix(overlay.diffuse.rgb, bkgrnd.diffuse.rgb, surfaceSlopeBlend);
+    var normal = normalize(mix(overlayNormal, bkgrndNormal, surfaceSlopeBlend));
 
     // --- lighting
     // phong-blinn
