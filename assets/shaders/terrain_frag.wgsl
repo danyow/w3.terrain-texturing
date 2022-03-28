@@ -352,8 +352,8 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     // 0..4 overlay texture idx
     // 5..9 background textures idx
     // 10..16 blend control
-    //   10..12 UV scale
-    //   13..15 slope threshold
+    //   10..12 slope threshold
+    //   13..15 UV scale
     //
     let controlMapValueA: vec4<u32> = textureLoad(controlMap, clipmapPosCoord, i32(clipmap_level));
     let controlMapValueB: vec4<u32> = textureLoad(controlMap, clipmapPosCoord + vec2<i32>(1, 0), i32(clipmap_level));
@@ -378,18 +378,18 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
     // --- slope threshold
     let slopeThreshold = vec4<u32>(
-        (controlMapValueA.x >> 10u) & 3u,
-        (controlMapValueB.x >> 10u) & 3u,
-        (controlMapValueC.x >> 10u) & 3u,
-        (controlMapValueD.x >> 10u) & 3u
+        (controlMapValueA.x >> 10u) & 7u,
+        (controlMapValueB.x >> 10u) & 7u,
+        (controlMapValueC.x >> 10u) & 7u,
+        (controlMapValueD.x >> 10u) & 7u
     );
 
     // --- uv scaling (only background texture)
     let bkgrndUvScaling = vec4<u32>(
-        (controlMapValueA.x >> 13u) & 3u,
-        (controlMapValueB.x >> 13u) & 3u,
-        (controlMapValueC.x >> 13u) & 3u,
-        (controlMapValueD.x >> 13u) & 3u
+        (controlMapValueA.x >> 13u) & 7u,
+        (controlMapValueB.x >> 13u) & 7u,
+        (controlMapValueC.x >> 13u) & 7u,
+        (controlMapValueD.x >> 13u) & 7u
     );
     // ------------------------------------------------------------------------
     // interpolate slope threshold from controlmap values

@@ -96,12 +96,12 @@ impl LoaderPlugin {
                 .map(|((background, overlay), blendcontrol)| {
                     // 0..4 overlay texture idx
                     // 5..9 background textures idx
-                    // 10..16 blend control
-                    //   10..12 UV scale
-                    //   13..16 slope threshold
+                    // 10..15 blend control
+                    //   10..12 slope threshold
+                    //   13..15 UV scale
                     u16::from(*overlay)
-                        + u16::from(*background) * 32
-                        + u16::from(*blendcontrol) * 32 * 32
+                        + (u16::from(*background) << 5)
+                        + (u16::from(*blendcontrol) << 10)
                 })
                 .collect::<Vec<u16>>();
 
