@@ -322,7 +322,7 @@ impl MaterialSetConfig {
         Self {
             diffuse,
             normal,
-            parameter: prolog_material_params()
+            parameter: kaer_morhen_material_params()
                 .iter()
                 .take(20)
                 .cloned()
@@ -575,6 +575,264 @@ fn prolog_material_params() -> [TerrainMaterialParam; 31] {
         TerrainMaterialParam {
             specularity: 0.4889999926,
             specularity_base: 0.5490000248,
+            ..Default::default()
+        },
+    ]
+} // ----------------------------------------------------------------------------
+#[allow(clippy::excessive_precision)]
+fn kaer_morhen_material_params() -> [TerrainMaterialParam; 30] {
+    [
+        // 01:
+        TerrainMaterialParam {
+            blend_sharpness: 0.3797470033,
+            slope_base_dampening: 0.6204379797,
+            specularity_scale: 0.419355005,
+            _specularity_scale_copy: 0.419355005,
+            specularity: 0.4032259881,
+            specularity_base: 0.451613009,
+            ..Default::default()
+        },
+        // 02:
+        TerrainMaterialParam {
+            blend_sharpness: 0.075000003,
+            slope_base_dampening: 1.0,
+            specularity: 0.6774190068,
+            specularity_base: 0.548386991,
+            ..Default::default()
+        },
+        // 03:
+        TerrainMaterialParam {
+            blend_sharpness: 0.1389999986,
+            slope_base_dampening: 0.2599999905,
+            specularity: 0.577113986,
+            specularity_base: 0.5174130201,
+            ..Default::default()
+        },
+        // 04:
+        TerrainMaterialParam {
+            specularity: 0.4776119888,
+            specularity_base: 0.5519999862,
+            ..Default::default()
+        },
+        // 05:
+        TerrainMaterialParam {
+            blend_sharpness: 0.139240995,
+            slope_base_dampening: 1.0,
+            specularity: 0.6290320158,
+            specularity_base: 0.5479999781,
+            ..Default::default()
+        },
+        // 06:
+        TerrainMaterialParam {
+            slope_base_dampening: 1.0,
+            specularity: 0.5671640038,
+            specularity_base: 0.562188983,
+            ..Default::default()
+        },
+        // 07:
+        TerrainMaterialParam {
+            blend_sharpness: 0.2300000042,
+            slope_base_dampening: 1.0,
+            specularity: 0.6069650054,
+            specularity_base: 0.5619999766,
+            ..Default::default()
+        },
+        // 08:
+        TerrainMaterialParam {
+            blend_sharpness: 0.4487800002,
+            slope_base_dampening: 0.2150000036,
+            specularity: 0.75,
+            specularity_base: 0.5174130201,
+            ..Default::default()
+        },
+        // 09:
+        TerrainMaterialParam {
+            blend_sharpness: 0.2303919941,
+            slope_base_dampening: 0.112999998,
+            specularity: 0.4925369918,
+            specularity_base: 0.52700001,
+            ..Default::default()
+        },
+        // 10:
+        TerrainMaterialParam {
+            blend_sharpness: 0.2025319934,
+            slope_base_dampening: 0.025316,
+            slope_normal_dampening: 0.3759999871,
+            specularity_scale: 0.3870970011,
+            _specularity_scale_copy: 0.3870970011,
+            specularity: 0.1935479939,
+            specularity_base: 0.467741996,
+            ..Default::default()
+        },
+        // 11:
+        TerrainMaterialParam {
+            blend_sharpness: 0.177214995,
+            slope_base_dampening: 0.4550000131,
+            specularity_scale: 0.5024880171,
+            _specularity_scale_copy: 0.5024880171,
+            specularity: 0.3980099857,
+            specularity_base: 0.4420000017,
+            ..Default::default()
+        },
+        // 12:
+        TerrainMaterialParam {
+            blend_sharpness: 0.1150000021,
+            slope_base_dampening: 0.5690000057,
+            specularity: 0.4726369977,
+            specularity_base: 0.5469999909,
+            ..Default::default()
+        },
+        // 13:
+        TerrainMaterialParam {
+            blend_sharpness: 0.150820002,
+            slope_base_dampening: 0.1770000011,
+            slope_normal_dampening: 0.376812011,
+            specularity: 0.4676620066,
+            specularity_base: 0.5009999871,
+            ..Default::default()
+        },
+        // 14:
+        TerrainMaterialParam {
+            blend_sharpness: 0.0759489983,
+            slope_base_dampening: 0.1449999958,
+            specularity: 0.5370000005,
+            specularity_base: 0.5,
+            ..Default::default()
+        },
+        // 15:
+        TerrainMaterialParam {
+            blend_sharpness: 0.3670000136,
+            slope_base_dampening: 0.3409999907,
+            specularity_scale: 0.1442790031,
+            _specularity_scale_copy: 0.1442790031,
+            specularity: 0.5273630023,
+            specularity_base: 0.5070000291,
+            ..Default::default()
+        },
+        // 16:
+        TerrainMaterialParam {
+            blend_sharpness: 0.0759489983,
+            slope_base_dampening: 0.1889999956,
+            specularity: 0.4079599977,
+            specularity_base: 0.5170000196,
+            ..Default::default()
+        },
+        // 17:
+        TerrainMaterialParam {
+            blend_sharpness: 0.151898995,
+            slope_base_dampening: 0.2399999946,
+            specularity_scale: 0.1612900048,
+            _specularity_scale_copy: 0.1612900048,
+            specularity: 0.4726369977,
+            specularity_base: 0.5161290169,
+            ..Default::default()
+        },
+        // 18:
+        TerrainMaterialParam {
+            blend_sharpness: 0.0886079967,
+            slope_base_dampening: 0.3030000031,
+            specularity: 0.548386991,
+            specularity_base: 0.5161290169,
+            ..Default::default()
+        },
+        // 19:
+        TerrainMaterialParam {
+            blend_sharpness: 0.0632909983,
+            slope_base_dampening: 1.0,
+            specularity: 0.4354839921,
+            specularity_base: 0.5070000291,
+            ..Default::default()
+        },
+        // 20:
+        TerrainMaterialParam {
+            blend_sharpness: 0.3670890033,
+            slope_base_dampening: 1.0,
+            specularity_scale: 0.7580649853,
+            _specularity_scale_copy: 0.7580649853,
+            specularity: 0.2096769959,
+            specularity_base: 0.419355005,
+            ..Default::default()
+        },
+        // 21:
+        TerrainMaterialParam {
+            blend_sharpness: 0.0886079967,
+            slope_base_dampening: 0.189872995,
+            specularity_scale: 0.3283579946,
+            _specularity_scale_copy: 0.3283579946,
+            specularity: 0.5323380232,
+            specularity_base: 0.4970000088,
+            ..Default::default()
+        },
+        // 22:
+        TerrainMaterialParam {
+            blend_sharpness: 0.1139239967,
+            slope_base_dampening: 0.2405059934,
+            specularity: 0.288556993,
+            specularity_base: 0.5960000157,
+            ..Default::default()
+        },
+        // 23:
+        TerrainMaterialParam {
+            blend_sharpness: 0.0506329983,
+            slope_base_dampening: 0.3037970066,
+            specularity: 0.3930349946,
+            specularity_base: 0.4925369918,
+            ..Default::default()
+        },
+        // 24:
+        TerrainMaterialParam {
+            blend_sharpness: 0.1012659967,
+            slope_base_dampening: 0.9240509868,
+            specularity: 0.6119400263,
+            specularity_base: 0.5170000196,
+            ..Default::default()
+        },
+        // 25:
+        TerrainMaterialParam {
+            blend_sharpness: 0.1012659967,
+            slope_base_dampening: 0.177214995,
+            specularity: 0.5671640038,
+            specularity_base: 1.0,
+            ..Default::default()
+        },
+        // 26:
+        TerrainMaterialParam {
+            blend_sharpness: 0.0886079967,
+            slope_base_dampening: 1.0,
+            specularity: 0.3980099857,
+            specularity_base: 0.4925369918,
+            ..Default::default()
+        },
+        // 27:
+        TerrainMaterialParam {
+            blend_sharpness: 0.0886079967,
+            slope_base_dampening: 0.4854010046,
+            specularity: 0.8358209729,
+            specularity_base: 0.5024880171,
+            ..Default::default()
+        },
+        // 28:
+        TerrainMaterialParam {
+            blend_sharpness: 0.1265819967,
+            slope_base_dampening: 1.0,
+            specularity: 0.4776119888,
+            specularity_base: 0.5124379992,
+            ..Default::default()
+        },
+        // 29:
+        TerrainMaterialParam {
+            blend_sharpness: 0.189872995,
+            slope_base_dampening: 0.987342,
+            specularity: 0.5373129845,
+            specularity_base: 0.5223879814,
+            ..Default::default()
+        },
+        // 30:
+        TerrainMaterialParam {
+            specularity_scale: 0.5970150232,
+            _specularity_scale_copy: 0.5970150232,
+            specularity: 0.3134329915,
+            specularity_base: 0.4726369977,
             ..Default::default()
         },
     ]
