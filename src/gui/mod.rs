@@ -3,8 +3,8 @@ use bevy::{math::Vec3, prelude::*};
 use bevy_egui::EguiContext;
 
 use crate::atmosphere::AtmosphereMat;
-use crate::environment::SunSettings;
 use crate::config;
+use crate::environment::SunSettings;
 use crate::terrain_material::{MaterialSlot, TerrainMaterialSet, TextureType, TextureUpdatedEvent};
 use crate::terrain_tiles::{LodSlot, TerrainMeshSettings};
 use crate::texturearray::TextureArray;
@@ -23,6 +23,10 @@ pub struct UiState {
     progress: ProgressTracking,
     // FIXME this should be some kind of brush state
     selected_slot: Option<MaterialSlot>,
+
+    is_using_pointer: bool,
+    wants_pointer: bool,
+    wants_keyboard: bool,
 
     // debug
     debug: debug::DebugUiState,
@@ -110,6 +114,7 @@ impl Plugin for EditorUiPlugin {
             .init_resource::<UiImages>()
             .add_event::<GuiAction>()
             .add_system(view::show_ui.label("gui_actions"))
+            .add_system(update_input_processing_request.after("gui_actions"))
             .add_system(handle_editor_events)
             .add_system(log_ui_actions.after("gui_actions"))
             .add_system(handle_ui_actions.after("gui_actions"));
@@ -241,6 +246,7 @@ fn handle_ui_actions(
             GuiAction::UpdateMeshSetting(setting) => {
                 update::update_mesh_settings(setting, &mut mesh_settings)
             }
+
             // TODO should be removed later
             GuiAction::DebugLoadTerrain(_)
             | GuiAction::DebugCloseProject
@@ -269,6 +275,29 @@ impl UiState {
         }
     }
     // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn wants_input(&self) -> bool {
+        self.wants_pointer || self.wants_keyboard || self.is_using_pointer
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+fn update_input_processing_request(
+    mut egui_ctx: ResMut<EguiContext>,
+    mut ui_state: ResMut<UiState>,
+) {
+    let is_using_pointer = egui_ctx.ctx_mut().is_using_pointer();
+    let wants_pointer = egui_ctx.ctx_mut().wants_pointer_input();
+    let wants_keyboard = egui_ctx.ctx_mut().wants_keyboard_input();
+
+    if ui_state.wants_pointer != wants_pointer
+        || ui_state.wants_keyboard != wants_keyboard
+        || ui_state.is_using_pointer != is_using_pointer
+    {
+        ui_state.wants_pointer = wants_pointer;
+        ui_state.wants_keyboard = wants_keyboard;
+        ui_state.is_using_pointer = is_using_pointer;
+    }
 }
 // ----------------------------------------------------------------------------
 // debug

@@ -1,3 +1,6 @@
+//
+// gui::update - simple(r) actions for updating state, mapping to other actions
+//
 // ----------------------------------------------------------------------------
 use bevy::prelude::*;
 
