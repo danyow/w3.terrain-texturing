@@ -11,23 +11,27 @@ pub fn show_menu(
     ui.set_enabled(!ui_state.project_is_loading);
 
     ui.menu_button("Debug", |ui| {
+        let mut result = None;
         if ui.add_enabled(ui_state.project_open && !ui_state.debug.show_clipmaps, Button::new("show clipmaps")).clicked() {
-            gui_event.send(GuiAction::DebugShowClipmap(true))
+            result = Some(GuiAction::DebugShowClipmap(true));
         }
         ui.separator();
-        if ui.add_enabled(ui_state.project_open, Button::new("unload terrain")).clicked() { gui_event.send(DebugCloseProject) }
+        if ui.add_enabled(ui_state.project_open, Button::new("unload terrain")).clicked() { result = Some(DebugCloseProject); }
         ui.separator();
 
         ui.set_enabled(!ui_state.project_open);
         ui.label("Prolog");
-        if ui.button("Load Prolog (256)").clicked() { gui_event.send(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(256)))) }
-        if ui.button("Load Prolog (512)").clicked() { gui_event.send(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(512)))) }
-        if ui.button("Load Prolog (1024)").clicked() { gui_event.send(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(1024)))) }
-        if ui.button("Load Prolog (2048)").clicked() { gui_event.send(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(2048)))) }
-        if ui.button("Load Prolog (4096)").clicked() { gui_event.send(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(4096)))) }
+        if ui.button("Load Prolog (1024)").clicked() { result = Some(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(1024)))); }
+        if ui.button("Load Prolog (2048)").clicked() { result = Some(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(2048)))); }
+        if ui.button("Load Prolog (4096)").clicked() { result = Some(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(4096)))); }
         ui.separator();
         ui.label("Kaer Morhen");
-        if ui.button("Kaer Morhen (16384)").clicked() { gui_event.send(DebugLoadTerrain(Box::new(TerrainConfig::kaer_morhen()))) }
+        if ui.button("Kaer Morhen (16384)").clicked() { result = Some(DebugLoadTerrain(Box::new(TerrainConfig::kaer_morhen()))); }
+
+        if let Some(event) = result {
+            ui.close_menu();
+            gui_event.send(event);
+        }
     });
 }
 // ----------------------------------------------------------------------------

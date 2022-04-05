@@ -9,7 +9,8 @@ pub fn show(
         egui::menu::bar(ui, |ui| {
             ui.menu_button("Project", |ui| {
                 if ui.button("Quit").clicked() {
-                    gui_event.send(GuiAction::QuitRequest)
+                    ui.close_menu();
+                    gui_event.send(GuiAction::QuitRequest);
                 }
             });
             // #[cfg(debug_assertions))]
