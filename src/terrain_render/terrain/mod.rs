@@ -1,6 +1,5 @@
 // ----------------------------------------------------------------------------
 use bevy::{
-    core_pipeline::Opaque3d,
     ecs::query::QueryItem,
     prelude::*,
     render::{
@@ -22,6 +21,8 @@ use self::terrain_mesh::queue_mesh_bind_group as queue_terrain_mesh_bind_group;
 use self::terrain_mesh::TerrainMeshUniform;
 
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
+
+use super::pipeline::Terrain3d;
 
 use super::{
     ClipmapAssignment, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet, TerrainMesh,
@@ -50,7 +51,7 @@ impl Plugin for TerrainMeshRenderPlugin {
             .add_plugin(ExtractComponentPlugin::<TerrainTileComponent>::default());
 
         app.sub_app_mut(RenderApp)
-            .add_render_command::<Opaque3d, DrawCmdTerrain>()
+            .add_render_command::<Terrain3d, DrawCmdTerrain>()
             .init_resource::<TerrainMeshRenderPipeline>()
             .init_resource::<SpecializedPipelines<TerrainMeshRenderPipeline>>()
             .add_system_to_stage(RenderStage::Extract, extract_terrain_meshes)
@@ -65,7 +66,7 @@ impl Plugin for TerrainMeshRenderPlugin {
 // ----------------------------------------------------------------------------
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn queue_terrain_rendering(
-    draw_functions: Res<DrawFunctions<Opaque3d>>,
+    draw_functions: Res<DrawFunctions<Terrain3d>>,
     terrain_pipeline: Res<TerrainMeshRenderPipeline>,
     msaa: Res<Msaa>,
     mut pipelines: ResMut<SpecializedPipelines<TerrainMeshRenderPipeline>>,
@@ -78,18 +79,18 @@ fn queue_terrain_rendering(
             With<TerrainTileComponent>,
         ),
     >,
-    mut views: Query<(&ExtractedView, &mut RenderPhase<Opaque3d>)>,
+    mut views: Query<(&ExtractedView, &mut RenderPhase<Terrain3d>)>,
 ) {
     let draw_terrain = draw_functions.read().get_id::<DrawCmdTerrain>().unwrap();
 
     let key = TerrainMeshPipelineKey::from_msaa_samples(msaa.samples);
     let pipeline = pipelines.specialize(&mut pipeline_cache, &terrain_pipeline, key);
 
-    for (view, mut opaque_phase) in views.iter_mut() {
+    for (view, mut terrainpass) in views.iter_mut() {
         let view_matrix = view.transform.compute_matrix();
         let view_row_2 = view_matrix.row(2);
         for (entity, mesh_uniform) in terrain_meshes.iter() {
-            opaque_phase.add(Opaque3d {
+            terrainpass.add(Terrain3d {
                 entity,
                 pipeline,
                 draw_function: draw_terrain,

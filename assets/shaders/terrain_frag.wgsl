@@ -313,9 +313,14 @@ struct FragmentInput {
     [[location(1)]] normal: vec3<f32>;
     [[location(2)]] uv: vec2<f32>;
 };
+
+struct FragmentOutput {
+    [[location(0)]] color: vec4<f32>;
+    [[location(1)]] world_position: vec4<f32>;
+};
 // ----------------------------------------------------------------------------
 [[stage(fragment)]]
-fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
+fn fragment(in: FragmentInput) -> FragmentOutput {
 
     let gamma = 2.2;
 
@@ -578,6 +583,6 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     // --- gamma correction
     // fragmentCol = pow(fragmentCol, vec4<f32>(1.0 / gamma));
 
-    return fragmentCol;
+    return FragmentOutput(fragmentCol, in.world_position);
 }
 // ----------------------------------------------------------------------------

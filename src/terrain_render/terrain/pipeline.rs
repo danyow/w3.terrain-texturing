@@ -124,11 +124,21 @@ impl SpecializedPipeline for TerrainMeshRenderPipeline {
                 shader: self.shader_frag.clone(),
                 entry_point: "fragment".into(),
                 shader_defs: Vec::default(),
-                targets: vec![ColorTargetState {
-                    format: TextureFormat::bevy_default(),
-                    blend,
-                    write_mask: ColorWrites::ALL,
-                }],
+                targets: vec![
+                    // diffuse
+                    ColorTargetState {
+                        format: TextureFormat::bevy_default(),
+                        blend,
+                        write_mask: ColorWrites::ALL,
+                    },
+                    // world position
+                    ColorTargetState {
+                        // Note: 16Float results in visible brush blocking
+                        format: TextureFormat::Rgba32Float,
+                        blend,
+                        write_mask: ColorWrites::ALL,
+                    },
+                ],
             }),
             layout: Some(vec![
                 self.view_layout.clone(),

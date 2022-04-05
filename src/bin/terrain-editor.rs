@@ -5,7 +5,7 @@
 // disable console on windows for release builds
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use bevy::prelude::{App, ClearColor, Color, WindowDescriptor};
+use bevy::prelude::{App, ClearColor, Color, Msaa, WindowDescriptor};
 use bevy::DefaultPlugins;
 
 use bevy::render::settings::{WgpuFeatures, WgpuSettings};
@@ -15,8 +15,10 @@ fn main() {
     let mut app = App::new();
 
     app.insert_resource(ClearColor(Color::rgb(0.4, 0.4, 0.4)))
+        // terrain rendering uses multiple rendertargets from witch subsequent
+        // passes try to sample. therefore msaa must be deactivated.
+        .insert_resource(Msaa { samples: 1 })
         .insert_resource(WgpuSettings {
-            // The Wireframe requires NonFillPolygonMode feature
             features: WgpuFeatures::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
                 | WgpuFeatures::TEXTURE_FORMAT_16BIT_NORM,
             ..Default::default()

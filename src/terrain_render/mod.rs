@@ -65,6 +65,7 @@ pub struct ClipmapLayerInfo {
     size: f32,
 }
 // ----------------------------------------------------------------------------
+mod pipeline;
 mod terrain;
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainRenderPlugin {
@@ -72,6 +73,7 @@ impl Plugin for TerrainRenderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainMaterialSet>()
             .init_resource::<TerrainEnvironment>()
+            .add_plugin(pipeline::TerrainRenderGraphPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin);
     }
     // ------------------------------------------------------------------------
