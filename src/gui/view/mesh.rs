@@ -100,7 +100,8 @@ use bevy_egui::egui::{self, Response, Slider};
 use crate::terrain_tiles::{LodSlot, TerrainMeshSettings};
 
 use crate::gui::MeshSetting;
-use crate::GuiAction;
+
+use super::GuiAction;
 // ----------------------------------------------------------------------------
 struct MeshSettings {
     freeze: bool,

@@ -142,7 +142,8 @@ use bevy_egui::egui::{self, Slider};
 use crate::atmosphere::AtmosphereMat;
 use crate::environment::SunSettings;
 use crate::gui::{AtmosphereSetting, SunSetting};
-use crate::GuiAction;
+
+use super::GuiAction;
 // ----------------------------------------------------------------------------
 struct AtmosphereSettings {
     ray_origin: Vec3,
