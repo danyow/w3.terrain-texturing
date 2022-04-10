@@ -42,7 +42,6 @@ pub enum GuiAction {
     UpdateSunSetting(SunSetting),
     UpdateAtmosphereSetting(AtmosphereSetting),
     UpdateMeshSetting(MeshSetting),
-    ToggleFullscreen,
     QuitRequest,
     DebugCloseProject,
     DebugLoadTerrain(Box<config::TerrainConfig>),
@@ -234,9 +233,6 @@ fn handle_ui_actions(
             }
             GuiAction::UpdateMaterial(slot, setting) => {
                 update::update_material_settings(*slot, setting, &mut materialset);
-            }
-            GuiAction::ToggleFullscreen => {
-                ui_state.fullscreen = !ui_state.fullscreen;
             }
             GuiAction::QuitRequest => {
                 warn!("TODO quit request");
