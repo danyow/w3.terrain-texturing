@@ -7,7 +7,7 @@ pub struct EditorPlugin;
 use camera::CameraPlugin;
 
 use cmds::AsyncTaskFinishedEvent;
-use gui::{GuiAction, UiImages};
+use gui::UiImages;
 
 use crate::environment::EnvironmentPlugin;
 use crate::heightmap::HeightmapPlugin;
@@ -45,6 +45,7 @@ enum EditorState {
     NoTerrainData,
     TerrainLoading,
     Editing,
+    FreeCam,
 }
 // ----------------------------------------------------------------------------
 /// events triggered by editor and not user (e.g. to update something in GUI)
@@ -52,6 +53,7 @@ enum EditorEvent {
     TerrainTextureUpdated(terrain_material::TextureUpdatedEvent),
     ProgressTrackingStart(cmds::TrackedTaskname, Vec<cmds::TrackedProgress>),
     ProgressTrackingUpdate(cmds::TrackedProgress),
+    ToggleGuiVisibility,
     StateChange(EditorState),
     Debug(DebugEvent),
 }
@@ -199,13 +201,15 @@ impl Plugin for EditorPlugin {
             .add_plugin(gui::EditorUiPlugin)
             .insert_resource(atmosphere::AtmosphereMat::default())
             .add_plugin(atmosphere::AtmospherePlugin { dynamic: true })
-            .add_plugin(environment::EnvironmentPlugin);
+            .add_plugin(environment::EnvironmentPlugin)
+            .add_system(global_hotkeys);
 
         // --- state systems definition ---------------------------------------
         EditorState::initialization(app);
         EditorState::no_terrain_data(app);
         EditorState::terrain_loading(app);
         EditorState::terrain_editing(app);
+        EditorState::free_cam(app);
         // --- state systems definition END -----------------------------------
     }
 }
@@ -242,13 +246,14 @@ impl EditorState {
         app.add_system_set(
             SystemSet::on_enter(NoTerrainData).with_system(signal_editor_state_change),
         );
+        app.add_system_set(
+            SystemSet::on_resume(NoTerrainData).with_system(signal_editor_state_change),
+        );
 
-        app.add_system_set(SystemSet::on_update(NoTerrainData).with_system(hotkeys))
-            // plugins
+        app // plugins
             .add_system_set(TerrainClipmapPlugin::reset_data(NoTerrainData))
             .add_system_set(TerrainTilesGeneratorPlugin::reset_data(NoTerrainData))
             .add_system_set(MaterialSetPlugin::setup_default_materialset(NoTerrainData))
-            .add_system_set(CameraPlugin::active_free_camera(NoTerrainData))
             .add_system_set(EnvironmentPlugin::activate_dynamic_updates(NoTerrainData));
     }
     // ------------------------------------------------------------------------
@@ -273,7 +278,6 @@ impl EditorState {
                 .with_system(watch_loading),
         )
         // plugins
-        .add_system_set(CameraPlugin::active_free_camera(TerrainLoading))
         .add_system_set(MaterialSetPlugin::terrain_material_loading(TerrainLoading))
         .add_system_set(HeightmapPlugin::generate_heightmap_normals(TerrainLoading))
         .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(TerrainLoading));
@@ -284,24 +288,62 @@ impl EditorState {
         use EditorState::Editing;
 
         app.add_system_set(SystemSet::on_enter(Editing).with_system(signal_editor_state_change));
+        app.add_system_set(SystemSet::on_resume(Editing).with_system(signal_editor_state_change));
 
-        app.add_system_set(SystemSet::on_update(Editing).with_system(hotkeys))
-            // plugins
-            .add_system_set(CameraPlugin::active_free_camera(Editing))
+        app // plugins
             .add_system_set(EnvironmentPlugin::activate_dynamic_updates(Editing))
             .add_system_set(MaterialSetPlugin::terrain_material_loading(Editing))
             .add_system_set(TerrainClipmapPlugin::update_tracker(Editing))
             .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(Editing));
     }
     // ------------------------------------------------------------------------
+    /// stacked state with active free cam (editing on hold)
+    fn free_cam(app: &mut App) {
+        use EditorState::FreeCam;
+
+        app.add_system_set(SystemSet::on_enter(FreeCam).with_system(signal_editor_state_change));
+
+        app // plugins
+            .add_system_set(CameraPlugin::start_free_camera(FreeCam))
+            .add_system_set(CameraPlugin::active_free_camera(FreeCam))
+            .add_system_set(CameraPlugin::stop_free_camera(FreeCam))
+            .add_system_set(EnvironmentPlugin::activate_dynamic_updates(FreeCam))
+            .add_system_set(TerrainClipmapPlugin::update_tracker(FreeCam))
+            .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(FreeCam));
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 #[allow(clippy::single_match)]
-fn hotkeys(keys: Res<Input<KeyCode>>, mut gui_event: EventWriter<GuiAction>) {
+fn global_hotkeys(
+    keys: Res<Input<KeyCode>>,
+    mut app_state: ResMut<State<EditorState>>,
+    mut event: EventWriter<EditorEvent>,
+) {
+    use EditorState::*;
+
     for key in keys.get_just_pressed() {
-        match key {
-            KeyCode::F12 => gui_event.send(GuiAction::ToggleFullscreen),
-            _ => (),
+        match app_state.current() {
+            FreeCam => match key {
+                KeyCode::F12 => event.send(EditorEvent::ToggleGuiVisibility),
+                KeyCode::LControl => app_state.overwrite_pop().unwrap(),
+                _ => {}
+            },
+            Editing => match key {
+                KeyCode::F12 => event.send(EditorEvent::ToggleGuiVisibility),
+                KeyCode::LControl => app_state.overwrite_push(FreeCam).unwrap(),
+                _ => (),
+            },
+            TerrainLoading => match key {
+                KeyCode::F12 => event.send(EditorEvent::ToggleGuiVisibility),
+                _ => (),
+            },
+            NoTerrainData => match key {
+                KeyCode::F12 => event.send(EditorEvent::ToggleGuiVisibility),
+                KeyCode::LControl => app_state.overwrite_push(FreeCam).unwrap(),
+                _ => (),
+            },
+            Initialization => {}
         }
     }
 }

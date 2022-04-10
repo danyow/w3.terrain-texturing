@@ -16,8 +16,11 @@ pub(super) fn show_ui(
     menu::show(&mut egui_ctx, &ui_state, &mut gui_event);
 
     egui::SidePanel::right("side_panel")
+        .resizable(ui_state.enabled)
         .width_range(300.0..=450.0)
         .show(egui_ctx.ctx_mut(), |ui| {
+            ui.set_enabled(ui_state.enabled);
+
             egui::ScrollArea::vertical()
                 .max_height(ui.available_height() - 45.0)
                 .show(ui, |ui| {

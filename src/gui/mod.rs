@@ -17,6 +17,7 @@ pub use self::images::UiImages;
 #[derive(Default)]
 pub struct UiState {
     fullscreen: bool,
+    enabled: bool,
     project_open: bool,
     project_is_loading: bool,
 
@@ -205,6 +206,9 @@ fn handle_editor_events(
                 ui_state.progress.update(update);
             }
             StateChange(new_state) => ui_state.update(*new_state),
+            ToggleGuiVisibility => {
+                ui_state.fullscreen = !ui_state.fullscreen;
+            }
 
             Debug(_) => {}
         }
@@ -261,16 +265,21 @@ impl UiState {
         match editor_state {
             EditorState::Initialization => {}
             EditorState::NoTerrainData => {
-                self.project_open = false;
+                self.enabled = true;
                 self.project_is_loading = false;
             }
             EditorState::TerrainLoading => {
+                self.enabled = true;
                 self.project_open = false;
                 self.project_is_loading = true;
             }
             EditorState::Editing => {
+                self.enabled = true;
                 self.project_open = true;
                 self.project_is_loading = false;
+            }
+            EditorState::FreeCam => {
+                self.enabled = false;
             }
         }
     }

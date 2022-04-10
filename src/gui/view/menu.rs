@@ -7,6 +7,8 @@ pub fn show(
 ) {
     egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx_mut(), |ui| {
         egui::menu::bar(ui, |ui| {
+            ui.set_enabled(ui_state.enabled);
+
             ui.menu_button("Project", |ui| {
                 if ui.button("Quit").clicked() {
                     ui.close_menu();

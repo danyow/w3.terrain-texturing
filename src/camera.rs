@@ -14,7 +14,7 @@ use bevy::render::camera::{
 };
 use bevy::render::primitives::Frustum;
 use bevy::render::view::VisibleEntities;
-use bevy::window::{Window, Windows};
+use bevy::window::Windows;
 // ----------------------------------------------------------------------------
 pub struct CameraPlugin;
 // ----------------------------------------------------------------------------
@@ -41,7 +41,14 @@ impl CameraPlugin {
         SystemSet::on_update(state)
             .with_system(camera_movement)
             .with_system(camera_mouse_rotation)
-            .with_system(toggle_freecam)
+    }
+    // ------------------------------------------------------------------------
+    pub fn start_free_camera<T: StateData>(state: T) -> SystemSet {
+        SystemSet::on_enter(state).with_system(start_free_camera)
+    }
+    // ------------------------------------------------------------------------
+    pub fn stop_free_camera<T: StateData>(state: T) -> SystemSet {
+        SystemSet::on_exit(state).with_system(stop_free_camera)
     }
     // ------------------------------------------------------------------------
 }
@@ -103,11 +110,18 @@ fn setup_cam(mut commands: Commands, mut state: ResMut<CameraState>) {
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
-fn toggle_freecam(keys: Res<Input<KeyCode>>, mut windows: ResMut<Windows>) {
+fn start_free_camera(mut windows: ResMut<Windows>) {
     let window = windows.get_primary_mut().unwrap();
-    if keys.just_pressed(KeyCode::LControl) {
-        toggle_grab_cursor(window);
-    }
+    // grab und hide mouse cursor
+    window.set_cursor_lock_mode(true);
+    window.set_cursor_visibility(false);
+}
+// ----------------------------------------------------------------------------
+fn stop_free_camera(mut windows: ResMut<Windows>) {
+    let window = windows.get_primary_mut().unwrap();
+    // ungrab and show mouse cursor
+    window.set_cursor_lock_mode(false);
+    window.set_cursor_visibility(true);
 }
 // ----------------------------------------------------------------------------
 /// Handles keyboard input and movement
@@ -180,12 +194,6 @@ fn camera_mouse_rotation(
 }
 // ----------------------------------------------------------------------------
 // utils
-// ----------------------------------------------------------------------------
-/// Grabs/ungrabs mouse cursor
-fn toggle_grab_cursor(window: &mut Window) {
-    window.set_cursor_lock_mode(!window.cursor_locked());
-    window.set_cursor_visibility(!window.cursor_visible());
-}
 // ----------------------------------------------------------------------------
 // from https://github.com/mcpar-land/bevy_fly_camera/pull/15/files
 fn get_yaw_pitch(rotation: &Quat) -> (f32, f32) {
