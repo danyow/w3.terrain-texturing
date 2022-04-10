@@ -27,7 +27,7 @@ fn fragment(in: VertexInput) -> [[location(0)]] vec4<f32> {
     let dist = distance(world_pos.xz, in.center.xz);
 
     if (dist >= brush.radius && dist <= (brush.radius + brush.ring_width)) {
-        return vec4<f32>(brush.color.rgb, 0.5);
+        return vec4<f32>(brush.color.rgb, 0.75);
 
     } else {
         return vec4<f32>(1.0, 1.0, 1.0, 0.0);
