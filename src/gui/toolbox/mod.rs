@@ -6,7 +6,7 @@ use crate::terrain_render::BrushPointer;
 
 use common::{BrushSize, PointerSettings};
 
-use super::UiState;
+use super::{GuiAction, UiState};
 // ----------------------------------------------------------------------------
 #[derive(Default)]
 pub struct TexturingToolboxPlugin;
@@ -15,7 +15,12 @@ impl Plugin for TexturingToolboxPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
         app.add_startup_system(init_brush_pointer)
-            .add_system(update_brush_pointer_info);
+            .add_system(update_brush_pointer_info)
+            .add_system(
+                handle_ui_actions
+                    .label("handle_ui_actions")
+                    .after("gui_actions"),
+            );
     }
     // ------------------------------------------------------------------------
 }
@@ -27,6 +32,12 @@ pub struct ToolboxState {
     texture_brush: texturebrush::BrushSettings,
 }
 // ---------------------------------------------------------------------------
+#[derive(Debug)]
+/// Events triggered by user in the GUI (user actions)
+pub enum ToolboxAction {
+    UpdateBrushSettings,
+}
+// ---------------------------------------------------------------------------
 #[derive(Eq, PartialEq, Clone, Copy)]
 enum ToolSelection {
     Texturing,
@@ -36,8 +47,28 @@ mod common;
 mod texturebrush;
 
 mod update;
+pub(super) mod view;
 // ----------------------------------------------------------------------------
 // systems
+// ----------------------------------------------------------------------------
+#[allow(clippy::too_many_arguments)]
+fn handle_ui_actions(
+    mut ui_state: ResMut<UiState>,
+    mut ui_action: EventReader<GuiAction>,
+    mut brush: ResMut<BrushPointer>,
+) {
+    use ToolboxAction::*;
+
+    for action in ui_action.iter() {
+        if let GuiAction::Toolbox(action) = action {
+            match action {
+                UpdateBrushSettings => {
+                    update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut *brush);
+                }
+            }
+        }
+    }
+}
 // ----------------------------------------------------------------------------
 fn init_brush_pointer(ui_state: ResMut<UiState>, mut brush_pointer: ResMut<BrushPointer>) {
     update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut brush_pointer);

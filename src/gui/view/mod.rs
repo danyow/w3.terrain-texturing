@@ -1,9 +1,10 @@
 // ----------------------------------------------------------------------------
+#[rustfmt::skip]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn show_ui(
     mut egui_ctx: ResMut<EguiContext>,
+    mut ui_state: ResMut<UiState>,
     ui_images: Res<UiImages>,
-    ui_state: Res<UiState>,
     materialset: Option<Res<TerrainMaterialSet>>,
     mesh_settings: Option<Res<TerrainMeshSettings>>,
     sun_settings: Option<Res<SunSettings>>,
@@ -33,6 +34,10 @@ pub(super) fn show_ui(
                     if let Some(settings) = atmosphere_settings {
                         atmosphere::show_atmosphere_settings(ui, &settings, &mut gui_event);
                     }
+
+                    super::toolbox::view::show_ui(
+                        ui, &mut ui_state.toolbox, &ui_images, &mut gui_event);
+
                     if let Some(materialset) = materialset {
                         materialpalette::show(
                             ui,

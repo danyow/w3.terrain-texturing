@@ -38,6 +38,7 @@ pub struct UiState {
 #[derive(Debug)]
 /// Events triggered by user in the GUI (user actions)
 pub enum GuiAction {
+    Toolbox(toolbox::ToolboxAction),
     SelectMaterial(MaterialSlot),
     UnselectMaterial,
     UpdateMaterial(MaterialSlot, MaterialSetting),
@@ -122,7 +123,11 @@ impl Plugin for EditorUiPlugin {
             .add_system(update_input_processing_request.after("gui_actions"))
             .add_system(handle_editor_events)
             .add_system(log_ui_actions.after("gui_actions"))
-            .add_system(handle_ui_actions.after("gui_actions"));
+            .add_system(
+                handle_ui_actions
+                    .label("handle_ui_actions")
+                    .after("gui_actions"),
+            );
     }
     // ------------------------------------------------------------------------
 }
@@ -235,6 +240,10 @@ fn handle_ui_actions(
             }
             GuiAction::UnselectMaterial => {
                 ui_state.selected_slot = None;
+            }
+            GuiAction::Toolbox(_action) => {
+                // handled by toolbox module explicitely
+                // this would be the place for a reactive one shot system
             }
             GuiAction::UpdateMaterial(slot, setting) => {
                 update::update_material_settings(*slot, setting, &mut materialset);
