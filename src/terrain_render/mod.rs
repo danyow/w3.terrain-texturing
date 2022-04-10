@@ -11,6 +11,8 @@ pub struct TerrainRenderPlugin;
 //TODO make proper specialized mesh type so updates just take data instead clone (?)
 pub type TerrainMesh = Mesh;
 // ----------------------------------------------------------------------------
+pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
+
 pub use terrain::TerrainEnvironment;
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
@@ -65,6 +67,7 @@ pub struct ClipmapLayerInfo {
     size: f32,
 }
 // ----------------------------------------------------------------------------
+mod brush;
 mod pipeline;
 mod terrain;
 // ----------------------------------------------------------------------------
@@ -74,7 +77,8 @@ impl Plugin for TerrainRenderPlugin {
         app.init_resource::<TerrainMaterialSet>()
             .init_resource::<TerrainEnvironment>()
             .add_plugin(pipeline::TerrainRenderGraphPlugin)
-            .add_plugin(terrain::TerrainMeshRenderPlugin);
+            .add_plugin(terrain::TerrainMeshRenderPlugin)
+            .add_plugin(brush::BrushPointerRenderPlugin);
     }
     // ------------------------------------------------------------------------
 }

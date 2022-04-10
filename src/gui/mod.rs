@@ -25,6 +25,8 @@ pub struct UiState {
     // FIXME this should be some kind of brush state
     selected_slot: Option<MaterialSlot>,
 
+    toolbox: toolbox::ToolboxState,
+
     is_using_pointer: bool,
     wants_pointer: bool,
     wants_keyboard: bool,
@@ -100,6 +102,8 @@ use self::progresstracking::ProgressTracking;
 // ----------------------------------------------------------------------------
 mod debug;
 
+mod toolbox;
+
 mod images;
 mod progresstracking;
 mod update;
@@ -110,6 +114,7 @@ impl Plugin for EditorUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(bevy_egui::EguiPlugin)
             .add_plugin(debug::EditorUiDebugPlugin)
+            .add_plugin(toolbox::TexturingToolboxPlugin)
             .init_resource::<UiState>()
             .init_resource::<UiImages>()
             .add_event::<GuiAction>()
@@ -263,19 +268,23 @@ impl UiState {
             EditorState::NoTerrainData => {
                 self.enabled = true;
                 self.project_is_loading = false;
+                self.toolbox.enabled = false;
             }
             EditorState::TerrainLoading => {
                 self.enabled = true;
+                self.toolbox.enabled = false;
                 self.project_open = false;
                 self.project_is_loading = true;
             }
             EditorState::Editing => {
                 self.enabled = true;
+                self.toolbox.enabled = true;
                 self.project_open = true;
                 self.project_is_loading = false;
             }
             EditorState::FreeCam => {
                 self.enabled = false;
+                self.toolbox.enabled = false;
             }
         }
     }
