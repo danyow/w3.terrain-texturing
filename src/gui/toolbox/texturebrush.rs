@@ -5,15 +5,22 @@ use bevy::prelude::Color;
 
 use crate::terrain_material::MaterialSlot;
 
-use super::{BrushSize, OverwriteProbability, PointerSettings, ToolBrushPointer};
+use super::{
+    BrushSize, OverwriteProbability, PointerSettings, SlopeBlendThreshold, TextureScale,
+    ToolBrushPointer,
+};
 // ----------------------------------------------------------------------------
 pub(super) struct BrushSettings {
     pub size: BrushSize,
     pub overlay_texture: MaterialSlot,
     pub bkgrnd_texture: MaterialSlot,
+    pub scaling: TextureScale,
+    pub slope_blend: SlopeBlendThreshold,
     pub texture_probabilities: (u8, u8),
 
     pub textures_used: BrushTexturesUsed,
+    pub overwrite_scale: bool,
+    pub overwrite_slope_blend: bool,
     pub randomize: bool,
 }
 // ----------------------------------------------------------------------------
@@ -74,10 +81,14 @@ impl Default for BrushSettings {
         Self {
             overlay_texture: MaterialSlot::from(2),
             bkgrnd_texture: MaterialSlot::from(1),
+            scaling: TextureScale::default(),
+            slope_blend: SlopeBlendThreshold::default(),
             texture_probabilities: (50, 50),
             size: BrushSize::default(),
             textures_used: BrushTexturesUsed::default(),
             randomize: false,
+            overwrite_scale: false,
+            overwrite_slope_blend: false,
         }
     }
 }

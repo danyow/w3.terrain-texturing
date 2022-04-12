@@ -63,6 +63,9 @@ pub(super) fn show(
                 randomize_settings(ui, brush, overlay_used, background_used);
                 // ----------------------------------------------------------------------------
                 ui.separator();
+                scale_and_blend_settings(ui, brush);
+                // ----------------------------------------------------------------------------
+                ui.separator();
             });
             ui.end_row();
 
@@ -181,6 +184,32 @@ fn combined_textures_icon(
 
         })
     }).response.interact(Sense::click())
+}
+// ----------------------------------------------------------------------------
+#[inline]
+fn scale_and_blend_settings(ui: &mut Ui, brush: &mut BrushSettings) {
+    ui.small("Overwrite scaling and slope blending");
+    // copy values (borrow checker)
+    let (bkgrnd_scale, slope_blend) = (brush.scaling.0, brush.slope_blend.0);
+
+    ui.horizontal(|ui| {
+        ui.checkbox(&mut brush.overwrite_scale, "");
+        ui.add_enabled(
+            brush.overwrite_scale,
+            Slider::new(&mut brush.scaling.0, 0..=7)
+                .show_value(false)
+                .text(format!("{} scale", bkgrnd_scale)),
+        );
+    });
+    ui.horizontal(|ui| {
+        ui.checkbox(&mut brush.overwrite_slope_blend, "");
+        ui.add_enabled(
+            brush.overwrite_slope_blend,
+            Slider::new(&mut brush.slope_blend.0, 0..=7)
+                .show_value(false)
+                .text(format!("{} blend", slope_blend)),
+        );
+    });
 }
 // ----------------------------------------------------------------------------
 use bevy::prelude::*;

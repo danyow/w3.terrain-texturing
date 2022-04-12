@@ -60,6 +60,15 @@ pub(super) fn create_texture_brush_paint_cmds(
                 });
             }
         }
+        // optional scaling overwrite
+        if settings.overwrite_scale {
+            cmds.push(SetBackgroundScaling(settings.scaling));
+        }
+
+        // optional blending overwrite
+        if settings.overwrite_slope_blend {
+            cmds.push(SetSlopeBlendThreshold(settings.slope_blend));
+        }
     }
     cmds
 }

@@ -2,7 +2,9 @@
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 
-use crate::terrain_painting::{BrushPlacement, OverwriteProbability, PaintingEvent};
+use crate::terrain_painting::{
+    BrushPlacement, OverwriteProbability, PaintingEvent, SlopeBlendThreshold, TextureScale,
+};
 use crate::terrain_render::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
 use common::{BrushSize, PointerSettings};

@@ -43,6 +43,10 @@ pub enum PaintCommand {
     SetBackgroundMaterial(MaterialSlot),
     RandomizedSetOverlayMaterial(OverwriteProbability, MaterialSlot),
     RandomizedSetBackgroundMaterial(OverwriteProbability, MaterialSlot),
+    // scaling
+    SetBackgroundScaling(TextureScale),
+    // slope blending
+    SetSlopeBlendThreshold(SlopeBlendThreshold),
 }
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainPaintingPlugin {
@@ -62,7 +66,6 @@ fn process_brush_operations(
     mut clipmap_tracker: ResMut<ClipmapTracker>,
 ) {
     for PaintingEvent(placement, cmds) in paint_events.iter() {
-
         let (rectangle, mask) = calculate_region_of_interest(&*config, placement);
 
         // disabling cache will force clipmaptracker to always use current data
@@ -87,6 +90,12 @@ fn process_brush_operations(
                 PaintCommand::RandomizedSetBackgroundMaterial(prob, slot) => {
                     paint_randomized_background_texture(&mask, &mut data, slot, *prob);
                 }
+                PaintCommand::SetBackgroundScaling(value) => {
+                    set_background_scaling(&mask, &mut data, *value);
+                }
+                PaintCommand::SetSlopeBlendThreshold(value) => {
+                    set_slope_blend_threshold(&mask, &mut data, *value);
+                }
             }
         }
         // updating full resolution is not enough: the clipmap must also be
@@ -100,7 +109,6 @@ fn calculate_region_of_interest(
     config: &TerrainConfig,
     placement: &BrushPlacement,
 ) -> (Rectangle, Vec<bool>) {
-
     // respect resolution of clipmap data which differes from world resolution:
     // map world coordinates/resolution to map coordinates/resolution
     let map_brush_center = config.world_pos_to_map_pos(placement.pos);
@@ -192,6 +200,22 @@ fn paint_randomized_background_texture(
         if rng.gen_bool(*probability as f64) {
             *d = (*d & 0b1111_1100_0001_1111) + (material << 5);
         }
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn set_background_scaling(mask: &[bool], data: &mut [u16], value: TextureScale) {
+    let value = *value as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        *d = (*d & 0b1110_0011_1111_1111) + (value << 10);
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn set_slope_blend_threshold(mask: &[bool], data: &mut [u16], value: SlopeBlendThreshold) {
+    let value = *value as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
     }
 }
 // ----------------------------------------------------------------------------
