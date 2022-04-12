@@ -27,6 +27,7 @@ pub trait ClipmapData: Default {
     fn size(&self) -> u32;
     // ------------------------------------------------------------------------
     fn as_slice(&self) -> &[Self::DataType];
+    fn as_slice_mut(&mut self) -> &mut [Self::DataType];
     // ------------------------------------------------------------------------
     fn downscale(
         &self,
@@ -78,6 +79,47 @@ impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
             .get_mut(&self.array)
             .expect("clipmap texture array missing")
             .update_slot(level, new_data);
+    }
+    // ------------------------------------------------------------------------
+    pub fn extract_fullres(&self, rectangle: &Rectangle) -> Vec<D::DataType> {
+        self.extract(self.data.as_slice(), self.data_size, rectangle)
+    }
+    // ------------------------------------------------------------------------
+    pub fn update_fullres(&mut self, rectangle: &Rectangle, new_data: &[D::DataType]) {
+        assert!(rectangle.size.x >= 1);
+        assert!(rectangle.size.y >= 1);
+        assert!(rectangle.pos.x + rectangle.size.x <= self.data_size);
+        assert!(rectangle.pos.y + rectangle.size.y <= self.data_size);
+        assert!(rectangle.size.x * rectangle.size.y == new_data.len() as u32);
+
+        let datapoint_size = self.data.datapoint_size() as usize;
+        let target_dataline_size = datapoint_size * self.data_size as usize;
+        let src_dataline_size = datapoint_size * rectangle.size.x as usize;
+
+        let mut target_offset =
+            datapoint_size * (rectangle.pos.y * self.data_size + rectangle.pos.x) as usize;
+        let mut src_offset = 0;
+
+        let target_data = self.data.as_slice_mut();
+        for _ in 0..rectangle.size.y {
+            target_data[target_offset..target_offset + src_dataline_size]
+                .copy_from_slice(&new_data[src_offset..src_offset + src_dataline_size]);
+
+            target_offset += target_dataline_size;
+            src_offset += src_dataline_size;
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub fn disable_cache(&mut self) {
+        if !self.cache.is_empty() {
+            self.cache = Vec::default();
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub fn enable_cache(&mut self) {
+        if self.cache.is_empty() && self.data_size > 0 {
+            self.generate_cache();
+        }
     }
     // ------------------------------------------------------------------------
 }
@@ -182,18 +224,20 @@ impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
         src_size: u32,
         rectangle: &Rectangle,
     ) -> Vec<D::DataType> {
-        assert!(rectangle.size.x == CLIPMAP_SIZE);
-        assert!(rectangle.size.y == CLIPMAP_SIZE);
+        assert!(rectangle.size.x >= 1);
+        assert!(rectangle.size.y >= 1);
+        assert!(rectangle.pos.x + rectangle.size.x <= self.data_size);
+        assert!(rectangle.pos.y + rectangle.size.y <= self.data_size);
 
         let datapoint_size = self.data.datapoint_size() as usize;
         let src_dataline_size = datapoint_size * src_size as usize;
-        let target_dataline_size = datapoint_size * CLIPMAP_SIZE as usize;
+        let target_dataline_size = datapoint_size * rectangle.size.x as usize;
 
         let mut result =
-            Vec::with_capacity(datapoint_size * (CLIPMAP_SIZE * CLIPMAP_SIZE) as usize);
+            Vec::with_capacity(datapoint_size * (rectangle.size.y * rectangle.size.x) as usize);
         let mut offset = datapoint_size * (rectangle.pos.y * src_size + rectangle.pos.x) as usize;
 
-        for _ in 0..CLIPMAP_SIZE {
+        for _ in 0..rectangle.size.y {
             result.extend_from_slice(&src[offset..offset + target_dataline_size]);
             offset += src_dataline_size;
         }
@@ -243,22 +287,24 @@ impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
         debug!("generating {} cache...", self.label);
         let mut cache = Vec::with_capacity(self.layer_sizes.len() - 1);
 
-        // current assumption: layersize can be divided by next layer size
-        // without remainder -> can be used as source for next downscaling
-        let mut src = self.data.as_slice();
-        let mut src_size = self.data_size as usize;
-
         // first level is full res and can be skipped
         for level_size in self.layer_sizes.iter().copied().skip(1) {
             let level_size = level_size as usize;
-            // scale full res (region of interest) to size of level (target_size)
-            let cache_data = self
-                .data
-                .downscale(src, src_size, 0, 0, src_size, level_size);
+
+            // if cache is deactivated during painting the clipmap levels are
+            // always generated from highest res. to exactly match the result
+            // (and to support seamless enabling/disabling cache) every cached
+            // clipmap level must also be generated from full res data.
+            let cache_data = self.data.downscale(
+                self.data.as_slice(),
+                self.data_size as usize,
+                0,
+                0,
+                self.data_size as usize,
+                level_size,
+            );
 
             cache.push(cache_data);
-            src = cache.last().unwrap();
-            src_size = level_size;
         }
 
         self.cache = cache;

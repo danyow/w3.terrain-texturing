@@ -50,6 +50,11 @@ impl ClipmapData for TintMap {
         &self.data
     }
     // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn as_slice_mut(&mut self) -> &mut [Self::DataType] {
+        &mut self.data
+    }
+    // ------------------------------------------------------------------------
     fn wrap_as_image(&self, size: u32, data: Vec<Self::DataType>) -> image::DynamicImage {
         use image::{DynamicImage::ImageRgba8, ImageBuffer};
 

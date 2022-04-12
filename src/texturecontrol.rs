@@ -49,6 +49,11 @@ impl ClipmapData for TextureControl {
         &self.data
     }
     // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn as_slice_mut(&mut self) -> &mut [Self::DataType] {
+        &mut self.data
+    }
+    // ------------------------------------------------------------------------
     fn downscale(
         &self,
         src: &[Self::DataType],
