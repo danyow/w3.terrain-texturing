@@ -47,7 +47,7 @@ pub struct TerrainConfig {
     materialset: MaterialSetConfig,
 }
 // ----------------------------------------------------------------------------
-use bevy::math::{vec2, Vec2};
+use bevy::math::{uvec2, vec2, UVec2, Vec2};
 
 use crate::terrain_material::{MaterialSlot, TerrainMaterialParam};
 // ----------------------------------------------------------------------------
@@ -123,6 +123,17 @@ impl TerrainConfig {
     // ------------------------------------------------------------------------
     pub fn materialset(&self) -> &MaterialSetConfig {
         &self.materialset
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn world_pos_to_map_pos(&self, pos: Vec2) -> UVec2 {
+        let map_offset = self.map_offset();
+
+        ((pos - map_offset) / self.resolution)
+            .round()
+            .as_uvec2()
+            // clamp to data size
+            .min(uvec2(self.map_size - 1, self.map_size - 1))
     }
     // ------------------------------------------------------------------------
 }

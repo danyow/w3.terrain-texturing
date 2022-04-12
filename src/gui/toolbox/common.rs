@@ -3,6 +3,8 @@ pub(super) const BRUSH_SIZE_MIN: u8 = 1;
 pub(super) const BRUSH_SIZE_MAX: u8 = 250;
 // ---------------------------------------------------------------------------
 use bevy::prelude::Color;
+
+use super::OverwriteProbability;
 // ---------------------------------------------------------------------------
 #[derive(Clone, Copy)]
 pub(super) struct BrushSize(u8);
@@ -55,6 +57,12 @@ impl BrushSize {
         &mut self.0
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl From<u8> for OverwriteProbability {
+    fn from(v: u8) -> Self {
+        Self(v as f32 / 100.0)
+    }
 }
 // ----------------------------------------------------------------------------
 // Default impl

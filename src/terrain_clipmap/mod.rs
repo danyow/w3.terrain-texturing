@@ -106,6 +106,14 @@ mod tracker;
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
+pub fn enable_caching(
+    mut texture_clipmap: ResMut<TextureControlClipmap>,
+    mut tint_clipmap: ResMut<TintClipmap>,
+) {
+    texture_clipmap.enable_cache();
+    tint_clipmap.enable_cache();
+}
+// ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments)]
 fn update_clipmaps(
     mut tracker: ResMut<ClipmapTracker>,
@@ -196,6 +204,18 @@ impl Deref for TintClipmap {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+// ----------------------------------------------------------------------------
+impl DerefMut for TextureControlClipmap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+// ----------------------------------------------------------------------------
+impl DerefMut for TintClipmap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 // ----------------------------------------------------------------------------

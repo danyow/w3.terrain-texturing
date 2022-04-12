@@ -2,7 +2,8 @@
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 
-use crate::terrain_render::BrushPointer;
+use crate::terrain_painting::{BrushPlacement, OverwriteProbability, PaintingEvent};
+use crate::terrain_render::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
 use common::{BrushSize, PointerSettings};
 
@@ -20,7 +21,8 @@ impl Plugin for TexturingToolboxPlugin {
                 handle_ui_actions
                     .label("handle_ui_actions")
                     .after("gui_actions"),
-            );
+            )
+            .add_system(process_brush_clicks.before("handle_ui_actions"));
     }
     // ------------------------------------------------------------------------
 }
@@ -51,9 +53,27 @@ pub(super) mod view;
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
-#[allow(clippy::too_many_arguments)]
+fn process_brush_clicks(
+    receiver: Res<BrushPointerEventReceiver>,
+    ui_state: Res<UiState>,
+    mut editor_events: EventWriter<PaintingEvent>,
+) {
+    use ToolSelection::*;
+
+    while let Ok(BrushPointerEventData::Centered(button, pos, radius)) = receiver.try_recv() {
+        let settings = &ui_state.toolbox;
+
+        let cmds = match settings.selection {
+            Texturing => update::create_texture_brush_paint_cmds(button, &settings.texture_brush),
+        };
+        if !cmds.is_empty() {
+            editor_events.send(PaintingEvent::new(BrushPlacement::new(pos, radius), cmds));
+        }
+    }
+}
+// ----------------------------------------------------------------------------
 fn handle_ui_actions(
-    mut ui_state: ResMut<UiState>,
+    ui_state: Res<UiState>,
     mut ui_action: EventReader<GuiAction>,
     mut brush: ResMut<BrushPointer>,
 ) {

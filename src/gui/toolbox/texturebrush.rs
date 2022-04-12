@@ -5,7 +5,7 @@ use bevy::prelude::Color;
 
 use crate::terrain_material::MaterialSlot;
 
-use super::{BrushSize, PointerSettings, ToolBrushPointer};
+use super::{BrushSize, OverwriteProbability, PointerSettings, ToolBrushPointer};
 // ----------------------------------------------------------------------------
 pub(super) struct BrushSettings {
     pub size: BrushSize,
@@ -39,6 +39,29 @@ impl ToolBrushPointer for BrushSettings {
                 BrushTexturesUsed::Background => Color::LIME_GREEN,
                 BrushTexturesUsed::OverlayAndBackground => Color::YELLOW_GREEN,
             },
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl BrushSettings {
+    // ------------------------------------------------------------------------
+    pub fn texture_probabilities(
+        &self,
+    ) -> (Option<OverwriteProbability>, Option<OverwriteProbability>) {
+        if self.randomize {
+            let mut overlay = None;
+            let mut bkgrnd = None;
+
+            if self.texture_probabilities.0 < 100 {
+                overlay = Some(self.texture_probabilities.0.into());
+            }
+            if self.texture_probabilities.1 < 100 {
+                bkgrnd = Some(self.texture_probabilities.1.into());
+            }
+            (overlay, bkgrnd)
+        } else {
+            (None, None)
         }
     }
     // ------------------------------------------------------------------------

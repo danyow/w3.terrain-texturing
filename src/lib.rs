@@ -13,6 +13,7 @@ use crate::environment::EnvironmentPlugin;
 use crate::heightmap::HeightmapPlugin;
 use crate::terrain_clipmap::TerrainClipmapPlugin;
 use crate::terrain_material::MaterialSetPlugin;
+use crate::terrain_painting::TerrainPaintingPlugin;
 use crate::terrain_tiles::TerrainTilesGeneratorPlugin;
 // ----------------------------------------------------------------------------
 mod atmosphere;
@@ -27,6 +28,7 @@ mod texturecontrol;
 mod tintmap;
 
 mod environment;
+mod terrain_painting;
 mod terrain_render;
 
 mod camera;
@@ -192,6 +194,7 @@ impl Plugin for EditorPlugin {
             .add_plugin(terrain_material::MaterialSetPlugin)
             .add_plugin(terrain_tiles::TerrainTilesGeneratorPlugin)
             .add_plugin(terrain_render::TerrainRenderPlugin)
+            .add_plugin(terrain_painting::TerrainPaintingPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012
                 movement_speed: 122.0,         // default: 12.0
@@ -294,14 +297,18 @@ impl EditorState {
             .add_system_set(EnvironmentPlugin::activate_dynamic_updates(Editing))
             .add_system_set(MaterialSetPlugin::terrain_material_loading(Editing))
             .add_system_set(TerrainClipmapPlugin::update_tracker(Editing))
-            .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(Editing));
+            .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(Editing))
+            .add_system_set(TerrainPaintingPlugin::process_brush_operations(Editing));
     }
     // ------------------------------------------------------------------------
     /// stacked state with active free cam (editing on hold)
     fn free_cam(app: &mut App) {
         use EditorState::FreeCam;
 
-        app.add_system_set(SystemSet::on_enter(FreeCam).with_system(signal_editor_state_change));
+        app.add_system_set(SystemSet::on_enter(FreeCam).with_system(signal_editor_state_change))
+            .add_system_set(
+                SystemSet::on_enter(FreeCam).with_system(terrain_clipmap::enable_caching),
+            );
 
         app // plugins
             .add_system_set(CameraPlugin::start_free_camera(FreeCam))

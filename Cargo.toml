@@ -35,6 +35,9 @@ instant = { version = "0.1" }
 # needed for mesh pipeline key flags
 bitflags = "1.2"
 
+# randomized brush params
+rand = "0.8.0"
+
 [[bin]]
 name = "terrain-editor"
 path = "src/bin/terrain-editor.rs"
