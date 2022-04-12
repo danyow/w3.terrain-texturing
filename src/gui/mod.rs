@@ -277,6 +277,7 @@ impl UiState {
             EditorState::NoTerrainData => {
                 self.enabled = true;
                 self.project_is_loading = false;
+                self.project_open = false;
                 self.toolbox.enabled = false;
             }
             EditorState::TerrainLoading => {
