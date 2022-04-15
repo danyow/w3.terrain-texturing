@@ -81,13 +81,18 @@ pub(super) fn show_settings(
                 ui.label(format!("lod #{:<2}: starts: {:>6.1} m  error: {:>4.3} m", i, lod.distance, lod.threshold));
             }
             ui.separator();
-            if ui.checkbox(&mut s.freeze, "freeze lods").changed() {
-                result = Some(FreezeLods);
-            }
+            ui.horizontal(|ui| {
 
-            if ui.button("reset").clicked() {
-                result = Some(ResetToDefault);
-            }
+                if ui.checkbox(&mut s.freeze, "freeze lods").changed() {
+                    result = Some(FreezeLods);
+                }
+                ui.add_space(ui.spacing().item_spacing.x * 2.0);
+
+                if ui.button(" reset ").clicked() {
+                    result = Some(ResetToDefault);
+                }
+            });
+
             if let Some(action) = result {
                 gui_event.send(UpdateMeshSetting(action));
             }
