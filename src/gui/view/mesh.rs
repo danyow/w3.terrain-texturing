@@ -15,7 +15,7 @@ pub(super) fn show_settings(
             let mut result = None;
 
             let mut s = MeshSettings {
-                freeze: !settings.ignore_anchor,
+                freeze: settings.ignore_anchor,
                 lod_count: settings.lod_count,
                 min_error: settings.min_error,
                 max_error: settings.max_error,
