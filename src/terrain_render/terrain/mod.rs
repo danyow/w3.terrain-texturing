@@ -11,7 +11,7 @@ use bevy::{
     },
 };
 
-use crate::mut_renderasset::MutRenderAssetPlugin;
+use crate::mut_renderasset::{MutRenderAssetPlugin, MutRenderAssets};
 use crate::resource::RenderResourcePlugin;
 
 use crate::terrain_tiles::TerrainTileComponent;
@@ -25,7 +25,10 @@ use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
 use super::pipeline::Terrain3d;
 
-use super::{ClipmapAssignment, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet};
+use super::{
+    ClipmapAssignment, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet,
+    TerrainRenderSettings,
+};
 // ----------------------------------------------------------------------------
 mod pipeline;
 mod terrain_clipmap;
@@ -56,6 +59,7 @@ impl Plugin for TerrainMeshRenderPlugin {
             .add_render_command::<Terrain3d, DrawCmdTerrain>()
             .init_resource::<TerrainMeshRenderPipeline>()
             .init_resource::<SpecializedPipelines<TerrainMeshRenderPipeline>>()
+            .add_system_to_stage(RenderStage::Extract, extract_terrain_render_settings)
             .add_system_to_stage(RenderStage::Extract, extract_terrain_meshes)
             .add_system_to_stage(RenderStage::Queue, queue_terrain_rendering)
             .add_system_to_stage(RenderStage::Queue, queue_terrain_mesh_bind_group)
@@ -66,27 +70,55 @@ impl Plugin for TerrainMeshRenderPlugin {
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
+fn extract_terrain_render_settings(mut commands: Commands, settings: Res<TerrainRenderSettings>) {
+    commands.insert_resource(settings.clone())
+}
+// ----------------------------------------------------------------------------
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn queue_terrain_rendering(
     draw_functions: Res<DrawFunctions<Terrain3d>>,
     terrain_pipeline: Res<TerrainMeshRenderPipeline>,
+    settings: Res<TerrainRenderSettings>,
     mut pipelines: ResMut<SpecializedPipelines<TerrainMeshRenderPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
-    terrain_meshes: Query<
-        (Entity, &TerrainMeshUniform),
-        (With<ClipmapAssignment>, With<Handle<TerrainMesh>>),
+    terrain_meshes: Res<MutRenderAssets<TerrainMesh>>,
+    rendered_meshes: Query<
+        (Entity, &TerrainMeshUniform, &Handle<TerrainMesh>),
+        With<ClipmapAssignment>,
     >,
     mut views: Query<(&ExtractedView, &mut RenderPhase<Terrain3d>)>,
 ) {
     let draw_terrain = draw_functions.read().get_id::<DrawCmdTerrain>().unwrap();
 
-    let key = TerrainMeshPipelineKey::NONE;
-    let pipeline = pipelines.specialize(&mut pipeline_cache, &terrain_pipeline, key);
+    // the specialization settings for terrain rendering are covered by ifdef
+    // flags in the shader. but overlaying wireframes additionally requires a
+    // different layout of the terrainmesh vertex buffer (and thus a switch
+    // distorts the terrain because the updated vertexbuffer data is not
+    // uploaded). to make the switch not break geometry meshes will be assigned
+    // to different specialized pipelines based on availability of the data.
+    let key = TerrainMeshPipelineKey::from_settings(&*settings);
+    let wireframe_key = key | TerrainMeshPipelineKey::SHOW_WIREFRAME;
+    let no_wireframe_key = key & !TerrainMeshPipelineKey::SHOW_WIREFRAME;
+
+    let wireframe_pipeline =
+        pipelines.specialize(&mut pipeline_cache, &terrain_pipeline, wireframe_key);
+    let normal_pipeline =
+        pipelines.specialize(&mut pipeline_cache, &terrain_pipeline, no_wireframe_key);
 
     for (view, mut terrainpass) in views.iter_mut() {
         let view_matrix = view.transform.compute_matrix();
         let view_row_2 = view_matrix.row(2);
-        for (entity, mesh_uniform) in terrain_meshes.iter() {
+        for (entity, mesh_uniform, mesh_handle) in rendered_meshes.iter() {
+            let pipeline = if terrain_meshes
+                .get(mesh_handle)
+                .map(|m| m.has_barycentric_data)
+                .unwrap_or_default()
+            {
+                wireframe_pipeline
+            } else {
+                normal_pipeline
+            };
+
             terrainpass.add(Terrain3d {
                 entity,
                 pipeline,

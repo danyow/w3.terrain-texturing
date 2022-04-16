@@ -14,6 +14,11 @@ pub use terrain::TerrainEnvironment;
 pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
+pub struct TerrainRenderSettings {
+    pub show_wireframe: bool,
+}
+// ----------------------------------------------------------------------------
+#[derive(Default, Clone)]
 /// handles to all diffuse and normal textures and parameter settings
 pub struct TerrainMaterialSet {
     pub diffuse: Handle<TextureArray>,
@@ -72,7 +77,8 @@ mod terrain;
 impl Plugin for TerrainRenderPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
-        app.init_resource::<TerrainMaterialSet>()
+        app.init_resource::<TerrainRenderSettings>()
+            .init_resource::<TerrainMaterialSet>()
             .init_resource::<TerrainEnvironment>()
             .add_plugin(pipeline::TerrainRenderGraphPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin)

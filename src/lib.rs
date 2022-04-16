@@ -276,7 +276,6 @@ impl EditorState {
 
         app.add_system_set(
             SystemSet::on_update(TerrainLoading)
-                //TODO the following or a slimmed down version should probably be available in all states
                 .with_system(cmds::start_async_operations)
                 .with_system(cmds::poll_async_task_state)
                 .with_system(watch_loading),
@@ -293,6 +292,14 @@ impl EditorState {
 
         app.add_system_set(SystemSet::on_enter(Editing).with_system(signal_editor_state_change));
         app.add_system_set(SystemSet::on_resume(Editing).with_system(signal_editor_state_change));
+
+        // required for triggering operations like mesh regeneration or reloading
+        // parts of some other data without reloading complete terrain
+        app.add_system_set(
+            SystemSet::on_update(Editing)
+                .with_system(cmds::start_async_operations)
+                .with_system(cmds::poll_async_task_state),
+        );
 
         app // plugins
             .add_system_set(EnvironmentPlugin::activate_dynamic_updates(Editing))

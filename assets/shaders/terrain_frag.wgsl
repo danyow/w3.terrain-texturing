@@ -311,7 +311,9 @@ struct FragmentInput {
     [[builtin(position)]] frag_coord: vec4<f32>;
     [[location(0)]] world_position: vec4<f32>;
     [[location(1)]] normal: vec3<f32>;
+    # ifdef SHOW_WIREFRAME
     [[location(2)]] uv: vec2<f32>;
+    # endif
 };
 
 struct FragmentOutput {
@@ -562,6 +564,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     // --------------------------------------------------------------------------------------------
     // debug visualization for wireframes and clipmap level
 
+    # ifdef SHOW_WIREFRAME
     // https://catlikecoding.com/unity/tutorials/advanced-rendering/flat-and-wireframe-shading/
     let barys = vec3<f32>(in.uv.x, in.uv.y, 1.0 - in.uv.x - in.uv.y);
     let minBarys = min(barys.x, min(barys.y, barys.z));
@@ -572,11 +575,11 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     let g = r + lod % 4u;
     let b = r + lod % 3u;
     let wireframeCol = 0.2 * vec4<f32>((1.0 + f32(r)) / 2.0, f32(g) / 3.0, f32(b) / 2.0, 0.0);
-    let clipmapCol = vec4<f32>(1.0);
 
     let wireframeWidth = 0.75 * delta;
 
-    // fragmentCol = mix(wireframeCol, fragmentCol, smoothStep(0.0, wireframeWidth, minBarys));
+    fragmentCol = mix(wireframeCol, fragmentCol, smoothStep(0.0, wireframeWidth, minBarys));
+    # endif
     // fragmentCol = mix(fragmentCol, clipmapCol, f32(clipmap_level) / 6.0);
     // --------------------------------------------------------------------------------------------
 

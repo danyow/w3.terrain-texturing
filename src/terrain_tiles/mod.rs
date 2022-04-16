@@ -24,7 +24,9 @@ use crate::heightmap::{
     TerrainDataView, TerrainHeightMap, TerrainHeightMapView, TerrainNormals, TerrainTileId,
 };
 use crate::terrain_clipmap::ClipmapAssignment;
-use crate::terrain_render::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
+use crate::terrain_render::{
+    TerrainMesh, TerrainMeshStats, TerrainMeshVertexData, TerrainRenderSettings,
+};
 use crate::EditorEvent;
 
 use TerrainTileSystemLabel::*;
@@ -365,6 +367,7 @@ struct TileMeshGenerationQueued;
 fn async_tilemesh_generation(
     mut commands: Commands,
     terrain_config: Res<TerrainConfig>,
+    render_settings: Res<TerrainRenderSettings>,
     heightmap: Res<TerrainHeightMap>,
     normals: Res<TerrainNormals>,
     mut meshes: ResMut<Assets<TerrainMesh>>,
@@ -384,7 +387,7 @@ fn async_tilemesh_generation(
     if !tiles.is_empty() {
         use instant::Instant;
 
-        let include_wireframe_info = false;
+        let include_wireframe_info = render_settings.show_wireframe;
         let heightmap = Arc::new(heightmap.deref());
         let normals = Arc::new(normals.deref());
         let terrain_config = &terrain_config;

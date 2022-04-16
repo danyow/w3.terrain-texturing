@@ -18,6 +18,8 @@ use super::terrain_clipmap::clipmap_bind_group_layout;
 use super::terrain_environment::mesh_view_bind_group_layout;
 use super::terrain_material::materialset_bind_group_layout;
 use super::terrain_mesh::{mesh_bind_group_layout, mesh_vertex_buffer_layout};
+
+use super::TerrainRenderSettings;
 // ----------------------------------------------------------------------------
 // pipeline
 // ----------------------------------------------------------------------------
@@ -86,6 +88,24 @@ bitflags::bitflags! {
     }
 }
 // ----------------------------------------------------------------------------
+impl TerrainMeshPipelineKey {
+    // ------------------------------------------------------------------------
+    pub fn from_settings(_settings: &TerrainRenderSettings) -> Self {
+        TerrainMeshPipelineKey::NONE
+    }
+    // ------------------------------------------------------------------------
+    fn shader_defs(&self) -> Vec<String> {
+        let mut flags = Vec::default();
+
+        if self.contains(Self::SHOW_WIREFRAME) {
+            flags.push("SHOW_WIREFRAME".to_string());
+        }
+
+        flags
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
 impl SpecializedPipeline for TerrainMeshRenderPipeline {
     // ------------------------------------------------------------------------
     type Key = TerrainMeshPipelineKey;
@@ -95,18 +115,19 @@ impl SpecializedPipeline for TerrainMeshRenderPipeline {
         let label = "terrain_mesh_pipeline".into();
         let blend = Some(BlendState::REPLACE);
         let depth_write_enabled = true;
+        let shader_defs = key.shader_defs();
 
         RenderPipelineDescriptor {
             vertex: VertexState {
                 shader: self.shader_vert.clone(),
                 entry_point: "vertex".into(),
-                shader_defs: Vec::default(),
+                shader_defs: shader_defs.clone(),
                 buffers: vec![mesh_vertex_buffer_layout(key)],
             },
             fragment: Some(FragmentState {
                 shader: self.shader_frag.clone(),
                 entry_point: "fragment".into(),
-                shader_defs: Vec::default(),
+                shader_defs,
                 targets: vec![
                     // diffuse
                     ColorTargetState {
