@@ -204,7 +204,7 @@ fn paint_randomized_background_texture(
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn set_background_scaling(mask: &[bool], data: &mut [u16], value: TextureScale) {
+fn set_slope_blend_threshold(mask: &[bool], data: &mut [u16], value: SlopeBlendThreshold) {
     let value = *value as u16;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         *d = (*d & 0b1110_0011_1111_1111) + (value << 10);
@@ -212,7 +212,7 @@ fn set_background_scaling(mask: &[bool], data: &mut [u16], value: TextureScale) 
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn set_slope_blend_threshold(mask: &[bool], data: &mut [u16], value: SlopeBlendThreshold) {
+fn set_background_scaling(mask: &[bool], data: &mut [u16], value: TextureScale) {
     let value = *value as u16;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
