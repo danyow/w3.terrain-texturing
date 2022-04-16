@@ -4,6 +4,7 @@
 pub(super) fn show_settings(
     ui: &mut egui::Ui,
     settings: &Res<TerrainMeshSettings>,
+    stats: &Res<TerrainStats>,
     gui_event: &mut EventWriter<GuiAction>,
 ) {
     use GuiAction::*;
@@ -97,12 +98,44 @@ pub(super) fn show_settings(
                 gui_event.send(UpdateMeshSetting(action));
             }
         });
+
+    egui::CollapsingHeader::new("Terrain Stats")
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.small(format!("Tiles: #{} ({} x {})", stats.tiles, TILE_SIZE, TILE_SIZE));
+
+            egui::Grid::new("stats.all")
+                .num_columns(3)
+                .show(ui, |ui| {
+                    ui.small(format!("{} vertices", stats.vertices));
+                    ui.small(format!("{} triangles", stats.triangles));
+                    ui.small(format!("{:.3} MB", stats.data_bytes as f32 / 1024.0 / 1024.0));
+                });
+
+            ui.separator();
+            ui.small("last update:")
+                .on_hover_text("Data is accumulated over multiple frames until all pending tile \
+                    updates are finished.\
+                    \nNote: If camera is moving too fast and generation cannot catch up this will \
+                    grow indefinitely.");
+
+            egui::Grid::new("stats.last.update")
+                .num_columns(4)
+                .show(ui, |ui| {
+                    ui.small(format!("{} tiles", stats.last_update_tiles));
+                    ui.small(format!("{} vertices", stats.last_update_vertices));
+                    ui.small(format!("{} triangles", stats.last_update_triangles));
+                    ui.small(format!("{:.3} MB", stats.last_update_data_bytes as f32 / 1024.0 / 1024.0));
+                });
+            ui.separator();
+        });
 }
 // ----------------------------------------------------------------------------
 use bevy::prelude::{EventWriter, Res};
 use bevy_egui::egui::{self, Response, Slider};
 
-use crate::terrain_tiles::{LodSlot, TerrainMeshSettings};
+use crate::config::TILE_SIZE;
+use crate::terrain_tiles::{LodSlot, TerrainMeshSettings, TerrainStats};
 
 use crate::gui::MeshSetting;
 

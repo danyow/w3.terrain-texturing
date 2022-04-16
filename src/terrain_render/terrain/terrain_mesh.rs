@@ -36,11 +36,19 @@ use super::ClipmapAssignment;
 pub struct TerrainMesh {
     vertex_data: Option<TerrainMeshVertexData>,
     indices: Option<Indices>,
+    stats: TerrainMeshStats,
 }
 // ----------------------------------------------------------------------------
 pub enum TerrainMeshVertexData {
     PositionAndNormal(Vec<[f32; 6]>),
     WithBarycentricCoordinates(Vec<[f32; 8]>),
+}
+// ----------------------------------------------------------------------------
+#[derive(Default, Clone)]
+pub struct TerrainMeshStats {
+    pub vertices: u32,
+    pub triangles: u32,
+    pub data_bytes: usize,
 }
 // ----------------------------------------------------------------------------
 // render cmds
@@ -221,9 +229,18 @@ impl TerrainMesh {
     // ------------------------------------------------------------------------
     pub fn new(vertex_data: TerrainMeshVertexData, indices: Indices) -> Self {
         Self {
+            stats: TerrainMeshStats {
+                vertices: vertex_data.len() as u32,
+                triangles: indices.triangles(),
+                data_bytes: vertex_data.buffer_size() + indices.buffer_size(),
+            },
             vertex_data: Some(vertex_data),
             indices: Some(indices),
         }
+    }
+    // ------------------------------------------------------------------------
+    pub fn stats(&self) -> &TerrainMeshStats {
+        &self.stats
     }
     // ------------------------------------------------------------------------
     pub fn pending_upload(&self) -> bool {
@@ -285,6 +302,7 @@ impl MutRenderAsset for TerrainMesh {
         TerrainMesh {
             vertex_data: self.vertex_data.take(),
             indices: self.indices.take(),
+            stats: TerrainMeshStats::default(),
         }
     }
     // ------------------------------------------------------------------------
@@ -372,6 +390,65 @@ impl EntityRenderCommand for DrawMesh {
             RenderCommandResult::Success
         } else {
             RenderCommandResult::Failure
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+// stats helper
+// ----------------------------------------------------------------------------
+trait MeshIndicesStats {
+    // ------------------------------------------------------------------------
+    fn triangles(&self) -> u32;
+    // ------------------------------------------------------------------------
+    fn buffer_size(&self) -> usize;
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl MeshIndicesStats for Indices {
+    // ------------------------------------------------------------------------
+    fn triangles(&self) -> u32 {
+        self.len() as u32 / 3
+    }
+    // ------------------------------------------------------------------------
+    fn buffer_size(&self) -> usize {
+        match self {
+            Indices::U16(v) => v.len() * 2,
+            Indices::U32(v) => v.len() * 4,
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl TerrainMeshVertexData {
+    // ------------------------------------------------------------------------
+    fn len(&self) -> usize {
+        use TerrainMeshVertexData::*;
+        match self {
+            PositionAndNormal(d) => d.len(),
+            WithBarycentricCoordinates(d) => d.len(),
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn buffer_size(&self) -> usize {
+        use TerrainMeshVertexData::*;
+        match self {
+            PositionAndNormal(d) => d.len() * self.size(),
+            WithBarycentricCoordinates(d) => d.len() * self.size(),
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+use std::ops::Add;
+
+impl<'a, 'b> Add<&'b TerrainMeshStats> for &'a TerrainMeshStats {
+    type Output = TerrainMeshStats;
+
+    fn add(self, other: &TerrainMeshStats) -> TerrainMeshStats {
+        TerrainMeshStats {
+            vertices: self.vertices + other.vertices,
+            triangles: self.triangles + other.triangles,
+            data_bytes: self.data_bytes + other.data_bytes,
         }
     }
 }

@@ -24,7 +24,7 @@ use crate::heightmap::{
     TerrainDataView, TerrainHeightMap, TerrainHeightMapView, TerrainNormals, TerrainTileId,
 };
 use crate::terrain_clipmap::ClipmapAssignment;
-use crate::terrain_render::{TerrainMesh, TerrainMeshVertexData};
+use crate::terrain_render::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 use crate::EditorEvent;
 
 use TerrainTileSystemLabel::*;
@@ -55,6 +55,7 @@ impl TerrainTilesGeneratorPlugin {
             .with_system(async_tilemesh_generation.label(MeshGeneration))
             .with_system(adjust_tile_mesh_lod.before(MeshGeneration))
             .with_system(adjust_meshes_on_config_change.before(MeshGeneration))
+            .with_system(collect_stats.after(MeshGeneration))
     }
     // ------------------------------------------------------------------------
     pub fn reset_data<T: StateData>(state: T) -> SystemSet {
@@ -67,9 +68,23 @@ impl Plugin for TerrainTilesGeneratorPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainMeshSettings>()
+            .init_resource::<TerrainStats>()
             .init_resource::<generator::TileTriangleLookup>();
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+#[derive(Default)]
+pub struct TerrainStats {
+    pub tiles: u16,
+    pub vertices: usize,
+    pub triangles: usize,
+    pub data_bytes: usize,
+    pub last_update_tiles: u16,
+    pub last_update_vertices: usize,
+    pub last_update_triangles: usize,
+    pub last_update_data_bytes: usize,
+    pending_updates: bool,
 }
 // ----------------------------------------------------------------------------
 #[derive(Component, Clone)]
@@ -153,6 +168,58 @@ impl TerrainTileComponent {
 struct AdaptiveTileMeshLods;
 // ----------------------------------------------------------------------------
 // systems
+// ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+fn collect_stats(mut stats: ResMut<TerrainStats>, meshes: Res<Assets<TerrainMesh>>) {
+    if meshes.is_changed() {
+        let (summed, pending, count, count_pending) = meshes.iter().fold(
+            (
+                TerrainMeshStats::default(),
+                TerrainMeshStats::default(),
+                0,
+                0,
+            ),
+            |accum, (_, m)| {
+                if m.pending_upload() {
+                    (
+                        &accum.0 + m.stats(),
+                        &accum.1 + m.stats(),
+                        accum.2 + 1,
+                        accum.3 + 1,
+                    )
+                } else {
+                    (&accum.0 + m.stats(), accum.1, accum.2 + 1, accum.3)
+                }
+            },
+        );
+
+        stats.tiles = count;
+        stats.vertices = summed.vertices as usize;
+        stats.triangles = summed.triangles as usize;
+        stats.data_bytes = summed.data_bytes as usize;
+
+        if count_pending > 0 {
+            // Note: this is not accurate. if generating of tiles is too slow
+            // it will not catch up while camera is moving and data will grow
+            // indefinitely until generation stops
+            if !stats.pending_updates {
+                // reset accumulated data as new updates are arriving
+                stats.last_update_tiles = 0;
+                stats.last_update_vertices = 0;
+                stats.last_update_triangles = 0;
+                stats.last_update_data_bytes = 0;
+                stats.pending_updates = true;
+            }
+            // accumulate all subsequent updates until it's finished
+            stats.last_update_tiles += count_pending;
+            stats.last_update_vertices += pending.vertices as usize;
+            stats.last_update_triangles += pending.triangles as usize;
+            stats.last_update_data_bytes += pending.data_bytes as usize;
+        } else {
+            stats.pending_updates = false;
+        }
+    }
+}
 // ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments)]
 fn start_async_terraintile_tasks(
@@ -539,6 +606,7 @@ fn despawn_tiles(mut commands: Commands, tiles: Query<Entity, With<TerrainTileCo
     for tile in tiles.iter() {
         commands.entity(tile).despawn();
     }
+    commands.insert_resource(TerrainStats::default());
 }
 // ----------------------------------------------------------------------------
 impl Default for MeshReduction {

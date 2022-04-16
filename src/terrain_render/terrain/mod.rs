@@ -34,7 +34,7 @@ mod terrain_material;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
 pub use self::terrain_environment::TerrainEnvironment;
-pub use self::terrain_mesh::{TerrainMesh, TerrainMeshVertexData};
+pub use self::terrain_mesh::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
 pub struct TerrainMeshRenderPlugin;
 // ----------------------------------------------------------------------------

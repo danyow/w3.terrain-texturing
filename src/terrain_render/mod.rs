@@ -11,7 +11,7 @@ pub struct TerrainRenderPlugin;
 pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
 pub use terrain::TerrainEnvironment;
-pub use terrain::{TerrainMesh, TerrainMeshVertexData};
+pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
 /// handles to all diffuse and normal textures and parameter settings
