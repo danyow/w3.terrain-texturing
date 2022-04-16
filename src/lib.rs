@@ -34,6 +34,7 @@ mod terrain_render;
 mod camera;
 mod clipmap;
 mod compute;
+mod mut_renderasset;
 mod resource;
 mod shapes;
 mod texturearray;
