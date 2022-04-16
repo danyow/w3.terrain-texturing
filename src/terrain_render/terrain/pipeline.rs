@@ -80,27 +80,10 @@ impl FromWorld for TerrainMeshRenderPipeline {
 // ----------------------------------------------------------------------------
 bitflags::bitflags! {
     #[repr(transparent)]
-    // NOTE: Apparently quadro drivers support up to 64x MSAA.
-    /// MSAA uses the highest 6 bits for the MSAA sample count - 1 to support up to 64x MSAA.
     pub struct TerrainMeshPipelineKey: u32 {
-        const NONE               = 0;
-        const MSAA_RESERVED_BITS = TerrainMeshPipelineKey::MSAA_MASK_BITS << TerrainMeshPipelineKey::MSAA_SHIFT_BITS;
+        const NONE                  = 0b0000;
+        const SHOW_WIREFRAME        = 0b0001;
     }
-}
-// ----------------------------------------------------------------------------
-impl TerrainMeshPipelineKey {
-    const MSAA_MASK_BITS: u32 = 0b111111;
-    const MSAA_SHIFT_BITS: u32 = 32 - 6;
-    // ------------------------------------------------------------------------
-    pub fn from_msaa_samples(msaa_samples: u32) -> Self {
-        let msaa_bits = ((msaa_samples - 1) & Self::MSAA_MASK_BITS) << Self::MSAA_SHIFT_BITS;
-        TerrainMeshPipelineKey::from_bits(msaa_bits).unwrap()
-    }
-    // ------------------------------------------------------------------------
-    fn msaa_samples(&self) -> u32 {
-        ((self.bits >> Self::MSAA_SHIFT_BITS) & Self::MSAA_MASK_BITS) + 1
-    }
-    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 impl SpecializedPipeline for TerrainMeshRenderPipeline {
@@ -172,7 +155,7 @@ impl SpecializedPipeline for TerrainMeshRenderPipeline {
                 },
             }),
             multisample: MultisampleState {
-                count: key.msaa_samples(),
+                count: 1,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },

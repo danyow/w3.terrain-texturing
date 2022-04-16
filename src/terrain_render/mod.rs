@@ -8,12 +8,10 @@ use crate::terrain_clipmap::{TextureControlClipmap, TintClipmap};
 // ----------------------------------------------------------------------------
 pub struct TerrainRenderPlugin;
 // ----------------------------------------------------------------------------
-//TODO make proper specialized mesh type so updates just take data instead clone (?)
-pub type TerrainMesh = Mesh;
-// ----------------------------------------------------------------------------
 pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
 pub use terrain::TerrainEnvironment;
+pub use terrain::{TerrainMesh, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
 /// handles to all diffuse and normal textures and parameter settings

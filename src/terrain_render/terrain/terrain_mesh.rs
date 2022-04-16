@@ -2,36 +2,63 @@
 // based on bevy pbr mesh pipeline and simplified to terrain mesh usecase.
 // ----------------------------------------------------------------------------
 use bevy::{
+    core::cast_slice,
     ecs::system::{
         lifetimeless::{Read, SQuery, SRes},
         SystemParamItem,
     },
     prelude::*,
+    reflect::TypeUuid,
     render::{
-        mesh::GpuBufferInfo,
-        render_asset::RenderAssets,
+        mesh::{GpuBufferInfo, Indices},
+        render_asset::PrepareAssetError,
         render_component::{ComponentUniforms, DynamicUniformIndex},
         render_phase::{EntityRenderCommand, RenderCommandResult, TrackedRenderPass},
         render_resource::{
             std140::AsStd140, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutEntry,
-            BindingType, BufferBindingType, BufferSize, ShaderStages, VertexAttribute,
-            VertexBufferLayout, VertexFormat, VertexStepMode,
+            BindingType, Buffer, BufferBindingType, BufferInitDescriptor, BufferSize, BufferUsages,
+            ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode,
         },
         renderer::RenderDevice,
     },
 };
 
+use crate::mut_renderasset::{MutRenderAsset, MutRenderAssets};
 use crate::terrain_tiles::TerrainTileComponent;
 
 use super::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
-use super::{ClipmapAssignment, TerrainMesh};
+use super::ClipmapAssignment;
+// ----------------------------------------------------------------------------
+// mesh
+// ----------------------------------------------------------------------------
+#[derive(TypeUuid)]
+#[uuid = "dd81109b-f363-4c59-be19-5038df017247"]
+pub struct TerrainMesh {
+    vertex_data: Option<TerrainMeshVertexData>,
+    indices: Option<Indices>,
+}
+// ----------------------------------------------------------------------------
+pub enum TerrainMeshVertexData {
+    PositionAndNormal(Vec<[f32; 6]>),
+    WithBarycentricCoordinates(Vec<[f32; 8]>),
+}
 // ----------------------------------------------------------------------------
 // render cmds
 // ----------------------------------------------------------------------------
 pub struct DrawMesh;
 pub struct SetMeshBindGroup<const I: usize>;
 // ----------------------------------------------------------------------------
-// mesh
+/// The GPU-representation of a [`TerrainMesh`].
+/// Consists of a vertex data buffer and index data buffer.
+// #[derive(Debug, Clone)]
+pub struct GpuTerrainMesh {
+    /// Contains all attribute data for each vertex.
+    vertex_buffer: Buffer,
+    buffer_info: GpuBufferInfo,
+    pub has_barycentric_data: bool,
+}
+// ----------------------------------------------------------------------------
+// mesh uniform
 // ----------------------------------------------------------------------------
 #[derive(Component, AsStd140, Clone)]
 pub struct TerrainMeshUniform {
@@ -57,37 +84,73 @@ pub(super) fn mesh_bind_group_layout() -> [BindGroupLayoutEntry; 1] {
     }]
 }
 // ----------------------------------------------------------------------------
-pub(super) fn mesh_vertex_buffer_layout(_key: TerrainMeshPipelineKey) -> VertexBufferLayout {
-    // TODO: simplify. for now this is copied from simple mesh definition
-    // so includes normals and UV
-    let (vertex_array_stride, vertex_attributes) = (
-        32,
-        vec![
-            // Position (GOTCHA! Vertex_Position isn't first in the buffer due to how Mesh sorts attributes (alphabetically))
-            VertexAttribute {
-                format: VertexFormat::Float32x3,
-                offset: 12,
-                shader_location: 0,
-            },
-            // Normal
-            VertexAttribute {
-                format: VertexFormat::Float32x3,
-                offset: 0,
-                shader_location: 1,
-            },
-            // Uv
-            VertexAttribute {
-                format: VertexFormat::Float32x2,
-                offset: 24,
-                shader_location: 2,
-            },
-        ],
-    );
-    VertexBufferLayout {
-        array_stride: vertex_array_stride,
-        step_mode: VertexStepMode::Vertex,
-        attributes: vertex_attributes,
+pub(super) fn mesh_vertex_buffer_layout(key: TerrainMeshPipelineKey) -> VertexBufferLayout {
+    TerrainMeshVertexData::vertex_buffer_layout(key)
+}
+// ----------------------------------------------------------------------------
+impl TerrainMeshVertexData {
+    // ------------------------------------------------------------------------
+    const fn size(&self) -> usize {
+        use TerrainMeshVertexData::*;
+        match self {
+            PositionAndNormal(_) => 6 * 4,
+            WithBarycentricCoordinates(_) => 8 * 4,
+        }
     }
+    // ------------------------------------------------------------------------
+    fn vertex_buffer_layout(key: TerrainMeshPipelineKey) -> VertexBufferLayout {
+        let (vertex_array_stride, vertex_attributes) =
+            if key.contains(TerrainMeshPipelineKey::SHOW_WIREFRAME) {
+                (
+                    Self::WithBarycentricCoordinates(Vec::default()).size(),
+                    vec![
+                        // Position
+                        VertexAttribute {
+                            format: VertexFormat::Float32x3,
+                            offset: 0,
+                            shader_location: 0,
+                        },
+                        // Normal
+                        VertexAttribute {
+                            format: VertexFormat::Float32x3,
+                            offset: 12,
+                            shader_location: 1,
+                        },
+                        // Uv
+                        VertexAttribute {
+                            format: VertexFormat::Float32x2,
+                            offset: 24,
+                            shader_location: 2,
+                        },
+                    ],
+                )
+            } else {
+                (
+                    Self::PositionAndNormal(Vec::default()).size(),
+                    vec![
+                        // Position
+                        VertexAttribute {
+                            format: VertexFormat::Float32x3,
+                            offset: 0,
+                            shader_location: 0,
+                        },
+                        // Normal
+                        VertexAttribute {
+                            format: VertexFormat::Float32x3,
+                            offset: 12,
+                            shader_location: 1,
+                        },
+                    ],
+                )
+            };
+
+        VertexBufferLayout {
+            array_stride: vertex_array_stride as u64,
+            step_mode: VertexStepMode::Vertex,
+            attributes: vertex_attributes,
+        }
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 // systems (extract)
@@ -152,6 +215,108 @@ pub(super) fn queue_mesh_bind_group(
     }
 }
 // ----------------------------------------------------------------------------
+// terrain mesh
+// ----------------------------------------------------------------------------
+impl TerrainMesh {
+    // ------------------------------------------------------------------------
+    pub fn new(vertex_data: TerrainMeshVertexData, indices: Indices) -> Self {
+        Self {
+            vertex_data: Some(vertex_data),
+            indices: Some(indices),
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub fn pending_upload(&self) -> bool {
+        self.vertex_data.is_some()
+    }
+    // ------------------------------------------------------------------------
+    fn get_vertex_buffer_bytes(&self) -> &[u8] {
+        use TerrainMeshVertexData::*;
+
+        match self
+            .vertex_data
+            .as_ref()
+            .expect("missing terrain mesh vertex buffer")
+        {
+            PositionAndNormal(data) => cast_slice(data),
+            WithBarycentricCoordinates(data) => cast_slice(data),
+        }
+    }
+    // ------------------------------------------------------------------------
+    /// Computes and returns the index data of the mesh as bytes.
+    /// This is used to transform the index data into a GPU friendly format.
+    fn get_index_buffer_bytes(&self) -> &[u8] {
+        match self.indices() {
+            Indices::U16(indices) => cast_slice(&indices[..]),
+            Indices::U32(indices) => cast_slice(&indices[..]),
+        }
+    }
+    // ------------------------------------------------------------------------
+    /// Retrieves the vertex `indices` of the mesh.
+    #[inline(always)]
+    fn indices(&self) -> &Indices {
+        self.indices.as_ref().expect("missing terrain mesh indices")
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn has_barycentric_data(&self) -> bool {
+        matches!(
+            self.vertex_data,
+            Some(TerrainMeshVertexData::WithBarycentricCoordinates(_))
+        )
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+// terrainmesh -> renderasst processing
+// ----------------------------------------------------------------------------
+impl MutRenderAsset for TerrainMesh {
+    type ExtractedAsset = TerrainMesh;
+
+    type PreparedAsset = GpuTerrainMesh;
+
+    type Param = SRes<RenderDevice>;
+    // ------------------------------------------------------------------------
+    fn pending_update(&self) -> bool {
+        self.pending_upload()
+    }
+    // ------------------------------------------------------------------------
+    fn extract_asset(&mut self) -> Self::ExtractedAsset {
+        TerrainMesh {
+            vertex_data: self.vertex_data.take(),
+            indices: self.indices.take(),
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn prepare_asset(
+        mesh: Self::ExtractedAsset,
+        render_device: &mut bevy::ecs::system::SystemParamItem<Self::Param>,
+    ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
+        let vertex_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            usage: BufferUsages::VERTEX,
+            label: Some("Mesh Vertex Buffer"),
+            contents: mesh.get_vertex_buffer_bytes(),
+        });
+
+        let buffer_info = GpuBufferInfo::Indexed {
+            buffer: render_device.create_buffer_with_data(&BufferInitDescriptor {
+                usage: BufferUsages::INDEX,
+                contents: mesh.get_index_buffer_bytes(),
+                label: Some("Mesh Index Buffer"),
+            }),
+            count: mesh.indices().len() as u32,
+            index_format: mesh.indices().into(),
+        };
+
+        Ok(GpuTerrainMesh {
+            vertex_buffer,
+            buffer_info,
+            has_barycentric_data: mesh.has_barycentric_data(),
+        })
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
 // render cmds
 // ----------------------------------------------------------------------------
 impl<const I: usize> EntityRenderCommand for SetMeshBindGroup<I> {
@@ -178,7 +343,7 @@ impl<const I: usize> EntityRenderCommand for SetMeshBindGroup<I> {
 // ----------------------------------------------------------------------------
 impl EntityRenderCommand for DrawMesh {
     type Param = (
-        SRes<RenderAssets<TerrainMesh>>,
+        SRes<MutRenderAssets<TerrainMesh>>,
         SQuery<Read<Handle<TerrainMesh>>>,
     );
     #[inline]

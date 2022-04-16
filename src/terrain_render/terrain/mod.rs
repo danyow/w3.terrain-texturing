@@ -11,6 +11,7 @@ use bevy::{
     },
 };
 
+use crate::mut_renderasset::MutRenderAssetPlugin;
 use crate::resource::RenderResourcePlugin;
 
 use crate::terrain_tiles::TerrainTileComponent;
@@ -24,9 +25,7 @@ use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
 use super::pipeline::Terrain3d;
 
-use super::{
-    ClipmapAssignment, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet, TerrainMesh,
-};
+use super::{ClipmapAssignment, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet};
 // ----------------------------------------------------------------------------
 mod pipeline;
 mod terrain_clipmap;
@@ -35,6 +34,7 @@ mod terrain_material;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
 pub use self::terrain_environment::TerrainEnvironment;
+pub use self::terrain_mesh::{TerrainMesh, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
 pub struct TerrainMeshRenderPlugin;
 // ----------------------------------------------------------------------------
@@ -42,10 +42,12 @@ impl Plugin for TerrainMeshRenderPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainClipmap>()
+            .add_asset::<TerrainMesh>()
             .add_plugin(UniformComponentPlugin::<TerrainMeshUniform>::default())
             .add_plugin(RenderResourcePlugin::<TerrainMaterialSet>::default())
             .add_plugin(RenderResourcePlugin::<TerrainClipmap>::default())
             .add_plugin(RenderResourcePlugin::<TerrainEnvironment>::default())
+            .add_plugin(MutRenderAssetPlugin::<TerrainMesh>::default())
             .add_plugin(ExtractComponentPlugin::<ClipmapAssignment>::default())
             //TODO remove as soon as terrain mesh is dedicated type ?
             .add_plugin(ExtractComponentPlugin::<TerrainTileComponent>::default());
@@ -68,22 +70,17 @@ impl Plugin for TerrainMeshRenderPlugin {
 fn queue_terrain_rendering(
     draw_functions: Res<DrawFunctions<Terrain3d>>,
     terrain_pipeline: Res<TerrainMeshRenderPipeline>,
-    msaa: Res<Msaa>,
     mut pipelines: ResMut<SpecializedPipelines<TerrainMeshRenderPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     terrain_meshes: Query<
         (Entity, &TerrainMeshUniform),
-        (
-            With<Handle<TerrainMesh>>,
-            With<ClipmapAssignment>,
-            With<TerrainTileComponent>,
-        ),
+        (With<ClipmapAssignment>, With<Handle<TerrainMesh>>),
     >,
     mut views: Query<(&ExtractedView, &mut RenderPhase<Terrain3d>)>,
 ) {
     let draw_terrain = draw_functions.read().get_id::<DrawCmdTerrain>().unwrap();
 
-    let key = TerrainMeshPipelineKey::from_msaa_samples(msaa.samples);
+    let key = TerrainMeshPipelineKey::NONE;
     let pipeline = pipelines.specialize(&mut pipeline_cache, &terrain_pipeline, key);
 
     for (view, mut terrainpass) in views.iter_mut() {

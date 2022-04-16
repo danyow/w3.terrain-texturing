@@ -108,11 +108,10 @@ use bevy::{
     math::{uvec2, uvec3, UVec2, UVec3},
     prelude::*,
     render::mesh::Indices,
-    render::render_resource::PrimitiveTopology,
     utils::HashMap,
 };
 
-use super::{TerrainDataView, TerrainMesh, TerrainTileId, TILE_SIZE};
+use super::{TerrainDataView, TerrainMesh, TerrainMeshVertexData, TerrainTileId, TILE_SIZE};
 // ----------------------------------------------------------------------------
 #[derive(Component)]
 pub struct TileHeightErrors {
@@ -243,10 +242,28 @@ pub(super) fn generate_tilemesh(
     error_threshold: f32,
     terraindata_view: TerrainDataView,
     triangle_errors: &TileHeightErrors,
-) -> TileMesh {
-    let mut mesh_builder =
-        TileMeshBuilder::new(tile_id, map_resolution, base_height, terraindata_view);
-
+    include_wireframe_info: bool,
+) -> TerrainMesh {
+    if include_wireframe_info {
+        generate_mesh(
+            error_threshold,
+            triangle_errors,
+            WireframedTileMeshBuilder::new(tile_id, map_resolution, base_height, terraindata_view),
+        )
+    } else {
+        generate_mesh(
+            error_threshold,
+            triangle_errors,
+            TileMeshBuilder::new(tile_id, map_resolution, base_height, terraindata_view),
+        )
+    }
+}
+// ----------------------------------------------------------------------------
+fn generate_mesh(
+    error_threshold: f32,
+    triangle_errors: &TileHeightErrors,
+    mut mesh_builder: impl MeshBuilder,
+) -> TerrainMesh {
     // top tile triangles are always added
     process_triangle(
         TileTriangle::root_left_bottom(),
@@ -268,7 +285,7 @@ fn process_triangle(
     triangle: TileTriangle,
     error_threshold: f32,
     error_map: &TileHeightErrors,
-    mesh_builder: &mut TileMeshBuilder,
+    mesh_builder: &mut impl MeshBuilder,
 ) {
     // calculate middle point which is used as lookup address in error map
     if triangle.can_be_split() && error_map.get(triangle.m()) > error_threshold {
@@ -619,11 +636,9 @@ struct TileMeshBuilder<'heightmap, 'normalmap> {
     base_height: f32,
     terrain_data: TerrainDataView<'heightmap, 'normalmap>,
 
-    known_indices: HashMap<UVec3, u32>,
-    vertices: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    barycentric: Vec<[f32; 2]>,
+    known_indices: HashMap<UVec2, u32>,
     indices: Vec<u32>,
+    interleaved_buffer: Vec<[f32; 6]>,
 }
 // ----------------------------------------------------------------------------
 impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
@@ -644,26 +659,70 @@ impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
             terrain_data,
 
             known_indices: HashMap::with_capacity(expected_vertices),
-            vertices: Vec::with_capacity(expected_vertices),
-            normals: Vec::with_capacity(expected_vertices),
-            barycentric: Vec::with_capacity(expected_vertices),
             indices: Vec::with_capacity(expected_vertices * 2),
+
+            interleaved_buffer: Vec::with_capacity(expected_vertices),
         }
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+/// Helper Mesh builder: same as TileMeshBuilder but also adds barycentric info
+/// for every vertex which can be used in shader to colorize triangle edges to
+/// visualize an additional wireframe on top.
+/// Note: this increases the amount of unique vertices (roughly doubles!) and
+/// thus increases the buffer size of vertexdata significantly
+struct WireframedTileMeshBuilder<'heightmap, 'normalmap> {
+    sampling_offset: UVec2,
+    resolution: f32,
+    base_height: f32,
+    terrain_data: TerrainDataView<'heightmap, 'normalmap>,
+
+    known_indices: HashMap<UVec3, u32>,
+    indices: Vec<u32>,
+    interleaved_buffer: Vec<[f32; 8]>,
+}
+// ----------------------------------------------------------------------------
+impl<'heightmap, 'normalmap> WireframedTileMeshBuilder<'heightmap, 'normalmap> {
+    // ------------------------------------------------------------------------
+    fn new(
+        tileid: TerrainTileId<TILE_SIZE>,
+        map_resolution: f32,
+        base_height: f32,
+        terrain_data: TerrainDataView<'heightmap, 'normalmap>,
+    ) -> Self {
+        // just a guess
+        let expected_vertices = (TILE_SIZE * TILE_SIZE) as usize / 8;
+
+        Self {
+            sampling_offset: tileid.sampling_offset(),
+            resolution: map_resolution,
+            base_height,
+            terrain_data,
+
+            known_indices: HashMap::with_capacity(expected_vertices),
+            indices: Vec::with_capacity(expected_vertices * 2),
+
+            interleaved_buffer: Vec::with_capacity(expected_vertices),
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+// helper trait to support different kinds of builders
+trait MeshBuilder {
+    fn add_triangle(&mut self, triangle: TileTriangle);
+    fn build(self) -> TerrainMesh;
+}
+// ----------------------------------------------------------------------------
+impl<'heightmap, 'normalmap> MeshBuilder for TileMeshBuilder<'heightmap, 'normalmap> {
+    // ------------------------------------------------------------------------
     fn add_triangle(&mut self, triangle: TileTriangle) {
-        for (i, vertex_2d) in [triangle.a, triangle.b, triangle.c]
-            .iter()
-            .copied()
-            .enumerate()
-        {
-            if let Some(index) = self
-                .known_indices
-                .get(&uvec3(i as u32, vertex_2d.x, vertex_2d.y))
-            {
+        for vertex_2d in [triangle.a, triangle.b, triangle.c].iter().copied() {
+            if let Some(index) = self.known_indices.get(&uvec2(vertex_2d.x, vertex_2d.y)) {
                 self.indices.push(*index);
             } else {
-                let next_index = self.vertices.len() as u32;
+                let next_index = self.interleaved_buffer.len() as u32; //FIXME
 
                 // map heightmap (x,y) coordinates to world terrain coordinates
                 let absolute_map_coords = vertex_2d + self.sampling_offset;
@@ -679,54 +738,89 @@ impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
                     self.resolution * (vertex_2d.y as f32 - (TILE_SIZE / 2) as f32),
                 ];
 
-                let vertex_normal = [vertex_normal[0], vertex_normal[1], vertex_normal[2]];
+                self.interleaved_buffer.push([
+                    new_vertex[0],
+                    new_vertex[1],
+                    new_vertex[2],
+                    vertex_normal[0],
+                    vertex_normal[1],
+                    vertex_normal[2],
+                ]);
 
-                self.vertices.push(new_vertex);
-                self.normals.push(vertex_normal);
                 self.indices.push(next_index);
+                self.known_indices
+                    .insert(uvec2(vertex_2d.x, vertex_2d.y), next_index);
+            }
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn build(self) -> TerrainMesh {
+        TerrainMesh::new(
+            TerrainMeshVertexData::PositionAndNormal(self.interleaved_buffer),
+            Indices::U32(self.indices),
+        )
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl<'heightmap, 'normalmap> MeshBuilder for WireframedTileMeshBuilder<'heightmap, 'normalmap> {
+    // ------------------------------------------------------------------------
+    fn add_triangle(&mut self, triangle: TileTriangle) {
+        for (i, vertex_2d) in [triangle.a, triangle.b, triangle.c]
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            if let Some(index) = self
+                .known_indices
+                .get(&uvec3(i as u32, vertex_2d.x, vertex_2d.y))
+            {
+                self.indices.push(*index);
+            } else {
+                let next_index = self.interleaved_buffer.len() as u32;
 
-                match i {
-                    0 => self.barycentric.push([1.0, 0.0]),
-                    1 => self.barycentric.push([0.0, 1.0]),
-                    _ => self.barycentric.push([0.0, 0.0]),
-                }
+                // map heightmap (x,y) coordinates to world terrain coordinates
+                let absolute_map_coords = vertex_2d + self.sampling_offset;
 
+                let (height, vertex_normal) = self
+                    .terrain_data
+                    .sample_height_and_normal(absolute_map_coords);
+
+                // center tile around 0/0
+                let new_vertex = [
+                    self.resolution * (vertex_2d.x as f32 - (TILE_SIZE / 2) as f32),
+                    self.base_height + height,
+                    self.resolution * (vertex_2d.y as f32 - (TILE_SIZE / 2) as f32),
+                ];
+
+                let barycentric = match i {
+                    0 => [1.0, 0.0],
+                    1 => [0.0, 1.0],
+                    _ => [0.0, 0.0],
+                };
+                self.interleaved_buffer.push([
+                    new_vertex[0],
+                    new_vertex[1],
+                    new_vertex[2],
+                    vertex_normal[0],
+                    vertex_normal[1],
+                    vertex_normal[2],
+                    barycentric[0],
+                    barycentric[1],
+                ]);
+
+                self.indices.push(next_index);
                 self.known_indices
                     .insert(uvec3(i as u32, vertex_2d.x, vertex_2d.y), next_index);
             }
         }
     }
     // ------------------------------------------------------------------------
-    fn build(self) -> TileMesh {
-        TileMesh {
-            vertices: self.vertices,
-            normals: self.normals,
-            indices: self.indices,
-            barycentric: Some(self.barycentric),
-        }
-    }
-    // ------------------------------------------------------------------------
-}
-// ----------------------------------------------------------------------------
-pub(super) struct TileMesh {
-    vertices: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    indices: Vec<u32>,
-
-    barycentric: Option<Vec<[f32; 2]>>,
-}
-// ----------------------------------------------------------------------------
-impl TileMesh {
-    // ------------------------------------------------------------------------
-    pub(super) fn mesh(mut self) -> TerrainMesh {
-        let mut mesh = TerrainMesh::new(PrimitiveTopology::TriangleList);
-        mesh.set_attribute(TerrainMesh::ATTRIBUTE_POSITION, self.vertices);
-        mesh.set_attribute(TerrainMesh::ATTRIBUTE_NORMAL, self.normals);
-        if let Some(coords) = self.barycentric.take() {
-            mesh.set_attribute(TerrainMesh::ATTRIBUTE_UV_0, coords);
-        }
-        mesh.set_indices(Some(Indices::U32(self.indices)));
-        mesh
+    fn build(self) -> TerrainMesh {
+        TerrainMesh::new(
+            TerrainMeshVertexData::WithBarycentricCoordinates(self.interleaved_buffer),
+            Indices::U32(self.indices),
+        )
     }
     // ------------------------------------------------------------------------
 }

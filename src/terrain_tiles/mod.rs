@@ -24,6 +24,7 @@ use crate::heightmap::{
     TerrainDataView, TerrainHeightMap, TerrainHeightMapView, TerrainNormals, TerrainTileId,
 };
 use crate::terrain_clipmap::ClipmapAssignment;
+use crate::terrain_render::{TerrainMesh, TerrainMeshVertexData};
 use crate::EditorEvent;
 
 use TerrainTileSystemLabel::*;
@@ -293,9 +294,6 @@ fn async_errormap_generation(
 /// marker for tiles which require regeneration of meshes
 struct TileMeshGenerationQueued;
 // ----------------------------------------------------------------------------
-//TODO make proper specialized mesh type so updates just take data instead clone (?)
-type TerrainMesh = Mesh;
-// ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn async_tilemesh_generation(
     mut commands: Commands,
@@ -319,6 +317,7 @@ fn async_tilemesh_generation(
     if !tiles.is_empty() {
         use instant::Instant;
 
+        let include_wireframe_info = false;
         let heightmap = Arc::new(heightmap.deref());
         let normals = Arc::new(normals.deref());
         let terrain_config = &terrain_config;
@@ -355,6 +354,7 @@ fn async_tilemesh_generation(
                                     tile.mesh_conf.target,
                                     terraindata_view,
                                     triangle_errors,
+                                    include_wireframe_info,
                                 )
                             })
                         }
@@ -369,13 +369,11 @@ fn async_tilemesh_generation(
 
                         if let Some(handle) = mesh_handle {
                             // mesh is an update
-                            meshes
-                                .get_mut(*handle)
-                                .expect("existing tile mesh handle")
-                                .clone_from(&new_mesh.mesh());
+                            let m = meshes.get_mut(*handle).expect("existing tile mesh handle");
+                            *m = new_mesh;
                         } else {
                             // tile has no mesh -> add generated mesh and assign handle to tile
-                            e.insert(meshes.add(new_mesh.mesh()));
+                            e.insert(meshes.add(new_mesh));
                         }
                     }
                 }
