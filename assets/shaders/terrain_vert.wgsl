@@ -23,7 +23,7 @@ struct VertexInput {
     [[location(0)]] position: vec3<f32>;
     [[location(1)]] normal: vec3<f32>;
     # ifdef SHOW_WIREFRAME
-    [[location(2)]] uv: vec2<f32>;
+    [[location(2)]] barycentric_flags: u32;
     # endif
 };
 // ----------------------------------------------------------------------------
@@ -52,7 +52,8 @@ fn vertex(vertex: VertexInput) -> VertexOutput {
     out.normal = vertex.normal;
 
     # ifdef SHOW_WIREFRAME
-    out.uv = vertex.uv;
+    // decode barycentric flags into vec2
+    out.uv = vec2<f32>(1.0 * f32(vertex.barycentric_flags & 1u), 0.5 * f32(vertex.barycentric_flags & 2u));
     # endif
     return out;
 }

@@ -107,7 +107,7 @@
 use bevy::{
     math::{uvec2, uvec3, UVec2, UVec3},
     prelude::*,
-    render::mesh::Indices,
+    render::{mesh::Indices, render_resource::internal::bytemuck::cast},
     utils::HashMap,
 };
 
@@ -680,7 +680,7 @@ struct WireframedTileMeshBuilder<'heightmap, 'normalmap> {
 
     known_indices: HashMap<UVec3, u32>,
     indices: Vec<u32>,
-    interleaved_buffer: Vec<[f32; 8]>,
+    interleaved_buffer: Vec<[f32; 7]>,
 }
 // ----------------------------------------------------------------------------
 impl<'heightmap, 'normalmap> WireframedTileMeshBuilder<'heightmap, 'normalmap> {
@@ -793,11 +793,6 @@ impl<'heightmap, 'normalmap> MeshBuilder for WireframedTileMeshBuilder<'heightma
                     self.resolution * (vertex_2d.y as f32 - (TILE_SIZE / 2) as f32),
                 ];
 
-                let barycentric = match i {
-                    0 => [1.0, 0.0],
-                    1 => [0.0, 1.0],
-                    _ => [0.0, 0.0],
-                };
                 self.interleaved_buffer.push([
                     new_vertex[0],
                     new_vertex[1],
@@ -805,8 +800,10 @@ impl<'heightmap, 'normalmap> MeshBuilder for WireframedTileMeshBuilder<'heightma
                     vertex_normal[0],
                     vertex_normal[1],
                     vertex_normal[2],
-                    barycentric[0],
-                    barycentric[1],
+                    // add marker for vertex position in triangle (will be used for barycentric coords)
+                    // and cast it to f32 so the complete array can be cast as is to &[u8] before
+                    // upload to gpu
+                    cast(i as u32),
                 ]);
 
                 self.indices.push(next_index);

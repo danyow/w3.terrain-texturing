@@ -41,7 +41,7 @@ pub struct TerrainMesh {
 // ----------------------------------------------------------------------------
 pub enum TerrainMeshVertexData {
     PositionAndNormal(Vec<[f32; 6]>),
-    WithBarycentricCoordinates(Vec<[f32; 8]>),
+    WithBarycentricCoordinates(Vec<[f32; 7]>),
 }
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
@@ -102,7 +102,7 @@ impl TerrainMeshVertexData {
         use TerrainMeshVertexData::*;
         match self {
             PositionAndNormal(_) => 6 * 4,
-            WithBarycentricCoordinates(_) => 8 * 4,
+            WithBarycentricCoordinates(_) => 7 * 4,
         }
     }
     // ------------------------------------------------------------------------
@@ -126,7 +126,7 @@ impl TerrainMeshVertexData {
                         },
                         // Uv
                         VertexAttribute {
-                            format: VertexFormat::Float32x2,
+                            format: VertexFormat::Uint32,
                             offset: 24,
                             shader_location: 2,
                         },
