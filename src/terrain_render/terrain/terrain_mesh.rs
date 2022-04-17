@@ -40,8 +40,8 @@ pub struct TerrainMesh {
 }
 // ----------------------------------------------------------------------------
 pub enum TerrainMeshVertexData {
-    PositionAndNormal(Vec<[f32; 6]>),
-    WithBarycentricCoordinates(Vec<[f32; 7]>),
+    PositionAndNormal(Vec<[f32; 4]>),
+    WithBarycentricCoordinates(Vec<[f32; 5]>),
 }
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
@@ -101,8 +101,8 @@ impl TerrainMeshVertexData {
     const fn size(&self) -> usize {
         use TerrainMeshVertexData::*;
         match self {
-            PositionAndNormal(_) => 6 * 4,
-            WithBarycentricCoordinates(_) => 7 * 4,
+            PositionAndNormal(_) => 4 * 4,
+            WithBarycentricCoordinates(_) => 5 * 4,
         }
     }
     // ------------------------------------------------------------------------
@@ -118,16 +118,16 @@ impl TerrainMeshVertexData {
                             offset: 0,
                             shader_location: 0,
                         },
-                        // Normal
+                        // Normal (11:10:11 compressed into u32)
                         VertexAttribute {
-                            format: VertexFormat::Float32x3,
+                            format: VertexFormat::Uint32,
                             offset: 12,
                             shader_location: 1,
                         },
-                        // Uv
+                        // Barycentric coords encoded as vertex no. in a u32
                         VertexAttribute {
                             format: VertexFormat::Uint32,
-                            offset: 24,
+                            offset: 16,
                             shader_location: 2,
                         },
                     ],
@@ -142,9 +142,9 @@ impl TerrainMeshVertexData {
                             offset: 0,
                             shader_location: 0,
                         },
-                        // Normal
+                        // Normal (11:10:11 compressed into u32)
                         VertexAttribute {
-                            format: VertexFormat::Float32x3,
+                            format: VertexFormat::Uint32,
                             offset: 12,
                             shader_location: 1,
                         },

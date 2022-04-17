@@ -21,7 +21,7 @@ struct Mesh {
 // ----------------------------------------------------------------------------
 struct VertexInput {
     [[location(0)]] position: vec3<f32>;
-    [[location(1)]] normal: vec3<f32>;
+    [[location(1)]] packed_normal: u32;
     # ifdef SHOW_WIREFRAME
     [[location(2)]] barycentric_flags: u32;
     # endif
@@ -42,6 +42,18 @@ struct VertexOutput {
     # endif
 };
 // ----------------------------------------------------------------------------
+// unpack packed 11:10:11 normals to reduce memory consumption
+//
+// from kajiya renderer by Tomasz Stachowiak (h3r2tic), Embark Studios
+// https://github.com/EmbarkStudios/kajiya/tree/main/assets/shaders/inc/mesh.hlsl#L23
+fn unpack_unit_direction_11_10_11(packed: u32) -> vec3<f32> {
+    return vec3<f32>(
+        f32(packed & ((1u << 11u) - 1u)) * (2.0 / f32((1u << 11u) - 1u)) - 1.0,
+        f32((packed >> 11u) & ((1u << 10u) - 1u)) * (2.0 / f32((1u << 10u) - 1u)) - 1.0,
+        f32((packed >> 21u)) * (2.0 / f32((1u << 11u) - 1u)) - 1.0
+    );
+}
+// ----------------------------------------------------------------------------
 [[stage(vertex)]]
 fn vertex(vertex: VertexInput) -> VertexOutput {
     let world_position = mesh.model * vec4<f32>(vertex.position, 1.0);
@@ -49,7 +61,7 @@ fn vertex(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.clip_position = view.view_proj * world_position;
     out.world_position = world_position;
-    out.normal = vertex.normal;
+    out.normal = unpack_unit_direction_11_10_11(vertex.packed_normal);
 
     # ifdef SHOW_WIREFRAME
     // decode barycentric flags into vec2

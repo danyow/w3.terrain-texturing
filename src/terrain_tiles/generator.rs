@@ -638,7 +638,7 @@ struct TileMeshBuilder<'heightmap, 'normalmap> {
 
     known_indices: HashMap<UVec2, u32>,
     indices: Vec<u32>,
-    interleaved_buffer: Vec<[f32; 6]>,
+    interleaved_buffer: Vec<[f32; 4]>,
 }
 // ----------------------------------------------------------------------------
 impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
@@ -680,7 +680,7 @@ struct WireframedTileMeshBuilder<'heightmap, 'normalmap> {
 
     known_indices: HashMap<UVec3, u32>,
     indices: Vec<u32>,
-    interleaved_buffer: Vec<[f32; 7]>,
+    interleaved_buffer: Vec<[f32; 5]>,
 }
 // ----------------------------------------------------------------------------
 impl<'heightmap, 'normalmap> WireframedTileMeshBuilder<'heightmap, 'normalmap> {
@@ -742,9 +742,9 @@ impl<'heightmap, 'normalmap> MeshBuilder for TileMeshBuilder<'heightmap, 'normal
                     new_vertex[0],
                     new_vertex[1],
                     new_vertex[2],
-                    vertex_normal[0],
-                    vertex_normal[1],
-                    vertex_normal[2],
+                    // cast packed u32 normal to f32 so the complete array can
+                    // be cast as is to &[u8] before upload to gpu
+                    cast(vertex_normal)
                 ]);
 
                 self.indices.push(next_index);
@@ -797,12 +797,12 @@ impl<'heightmap, 'normalmap> MeshBuilder for WireframedTileMeshBuilder<'heightma
                     new_vertex[0],
                     new_vertex[1],
                     new_vertex[2],
-                    vertex_normal[0],
-                    vertex_normal[1],
-                    vertex_normal[2],
+                    // cast packed u32 normal to f32 so the complete array can
+                    // be cast as is to &[u8] before upload to gpu
+                    cast(vertex_normal),
+
                     // add marker for vertex position in triangle (will be used for barycentric coords)
-                    // and cast it to f32 so the complete array can be cast as is to &[u8] before
-                    // upload to gpu
+                    // and cast it to f32 (reason same as above)
                     cast(i as u32),
                 ]);
 

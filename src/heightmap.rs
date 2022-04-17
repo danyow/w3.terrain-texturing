@@ -42,7 +42,7 @@ pub struct TerrainHeightMap {
 #[derive(Default)]
 pub struct TerrainNormals {
     size: u32,
-    data: Vec<[f32; 3]>,
+    data: Vec<u32>,
 }
 // ----------------------------------------------------------------------------
 #[derive(Clone, Copy)]
@@ -188,7 +188,8 @@ fn generate_heightmap_normals(
             *terrain_normals = TerrainNormals {
                 size: terrain_heightmap.size,
                 data: vec![
-                    [0.0, 1.0, 0.0];
+                    // packed(0, 1, 0)
+                    1023u32 << 11;
                     (terrain_heightmap.size * terrain_heightmap.size) as usize
                 ],
             };
@@ -374,7 +375,7 @@ impl<'heightmap, 'normals> TerrainDataView<'heightmap, 'normals> {
     }
     // ------------------------------------------------------------------------
     #[inline(always)]
-    pub fn sample_height_and_normal(&self, pos: UVec2) -> (f32, [f32; 3]) {
+    pub fn sample_height_and_normal(&self, pos: UVec2) -> (f32, u32) {
         // Note: heightmap and normals have the same size!
         let offset = self.heightmap.coordinates_to_offset(pos);
         let height = self.heightmap.data[offset];

@@ -30,7 +30,7 @@ pub struct ComputeNormalsPlugin;
 // ----------------------------------------------------------------------------
 pub struct ComputeNormalsResult {
     pub offset: usize,
-    pub normals: Vec<[f32; 3]>,
+    pub normals: Vec<u32>,
 }
 // ----------------------------------------------------------------------------
 #[derive(Component)]
@@ -242,7 +242,7 @@ impl GpuComputeNormals {
     ) -> Self {
         // calculate the size of the result buffer
         let result_buf_size =
-            (settings.data_width * data_rows) as usize * std::mem::size_of::<f32>() * 3;
+            (settings.data_width * data_rows) as usize * std::mem::size_of::<u32>();
 
         // much faster with additional staging buffer in comparison to map::read for calc_normals_buf
         let result_buffer = render_device.create_buffer(&BufferDescriptor {
@@ -346,9 +346,8 @@ impl GpuComputeNormals {
         future::block_on(wait_future).map(|slice| {
             let data = slice.get_mapped_range();
             // contents are got in bytes, this converts these bytes back
-            let result: &[f32] = bytemuck::cast_slice(&data);
-            let result: Vec<[f32; 3]> =
-                result.chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect();
+            let result: &[u32] = bytemuck::cast_slice(&data);
+            let result: Vec<u32> = result.to_vec();
 
             drop(data);
             self.staging_buffer.unmap();

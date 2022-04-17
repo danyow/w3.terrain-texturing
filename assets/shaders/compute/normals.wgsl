@@ -9,7 +9,7 @@ struct Heightmap {
 };
 
 struct Normals {
-    data: [[stride(4)]] array<f32>;
+    data: [[stride(4)]] array<u32>;
 };
 
 [[group(0), binding(0)]]
@@ -31,7 +31,19 @@ fn sample(x: u32, y: u32) -> f32 {
         return f32(v & 0xffffu);
     }
 }
+// ----------------------------------------------------------------------------
+// pack normal vector as 11:10:11 to reduce memory consumption
+//
+// from kajiya renderer by Tomasz Stachowiak, Embark Studios
+// https://github.com/EmbarkStudios/kajiya/tree/main/crates/lib/kajiya-asset/src/mesh.rs#L408
+fn pack_unit_direction_11_10_11(x: f32, y: f32, z: f32) -> u32 {
+    let x = u32((clamp(x, -1.0, 1.0) * 0.5 + 0.5) * f32((1u << 11u) - 1u));
+    let y = u32((clamp(y, -1.0, 1.0) * 0.5 + 0.5) * f32((1u << 10u) - 1u));
+    let z = u32((clamp(z, -1.0, 1.0) * 0.5 + 0.5) * f32((1u << 11u) - 1u));
 
+    return (z << 21u) | (y << 11u) | x;
+}
+// ----------------------------------------------------------------------------
 [[stage(compute), workgroup_size(8, 8, 1)]]
 fn main(
     [[builtin(global_invocation_id)]] invocation_id: vec3<u32>
@@ -103,9 +115,7 @@ fn main(
         + normalize(cross(vo - ve, vh - ve))
     );
 
-    // stride 3 for x, y, z normal components
-    let target_location = (invocation_id.y * params.data_width + invocation_id.x) * 3u;
-    normals.data[target_location] = normal.x;
-    normals.data[target_location + 1u] = normal.y;
-    normals.data[target_location + 2u] = normal.z;
+    let target_location = (invocation_id.y * params.data_width + invocation_id.x);
+
+    normals.data[target_location] = pack_unit_direction_11_10_11(normal.x, normal.y, normal.z);
 }
