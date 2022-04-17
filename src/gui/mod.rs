@@ -99,6 +99,8 @@ pub enum MeshSetting {
     ResetToDefault,
 }
 // ----------------------------------------------------------------------------
+use self::egui_extensions::UiExtension;
+
 use self::progresstracking::ProgressTracking;
 // ----------------------------------------------------------------------------
 mod debug;
@@ -109,6 +111,8 @@ mod images;
 mod progresstracking;
 mod update;
 mod view;
+
+mod egui_extensions;
 // ----------------------------------------------------------------------------
 impl Plugin for EditorUiPlugin {
     // ------------------------------------------------------------------------
