@@ -23,8 +23,6 @@ pub struct UiState {
     project_is_loading: bool,
 
     progress: ProgressTracking,
-    // FIXME this should be some kind of brush state
-    selected_slot: Option<MaterialSlot>,
 
     toolbox: toolbox::ToolboxState,
 
@@ -40,8 +38,6 @@ pub struct UiState {
 /// Events triggered by user in the GUI (user actions)
 pub enum GuiAction {
     Toolbox(toolbox::ToolboxAction),
-    SelectMaterial(MaterialSlot),
-    UnselectMaterial,
     UpdateMaterial(MaterialSlot, MaterialSetting),
     UpdateSunSetting(SunSetting),
     UpdateAtmosphereSetting(AtmosphereSetting),
@@ -249,12 +245,6 @@ fn handle_ui_actions(
 ) {
     for action in ui_action.iter() {
         match action {
-            GuiAction::SelectMaterial(slot) => {
-                ui_state.selected_slot = Some(*slot);
-            }
-            GuiAction::UnselectMaterial => {
-                ui_state.selected_slot = None;
-            }
             GuiAction::Toolbox(_action) => {
                 // handled by toolbox module explicitely
                 // this would be the place for a reactive one shot system

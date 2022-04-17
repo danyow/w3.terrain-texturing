@@ -20,7 +20,7 @@ pub(super) fn show_ui(
 
     egui::SidePanel::right("side_panel")
         .resizable(ui_state.enabled)
-        .width_range(300.0..=450.0)
+        .width_range(300.0..=500.0)
         .show(egui_ctx.ctx_mut(), |ui| {
             ui.set_enabled(ui_state.enabled);
 
@@ -40,17 +40,8 @@ pub(super) fn show_ui(
                     }
 
                     super::toolbox::view::show_ui(
-                        ui, &mut ui_state.toolbox, &ui_images, &mut gui_event);
+                        ui, &mut ui_state.toolbox, &ui_images, materialset, &mut gui_event);
 
-                    if let Some(materialset) = materialset {
-                        materialpalette::show(
-                            ui,
-                            &ui_images,
-                            &*ui_state,
-                            &materialset,
-                            &mut gui_event,
-                        );
-                    }
                 });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
@@ -77,7 +68,6 @@ use crate::terrain_tiles::{TerrainMeshSettings, TerrainStats};
 use super::{GuiAction, UiExtension, UiImages, UiState};
 // ----------------------------------------------------------------------------
 mod atmosphere;
-mod materialpalette;
 mod menu;
 mod mesh;
 mod rendersettings;

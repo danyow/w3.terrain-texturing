@@ -2,6 +2,7 @@
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 
+use crate::terrain_material::MaterialSlot;
 use crate::terrain_painting::{
     BrushPlacement, OverwriteProbability, PaintingEvent, SlopeBlendThreshold, TextureScale,
 };
@@ -40,6 +41,8 @@ pub struct ToolboxState {
 /// Events triggered by user in the GUI (user actions)
 pub enum ToolboxAction {
     UpdateBrushSettings,
+    SelectOverlayTexture(MaterialSlot),
+    SelectBackgroundTexture(MaterialSlot),
 }
 // ---------------------------------------------------------------------------
 #[derive(Eq, PartialEq, Clone, Copy)]
@@ -75,7 +78,7 @@ fn process_brush_clicks(
 }
 // ----------------------------------------------------------------------------
 fn handle_ui_actions(
-    ui_state: Res<UiState>,
+    mut ui_state: ResMut<UiState>,
     mut ui_action: EventReader<GuiAction>,
     mut brush: ResMut<BrushPointer>,
 ) {
@@ -85,6 +88,14 @@ fn handle_ui_actions(
         if let GuiAction::Toolbox(action) = action {
             match action {
                 UpdateBrushSettings => {
+                    update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut *brush);
+                }
+                SelectOverlayTexture(material_slot) => {
+                    ui_state.toolbox.texture_brush.overlay_texture = *material_slot;
+                    update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut *brush);
+                }
+                SelectBackgroundTexture(material_slot) => {
+                    ui_state.toolbox.texture_brush.bkgrnd_texture = *material_slot;
                     update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut *brush);
                 }
             }
