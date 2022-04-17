@@ -3,6 +3,8 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::Color;
 
+use bevy_egui::egui;
+
 use crate::terrain_material::MaterialSlot;
 
 use super::{
@@ -41,7 +43,7 @@ impl ToolBrushPointer for BrushSettings {
         PointerSettings {
             size: self.size,
             ring_width: self.size.ring_width(),
-            color: self.textures_used.brush_color(),
+            color: self.textures_used.pointer_color(),
         }
     }
     // ------------------------------------------------------------------------
@@ -72,11 +74,19 @@ impl BrushSettings {
 // ----------------------------------------------------------------------------
 impl BrushTexturesUsed {
     // ------------------------------------------------------------------------
-    pub const fn brush_color(&self) -> Color {
+    pub const fn pointer_color(&self) -> Color {
         match self {
             BrushTexturesUsed::Overlay => Color::SEA_GREEN,
             BrushTexturesUsed::Background => Color::LIME_GREEN,
             BrushTexturesUsed::OverlayAndBackground => Color::YELLOW_GREEN,
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub const fn selection_color(&self) -> egui::Color32 {
+        match self {
+            BrushTexturesUsed::Overlay => egui::Color32::LIGHT_GREEN,
+            BrushTexturesUsed::Background => egui::Color32::LIGHT_BLUE,
+            BrushTexturesUsed::OverlayAndBackground => egui::Color32::from_rgb(153, 204, 51),
         }
     }
     // ------------------------------------------------------------------------

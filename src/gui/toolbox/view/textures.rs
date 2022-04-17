@@ -14,34 +14,35 @@ pub(super) fn show(
     egui::Grid::new("texture.brush.settings")
         .num_columns(2)
         .show(ui, |ui| {
+            use BrushTexturesUsed::*;
 
             let (overlay_used, background_used) = match brush.textures_used {
-                BrushTexturesUsed::Overlay => (true, false),
-                BrushTexturesUsed::Background => (false, true),
-                BrushTexturesUsed::OverlayAndBackground => (true, true),
+                Overlay => (true, false),
+                Background => (false, true),
+                OverlayAndBackground => (true, true),
             };
             // --- Material icons
             ui.vertical_centered(|ui| {
                 let prev_texture_selection = brush.textures_used;
 
-                if ui.add(texture_icon(ui_images, brush.overlay_texture, overlay_used))
+                if add_texture_selection(ui, ui_images, brush.overlay_texture, Overlay, overlay_used)
                     .on_hover_text("Use only overlay material")
                     .clicked()
                 {
-                    brush.textures_used = BrushTexturesUsed::Overlay;
+                    brush.textures_used = Overlay;
                 }
-                if ui.add(texture_icon(ui_images, brush.bkgrnd_texture, background_used))
+                if add_texture_selection(ui, ui_images, brush.bkgrnd_texture, Background, background_used)
                     .on_hover_text("Use only background material")
                     .clicked()
                 {
-                    brush.textures_used = BrushTexturesUsed::Background;
+                    brush.textures_used = Background;
                 }
-                // if combined_textures(ui, ui_images, brush, overlay_used && background_used).interact(Sense::click())
-                if combined_textures_icon(ui, ui_images, brush, overlay_used && background_used)
+
+                if add_combined_textures_selection(ui, ui_images, brush, overlay_used && background_used)
                     .on_hover_text("Use overlay and background materials")
                     .clicked()
                 {
-                    brush.textures_used = BrushTexturesUsed::OverlayAndBackground;
+                    brush.textures_used = OverlayAndBackground;
                 }
                 // update changes
                 if prev_texture_selection != brush.textures_used {
@@ -120,6 +121,18 @@ fn randomize_settings(
 }
 // ----------------------------------------------------------------------------
 #[inline]
+fn add_texture_selection(
+    ui: &mut Ui,
+    ui_images: &UiImages,
+    texture_slot: MaterialSlot,
+    texture_type: BrushTexturesUsed,
+    used: bool,
+) -> egui::Response {
+    ui.visuals_mut().selection.stroke = egui::Stroke::new(2.0, texture_type.selection_color());
+    ui.add(texture_icon(ui_images, texture_slot, used))
+}
+// ----------------------------------------------------------------------------
+#[inline]
 fn texture_icon(ui_images: &UiImages, texture_slot: MaterialSlot, used: bool) -> ImageButton {
     let darken = if used {
         Color32::WHITE
@@ -144,7 +157,7 @@ fn texture_icon(ui_images: &UiImages, texture_slot: MaterialSlot, used: bool) ->
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
 #[inline]
-fn combined_textures_icon(
+fn add_combined_textures_selection(
     ui: &mut Ui,
     ui_images: &UiImages,
     brush: &mut BrushSettings,
@@ -217,10 +230,11 @@ use bevy_egui::egui::{self, Color32, ImageButton, Response, Sense, Slider, Ui};
 
 use crate::gui::TEXTURE_PREVIEW_SIZE_SMALL;
 
-use crate::gui::toolbox::common::{BRUSH_SIZE_MAX, BRUSH_SIZE_MIN};
-use crate::gui::toolbox::ToolboxAction;
 use crate::gui::{GuiAction, UiImages};
 use crate::terrain_material::{MaterialSlot, TextureType};
 
+use crate::gui::toolbox::common::{BRUSH_SIZE_MAX, BRUSH_SIZE_MIN};
 use crate::gui::toolbox::texturebrush::{BrushSettings, BrushTexturesUsed};
+
+use super::ToolboxAction;
 // ----------------------------------------------------------------------------
