@@ -83,22 +83,104 @@ impl FromWorld for TerrainMeshRenderPipeline {
 bitflags::bitflags! {
     #[repr(transparent)]
     pub struct TerrainMeshPipelineKey: u32 {
-        const NONE                  = 0b0000;
-        const SHOW_WIREFRAME        = 0b0001;
+        const NONE                  = 0b0000_0000_0000_0000;
+        const FLAT_SHADING          = 0b0000_0000_0000_0001;
+        const SHOW_WIREFRAME        = 0b0000_0000_0000_0010;
+        const SHOW_CLIPMAP_LEVEL    = 0b0000_0000_0000_0100;
+
+        const HIDE_OVERLAY_TEXTURE  = 0b0000_0000_0001_0000;
+        const HIDE_BKGRND_TEXTURE   = 0b0000_0000_0010_0000;
+        const IGNORE_TINT_MAP       = 0b0000_0000_0100_0000;
+
+        // exclusive: will always override
+        const EXCLUSIVE_OVERRIDE    = 0b1000_0000_0000_0000;
+
+        // Note: order is important (see shader_defs check)
+        const SHOW_FRAGMENT_NORMAL  = 0b1000_0000_0001_0000;
+        const SHOW_COMBINED_NORMAL  = 0b1000_0000_0010_0000;
+        const SHOW_BLEND_VALUE      = 0b1000_0000_0011_0000;
+        const SHOW_UV_SCALING       = 0b1000_0000_0100_0000;
+        const SHOW_TINT_MAP         = 0b1000_0000_0101_0000;
     }
 }
 // ----------------------------------------------------------------------------
 impl TerrainMeshPipelineKey {
     // ------------------------------------------------------------------------
-    pub fn from_settings(_settings: &TerrainRenderSettings) -> Self {
-        TerrainMeshPipelineKey::NONE
+    pub fn from_settings(settings: &TerrainRenderSettings) -> Self {
+        let mut flags = TerrainMeshPipelineKey::NONE;
+
+        // exclusive override
+        if settings.show_fragment_normals {
+            flags = TerrainMeshPipelineKey::SHOW_FRAGMENT_NORMAL;
+        } else if settings.show_combined_normals {
+            flags = TerrainMeshPipelineKey::SHOW_COMBINED_NORMAL;
+        } else if settings.show_blend_threshold {
+            flags = TerrainMeshPipelineKey::SHOW_BLEND_VALUE;
+        } else if settings.show_bkgrnd_scaling {
+            flags = TerrainMeshPipelineKey::SHOW_UV_SCALING;
+        } else if settings.show_tint_map {
+            flags = TerrainMeshPipelineKey::SHOW_TINT_MAP;
+        } else {
+            // combined
+            if settings.use_flat_shading {
+                flags |= TerrainMeshPipelineKey::FLAT_SHADING;
+            }
+            if settings.overlay_clipmap_level {
+                flags |= TerrainMeshPipelineKey::SHOW_CLIPMAP_LEVEL;
+            }
+            if settings.ignore_overlay_texture {
+                flags |= TerrainMeshPipelineKey::HIDE_OVERLAY_TEXTURE;
+            }
+            if settings.ignore_bkgrnd_texture {
+                flags |= TerrainMeshPipelineKey::HIDE_BKGRND_TEXTURE;
+            }
+            if settings.ignore_tint_map {
+                flags |= TerrainMeshPipelineKey::IGNORE_TINT_MAP;
+            }
+        }
+
+        flags
     }
     // ------------------------------------------------------------------------
     fn shader_defs(&self) -> Vec<String> {
         let mut flags = Vec::default();
 
-        if self.contains(Self::SHOW_WIREFRAME) {
-            flags.push("SHOW_WIREFRAME".to_string());
+        if self.contains(Self::EXCLUSIVE_OVERRIDE) {
+            // note: order is backwards!
+            if self.contains(Self::SHOW_TINT_MAP) {
+                return vec!["SHOW_TINT_MAP".to_string()];
+            }
+            if self.contains(Self::SHOW_BLEND_VALUE) {
+                return vec!["SHOW_BLEND_VALUE".to_string()];
+            }
+            if self.contains(Self::SHOW_UV_SCALING) {
+                return vec!["SHOW_UV_SCALING".to_string()];
+            }
+            if self.contains(Self::SHOW_COMBINED_NORMAL) {
+                return vec!["SHOW_COMBINED_NORMAL".to_string()];
+            }
+            if self.contains(Self::SHOW_FRAGMENT_NORMAL) {
+                return vec!["SHOW_FRAGMENT_NORMAL".to_string()];
+            }
+        } else {
+            if self.contains(Self::FLAT_SHADING) {
+                flags.push("FLAT_SHADING".to_string());
+            }
+            if self.contains(Self::SHOW_WIREFRAME) {
+                flags.push("SHOW_WIREFRAME".to_string());
+            }
+            if self.contains(Self::SHOW_CLIPMAP_LEVEL) {
+                flags.push("SHOW_CLIPMAP_LEVEL".to_string());
+            }
+            if self.contains(Self::HIDE_OVERLAY_TEXTURE) {
+                flags.push("HIDE_OVERLAY_TEXTURE".to_string());
+            }
+            if self.contains(Self::HIDE_BKGRND_TEXTURE) {
+                flags.push("HIDE_BKGRND_TEXTURE".to_string());
+            }
+            if self.contains(Self::IGNORE_TINT_MAP) {
+                flags.push("IGNORE_TINT_MAP".to_string());
+            }
         }
 
         flags

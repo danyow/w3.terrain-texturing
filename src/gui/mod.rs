@@ -3,6 +3,7 @@ use bevy::{math::Vec3, prelude::*};
 use bevy_egui::EguiContext;
 
 use crate::atmosphere::AtmosphereMat;
+use crate::cmds;
 use crate::config;
 use crate::environment::SunSettings;
 use crate::terrain_material::{MaterialSlot, TerrainMaterialSet, TextureType, TextureUpdatedEvent};
@@ -45,6 +46,7 @@ pub enum GuiAction {
     UpdateSunSetting(SunSetting),
     UpdateAtmosphereSetting(AtmosphereSetting),
     UpdateMeshSetting(MeshSetting),
+    UpdateRenderSettings(RenderSetting),
     QuitRequest,
     DebugCloseProject,
     DebugLoadTerrain(Box<config::TerrainConfig>),
@@ -97,6 +99,12 @@ pub enum MeshSetting {
     SetLodDistance(LodSlot, f32),
     FreezeLods,
     ResetToDefault,
+}
+// ----------------------------------------------------------------------------
+#[derive(Debug)]
+// Note: as of now other settings are directly flipped
+pub enum RenderSetting {
+    OverlayWireframe(bool),
 }
 // ----------------------------------------------------------------------------
 use self::egui_extensions::UiExtension;
@@ -222,6 +230,7 @@ fn handle_editor_events(
             ToggleGuiVisibility => {
                 ui_state.fullscreen = !ui_state.fullscreen;
             }
+            RegenerateTerrainMeshes => {}
 
             Debug(_) => {}
         }
@@ -236,6 +245,7 @@ fn handle_ui_actions(
     mut sun_settings: Option<ResMut<SunSettings>>,
     mut atmosphere_settings: Option<ResMut<AtmosphereMat>>,
     mut mesh_settings: Option<ResMut<TerrainMeshSettings>>,
+    mut task_manager: ResMut<cmds::AsyncCommandManager>,
 ) {
     for action in ui_action.iter() {
         match action {
@@ -263,6 +273,9 @@ fn handle_ui_actions(
             }
             GuiAction::UpdateMeshSetting(setting) => {
                 update::update_mesh_settings(setting, &mut mesh_settings)
+            }
+            GuiAction::UpdateRenderSettings(setting) => {
+                update::update_render_settings(setting, &mut *task_manager)
             }
 
             // TODO should be removed later

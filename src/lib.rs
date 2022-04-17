@@ -58,6 +58,7 @@ enum EditorEvent {
     ProgressTrackingUpdate(cmds::TrackedProgress),
     ToggleGuiVisibility,
     StateChange(EditorState),
+    RegenerateTerrainMeshes,
     Debug(DebugEvent),
 }
 // ----------------------------------------------------------------------------

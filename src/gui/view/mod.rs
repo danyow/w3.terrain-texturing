@@ -10,6 +10,7 @@ pub(super) fn show_ui(
     sun_settings: Option<Res<SunSettings>>,
     atmosphere_settings: Option<Res<AtmosphereMat>>,
     mesh_stats: Res<TerrainStats>,
+    mut render_settings: ResMut<TerrainRenderSettings>,
     mut gui_event: EventWriter<GuiAction>,
 ) {
     if ui_state.fullscreen {
@@ -26,6 +27,7 @@ pub(super) fn show_ui(
             egui::ScrollArea::vertical()
                 .max_height(ui.available_height() - 45.0)
                 .show(ui, |ui| {
+                    rendersettings::show_settings(ui, &mut *render_settings, &mut gui_event);
 
                     if let Some(settings) = mesh_settings {
                         mesh::show_settings(ui, &settings, &mesh_stats, &mut gui_event);
@@ -69,12 +71,14 @@ use bevy_egui::{egui, EguiContext};
 use crate::atmosphere::AtmosphereMat;
 use crate::environment::SunSettings;
 use crate::terrain_material::TerrainMaterialSet;
+use crate::terrain_render::TerrainRenderSettings;
 use crate::terrain_tiles::{TerrainMeshSettings, TerrainStats};
 
-use super::{GuiAction, UiImages, UiState};
+use super::{GuiAction, UiExtension, UiImages, UiState};
 // ----------------------------------------------------------------------------
 mod atmosphere;
 mod materialpalette;
 mod menu;
 mod mesh;
+mod rendersettings;
 // ----------------------------------------------------------------------------

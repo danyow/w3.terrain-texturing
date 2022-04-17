@@ -387,7 +387,7 @@ fn async_tilemesh_generation(
     if !tiles.is_empty() {
         use instant::Instant;
 
-        let include_wireframe_info = render_settings.show_wireframe;
+        let include_wireframe_info = render_settings.overlay_wireframe;
         let heightmap = Arc::new(heightmap.deref());
         let normals = Arc::new(normals.deref());
         let terrain_config = &terrain_config;

@@ -310,7 +310,13 @@ fn compute_slope_blend(
 struct FragmentInput {
     [[builtin(position)]] frag_coord: vec4<f32>;
     [[location(0)]] world_position: vec4<f32>;
+
+    # ifdef FLAT_SHADING
+    [[location(1), interpolate(flat)]] normal: vec3<f32>;
+    # else
     [[location(1)]] normal: vec3<f32>;
+    # endif
+
     # ifdef SHOW_WIREFRAME
     [[location(2)]] uv: vec2<f32>;
     # endif
@@ -513,16 +519,35 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     //          bkgrndNormal, overlayNormal, float3(1.0 - bkgrndNormalDampening, bkgrndNormalDampening, 1.0)
     //
 
+    # ifdef HIDE_OVERLAY_TEXTURE
+        let surfaceSlopeBlend = 1.0;
+    # endif
+    # ifdef HIDE_BKGRND_TEXTURE
+        let surfaceSlopeBlend = 0.0;
+    # endif
+
     // combine based on slope tangent
     var diffuse = mix(overlay.diffuse.rgb, bkgrnd.diffuse.rgb, surfaceSlopeBlend);
     var normal = normalize(mix(overlayNormal, bkgrndNormal, surfaceSlopeBlend));
+
+    # ifdef HIDE_OVERLAY_TEXTURE
+    # ifdef HIDE_BKGRND_TEXTURE
+        diffuse = vec3<f32>(1.0, 1.0, 1.0);
+        normal = fragmentNormal;
+    # endif
+    # endif
 
     // --------------------------------------------------------------------------------------------
     // apply tint from clipmap
     // --------------------------------------------------------------------------------------------
     let normalizedPos = clipmapPos / clipmap.size;
 
+    # ifdef IGNORE_TINT_MAP
+    let tintmapColor = vec4<f32>(0.5);
+    # else
     let tintmapColor = textureSample(tintmapArray, tintmapSampler, normalizedPos, i32(clipmap_level));
+    # endif
+
     let darkenedTint = 2.0 * tintmapColor.rgb * diffuse.rgb;
     let screenblendTint = vec3<f32>(1.0) - 2.0 * (vec3<f32>(1.0) - tintmapColor.rgb) * (vec3<f32>(1.0) - diffuse.rgb);
 
@@ -531,6 +556,9 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     if (tintmapColor.b < 0.5) { diffuse.b = darkenedTint.b; } else { diffuse.b = screenblendTint.b; }
     // --------------------------------------------------------------------------------------------
 
+    # ifdef FLAT_SHADING
+    normal = fragmentNormal;
+    # endif
     // --- lighting
     // blinn-phong
 
@@ -562,8 +590,31 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     var fragmentCol = vec4<f32>(col * diffuse.rgb, 1.0);
 
     // --------------------------------------------------------------------------------------------
-    // debug visualization for wireframes and clipmap level
+    // debug visualization for texture control
+    # ifdef SHOW_BLEND_VALUE
+    fragmentCol = vec4<f32>(slopeThreshold, slopeThreshold, slopeThreshold, 1.0);
+    # endif
 
+    # ifdef SHOW_UV_SCALING
+    let value = f32(bkgrndUvScaling.x) / 8.0;
+    fragmentCol = vec4<f32>(value, value, value, 1.0);
+    # endif
+    // --------------------------------------------------------------------------------------------
+    // debug visualization for normals
+    # ifdef SHOW_FRAGMENT_NORMAL
+    fragmentCol = vec4<f32>(fragmentNormal.xyz, 1.0);
+    # endif
+
+    # ifdef SHOW_COMBINED_NORMAL
+    fragmentCol = vec4<f32>(normal.xyz, 1.0);
+    # endif
+    // --------------------------------------------------------------------------------------------
+    // debug visualization for *direct* tint map values (not applied as above!)
+    # ifdef SHOW_TINT_MAP
+    fragmentCol = vec4<f32>(tintmapColor.rgb, 1.0);
+    # endif
+    // --------------------------------------------------------------------------------------------
+    // debug visualization for wireframes
     # ifdef SHOW_WIREFRAME
     // https://catlikecoding.com/unity/tutorials/advanced-rendering/flat-and-wireframe-shading/
     let barys = vec3<f32>(in.uv.x, in.uv.y, 1.0 - in.uv.x - in.uv.y);
@@ -580,7 +631,13 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
 
     fragmentCol = mix(wireframeCol, fragmentCol, smoothStep(0.0, wireframeWidth, minBarys));
     # endif
-    // fragmentCol = mix(fragmentCol, clipmapCol, f32(clipmap_level) / 6.0);
+    // --------------------------------------------------------------------------------------------
+    // debug visualization for clipmap level
+    # ifdef SHOW_CLIPMAP_LEVEL
+    let clipmapCol = vec4<f32>(1.0, 1.0, 0.0, 1.0);
+
+    fragmentCol = mix(fragmentCol, clipmapCol, f32(clipmap_level) / 6.0);
+    # endif
     // --------------------------------------------------------------------------------------------
 
     // --- gamma correction

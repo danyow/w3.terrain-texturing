@@ -15,7 +15,19 @@ pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
 pub struct TerrainRenderSettings {
-    pub show_wireframe: bool,
+    pub use_flat_shading: bool,
+    pub overlay_wireframe: bool,
+    pub overlay_clipmap_level: bool,
+
+    pub ignore_overlay_texture: bool,
+    pub ignore_bkgrnd_texture: bool,
+    pub ignore_tint_map: bool,
+
+    pub show_fragment_normals: bool,
+    pub show_combined_normals: bool,
+    pub show_blend_threshold: bool,
+    pub show_bkgrnd_scaling: bool,
+    pub show_tint_map: bool,
 }
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]

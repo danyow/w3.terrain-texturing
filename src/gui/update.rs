@@ -5,11 +5,12 @@
 use bevy::prelude::*;
 
 use crate::atmosphere::AtmosphereMat;
+use crate::cmds;
+use crate::environment::SunSettings;
 use crate::terrain_material::{MaterialSlot, TerrainMaterialSet};
 use crate::terrain_tiles::TerrainMeshSettings;
-use crate::environment::SunSettings;
 
-use super::{AtmosphereSetting, MaterialSetting, MeshSetting, SunSetting};
+use super::{AtmosphereSetting, MaterialSetting, MeshSetting, RenderSetting, SunSetting};
 // ----------------------------------------------------------------------------
 #[inline]
 pub(super) fn update_material_settings(
@@ -91,6 +92,17 @@ pub(super) fn update_mesh_settings(
             MeshSetting::SetLodDistance(slot, distance) => mesh.set_lod_distance(*slot, *distance),
             MeshSetting::FreezeLods => mesh.ignore_anchor = !mesh.ignore_anchor,
             MeshSetting::ResetToDefault => **mesh = TerrainMeshSettings::default(),
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+pub(super) fn update_render_settings(
+    action: &RenderSetting,
+    task_manager: &mut cmds::AsyncCommandManager,
+) {
+    match action {
+        RenderSetting::OverlayWireframe(_) => {
+            task_manager.add_new(cmds::GenerateTerrainMeshes.into());
         }
     }
 }

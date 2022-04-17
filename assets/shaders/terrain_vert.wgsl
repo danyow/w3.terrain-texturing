@@ -30,7 +30,13 @@ struct VertexInput {
 struct VertexOutput {
     [[builtin(position)]] clip_position: vec4<f32>;
     [[location(0)]] world_position: vec4<f32>;
+
+    # ifdef FLAT_SHADING
+    [[location(1), interpolate(flat)]] normal: vec3<f32>;
+    # else
     [[location(1)]] normal: vec3<f32>;
+    # endif
+
     # ifdef SHOW_WIREFRAME
     [[location(2)]] uv: vec2<f32>;
     # endif
@@ -44,6 +50,7 @@ fn vertex(vertex: VertexInput) -> VertexOutput {
     out.clip_position = view.view_proj * world_position;
     out.world_position = world_position;
     out.normal = vertex.normal;
+
     # ifdef SHOW_WIREFRAME
     out.uv = vertex.uv;
     # endif
