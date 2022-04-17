@@ -41,11 +41,7 @@ impl ToolBrushPointer for BrushSettings {
         PointerSettings {
             size: self.size,
             ring_width: self.size.ring_width(),
-            color: match self.textures_used {
-                BrushTexturesUsed::Overlay => Color::SEA_GREEN,
-                BrushTexturesUsed::Background => Color::LIME_GREEN,
-                BrushTexturesUsed::OverlayAndBackground => Color::YELLOW_GREEN,
-            },
+            color: self.textures_used.brush_color(),
         }
     }
     // ------------------------------------------------------------------------
@@ -69,6 +65,18 @@ impl BrushSettings {
             (overlay, bkgrnd)
         } else {
             (None, None)
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl BrushTexturesUsed {
+    // ------------------------------------------------------------------------
+    pub const fn brush_color(&self) -> Color {
+        match self {
+            BrushTexturesUsed::Overlay => Color::SEA_GREEN,
+            BrushTexturesUsed::Background => Color::LIME_GREEN,
+            BrushTexturesUsed::OverlayAndBackground => Color::YELLOW_GREEN,
         }
     }
     // ------------------------------------------------------------------------
