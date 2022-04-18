@@ -3,8 +3,21 @@
 // ----------------------------------------------------------------------------
 pub(super) trait UiExtension {
     // ------------------------------------------------------------------------
+    // helper functions
+    // ------------------------------------------------------------------------
     fn checkbox_width(&self, text: impl Into<egui::WidgetText>) -> f32;
     fn end_row_if(&mut self, is_true: bool);
+    // ------------------------------------------------------------------------
+    // widget extensions/helper
+    // ------------------------------------------------------------------------
+    fn deselectable_value<Value: PartialEq>(
+        &mut self,
+        current_value: &mut Option<Value>,
+        selected_value: Value,
+        text: impl Into<egui::WidgetText>,
+    ) -> egui::Response;
+    // ------------------------------------------------------------------------
+    fn small_text(&self, text: impl Into<String>) -> egui::RichText;
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
@@ -31,6 +44,35 @@ impl UiExtension for egui::Ui {
         if is_true {
             self.end_row();
         }
+    }
+    // ------------------------------------------------------------------------
+    // widget extensions
+    // ------------------------------------------------------------------------
+    fn deselectable_value<Value: PartialEq>(
+        &mut self,
+        current_value: &mut Option<Value>,
+        selected_value: Value,
+        text: impl Into<egui::WidgetText>,
+    ) -> egui::Response {
+        let already_selected = if let Some(current_value) = current_value.as_ref() {
+            *current_value == selected_value
+        } else {
+            false
+        };
+        let mut response = self.selectable_label(already_selected, text);
+        if response.clicked() {
+            if already_selected {
+                current_value.take();
+            } else {
+                let _ = current_value.insert(selected_value);
+            }
+            response.mark_changed();
+        }
+        response
+    }
+    // ------------------------------------------------------------------------
+    fn small_text(&self, text: impl Into<String>) -> egui::RichText {
+        egui::RichText::new(text).small()
     }
     // ------------------------------------------------------------------------
 }
