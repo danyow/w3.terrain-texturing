@@ -33,7 +33,7 @@ impl Plugin for TexturingToolboxPlugin {
 #[derive(Default)]
 pub struct ToolboxState {
     pub enabled: bool,
-    selection: ToolSelection,
+    selection: Option<ToolSelection>,
     texture_brush: texturebrush::BrushSettings,
 }
 // ---------------------------------------------------------------------------
@@ -68,11 +68,15 @@ fn process_brush_clicks(
     while let Ok(BrushPointerEventData::Centered(button, pos, radius)) = receiver.try_recv() {
         let settings = &ui_state.toolbox;
 
-        let cmds = match settings.selection {
-            Texturing => update::create_texture_brush_paint_cmds(button, &settings.texture_brush),
-        };
-        if !cmds.is_empty() {
-            editor_events.send(PaintingEvent::new(BrushPlacement::new(pos, radius), cmds));
+        if let Some(selection) = settings.selection {
+            let cmds = match selection {
+                Texturing => {
+                    update::create_texture_brush_paint_cmds(button, &settings.texture_brush)
+                }
+            };
+            if !cmds.is_empty() {
+                editor_events.send(PaintingEvent::new(BrushPlacement::new(pos, radius), cmds));
+            }
         }
     }
 }
@@ -103,8 +107,8 @@ fn handle_ui_actions(
     }
 }
 // ----------------------------------------------------------------------------
-fn init_brush_pointer(ui_state: ResMut<UiState>, mut brush_pointer: ResMut<BrushPointer>) {
-    update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut brush_pointer);
+fn init_brush_pointer(mut brush_pointer: ResMut<BrushPointer>) {
+    update::update_brush_pointer(&PointerSettings::default(), &mut brush_pointer);
 }
 // ----------------------------------------------------------------------------
 fn update_brush_pointer_info(
@@ -119,7 +123,7 @@ fn update_brush_pointer_info(
         let win = windows.get_primary().expect("no primary window");
 
         if let Some(mouse_pos) = win.cursor_position() {
-            brush_pointer.active = true;
+            brush_pointer.active = ui_state.toolbox.has_projected_pointer();
 
             brush_pointer.pos = mouse_pos * win.scale_factor() as f32;
             brush_pointer.click_primary = mouse_input.just_pressed(MouseButton::Left);
@@ -150,15 +154,30 @@ trait ToolBrushPointer {
 // ----------------------------------------------------------------------------
 impl ToolboxState {
     // ------------------------------------------------------------------------
-    fn rescale_pointer(&mut self, scale: f32) {
+    fn has_projected_pointer(&self) -> bool {
+        use ToolSelection::*;
         match self.selection {
-            ToolSelection::Texturing => self.texture_brush.scale_pointer(scale),
+            Some(Texturing) => true,
+            None => false,
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn rescale_pointer(&mut self, scale: f32) {
+        use ToolSelection::*;
+        match self.selection {
+            Some(Texturing) => self.texture_brush.scale_pointer(scale),
+            None => {}
         }
     }
     // ------------------------------------------------------------------------
     fn pointer_settings(&self) -> PointerSettings {
+        use ToolSelection::*;
         match self.selection {
-            ToolSelection::Texturing => self.texture_brush.pointer_settings(),
+            Some(Texturing) => self.texture_brush.pointer_settings(),
+            None => {
+                // pointer should be deactivated, see has_projected_pointer
+                unreachable!("pointer should have been deactivated!")
+            }
         }
     }
     // ------------------------------------------------------------------------

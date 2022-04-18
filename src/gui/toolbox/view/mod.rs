@@ -1,4 +1,5 @@
 // ----------------------------------------------------------------------------
+#[rustfmt::skip]
 #[allow(clippy::too_many_arguments)]
 pub fn show_ui(
     ui: &mut egui::Ui,
@@ -8,26 +9,22 @@ pub fn show_ui(
     gui_event: &mut EventWriter<GuiAction>,
 ) {
     ui.separator();
-    ui.horizontal(|ui| {
-        ui.selectable_value(&mut toolbox.selection, Texturing, "Texturing")
-            .on_hover_text("Textures: overwriting of overlay and/or background texture.");
+    ui.label("Toolbox");
+    // tool selection
+    ui.horizontal_wrapped(|ui| {
+        ui.deselectable_value(&mut toolbox.selection, Texturing, egui::RichText::new("Texturing").small())
+            .on_hover_text("Texture Brush: overwriting of overlay and/or background texture.");
     });
     ui.separator();
 
     match toolbox.selection {
-        Texturing => {
+        None | Some(Texturing) => {
             textures::show(ui, ui_images, &mut toolbox.texture_brush, gui_event);
         }
     }
 
     if let Some(materialset) = materialset {
-        materialpalette::show(
-            ui,
-            ui_images,
-            toolbox,
-            &materialset,
-            gui_event,
-        );
+        materialpalette::show(ui, ui_images, toolbox, &materialset, gui_event);
     }
 }
 // ----------------------------------------------------------------------------
@@ -36,11 +33,10 @@ use bevy_egui::egui;
 
 use crate::terrain_material::TerrainMaterialSet;
 
-use crate::gui::{GuiAction, UiImages};
+use crate::gui::{GuiAction, UiExtension, UiImages};
 
-use super::{ToolSelection::*, ToolboxState, ToolboxAction};
+use super::{ToolSelection::*, ToolboxAction, ToolboxState};
 // ----------------------------------------------------------------------------
-mod textures;
-mod materialsettings;
 mod materialpalette;
+mod textures;
 // ----------------------------------------------------------------------------

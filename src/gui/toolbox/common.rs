@@ -73,3 +73,13 @@ impl Default for BrushSize {
     }
 }
 // ----------------------------------------------------------------------------
+impl Default for PointerSettings {
+    fn default() -> Self {
+        Self {
+            size: BrushSize::default(),
+            ring_width: 0.1,
+            color: Color::default(),
+        }
+    }
+}
+// ----------------------------------------------------------------------------
