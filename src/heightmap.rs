@@ -41,7 +41,7 @@ pub struct TerrainHeightMap {
 // ----------------------------------------------------------------------------
 #[derive(Default)]
 pub struct TerrainNormals {
-    size: u32,
+    _size: u32,
     data: Vec<u32>,
 }
 // ----------------------------------------------------------------------------
@@ -186,7 +186,7 @@ fn generate_heightmap_normals(
 
             // intialize current normals to new size
             *terrain_normals = TerrainNormals {
-                size: terrain_heightmap.size,
+                _size: terrain_heightmap.size,
                 data: vec![
                     // packed(0, 1, 0)
                     1023u32 << 11;

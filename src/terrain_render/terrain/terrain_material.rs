@@ -28,7 +28,7 @@ pub struct SetTerrainMaterialSetBindGroup<const I: usize>;
 // ----------------------------------------------------------------------------
 pub struct GpuTerrainMaterialSet {
     bind_group: BindGroup,
-    parameters: Buffer,
+    _parameters: Buffer,
 }
 // ----------------------------------------------------------------------------
 #[derive(Default, Copy, Clone, AsStd140)]
@@ -179,7 +179,7 @@ impl RenderResource for TerrainMaterialSet {
 
         Ok(GpuTerrainMaterialSet {
             bind_group,
-            parameters: buffer,
+            _parameters: buffer,
         })
     }
     // ------------------------------------------------------------------------
