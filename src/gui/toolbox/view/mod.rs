@@ -18,8 +18,14 @@ pub fn show_ui(
     ui.separator();
 
     match toolbox.selection {
-        None | Some(Texturing) => {
+        Some(Texturing) => {
             textures::show(ui, ui_images, &mut toolbox.texture_brush, gui_event);
+        }
+        None => {
+            // show default texture brush settings but deactivate it
+            ui.add_enabled_ui(false, |ui| {
+                textures::show(ui, ui_images, &mut toolbox.texture_brush, gui_event);
+            });
         }
     }
 

@@ -8,13 +8,21 @@ use crate::terrain_painting::PaintCommand;
 use crate::terrain_render::BrushPointer;
 
 use super::texturebrush;
-use super::PointerSettings;
+use super::{PointerSettings, ToolSelection, ToolboxState};
 // ----------------------------------------------------------------------------
 #[inline(always)]
 pub(super) fn update_brush_pointer(settings: &PointerSettings, brush_pointer: &mut BrushPointer) {
     brush_pointer.radius = settings.radius();
     brush_pointer.ring_width = settings.ring_width();
     brush_pointer.color = settings.color();
+}
+// ----------------------------------------------------------------------------
+pub(super) fn update_brush_on_texture_selection(
+    toolbox: &mut ToolboxState,
+    brush: &mut BrushPointer,
+) {
+    toolbox.selection = Some(ToolSelection::Texturing);
+    update_brush_pointer(&toolbox.pointer_settings(), brush);
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]

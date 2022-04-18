@@ -96,11 +96,11 @@ fn handle_ui_actions(
                 }
                 SelectOverlayTexture(material_slot) => {
                     ui_state.toolbox.texture_brush.overlay_texture = *material_slot;
-                    update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut *brush);
+                    update::update_brush_on_texture_selection(&mut ui_state.toolbox, &mut *brush);
                 }
                 SelectBackgroundTexture(material_slot) => {
                     ui_state.toolbox.texture_brush.bkgrnd_texture = *material_slot;
-                    update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut *brush);
+                    update::update_brush_on_texture_selection(&mut ui_state.toolbox, &mut *brush);
                 }
             }
         }
@@ -122,23 +122,24 @@ fn update_brush_pointer_info(
     if ui_state.toolbox.enabled && !ui_state.wants_input() {
         let win = windows.get_primary().expect("no primary window");
 
-        if let Some(mouse_pos) = win.cursor_position() {
-            brush_pointer.active = ui_state.toolbox.has_projected_pointer();
+        brush_pointer.active = ui_state.toolbox.has_projected_pointer();
+        if brush_pointer.active {
+            if let Some(mouse_pos) = win.cursor_position() {
+                brush_pointer.pos = mouse_pos * win.scale_factor() as f32;
+                brush_pointer.click_primary = mouse_input.just_pressed(MouseButton::Left);
+                brush_pointer.click_secondary = mouse_input.just_pressed(MouseButton::Right);
 
-            brush_pointer.pos = mouse_pos * win.scale_factor() as f32;
-            brush_pointer.click_primary = mouse_input.just_pressed(MouseButton::Left);
-            brush_pointer.click_secondary = mouse_input.just_pressed(MouseButton::Right);
+                for e in mouse_wheel.iter() {
+                    ui_state.toolbox.rescale_pointer(e.y);
 
-            for e in mouse_wheel.iter() {
-                ui_state.toolbox.rescale_pointer(e.y);
-
-                update::update_brush_pointer(
-                    &ui_state.toolbox.pointer_settings(),
-                    &mut brush_pointer,
-                );
+                    update::update_brush_pointer(
+                        &ui_state.toolbox.pointer_settings(),
+                        &mut brush_pointer,
+                    );
+                }
+            } else {
+                brush_pointer.active = false;
             }
-        } else {
-            brush_pointer.active = false;
         }
     } else {
         brush_pointer.active = false;
