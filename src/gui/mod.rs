@@ -226,7 +226,6 @@ fn handle_editor_events(
             ToggleGuiVisibility => {
                 ui_state.fullscreen = !ui_state.fullscreen;
             }
-            RegenerateTerrainMeshes => {}
 
             Debug(_) => {}
         }
@@ -235,7 +234,6 @@ fn handle_editor_events(
 // ----------------------------------------------------------------------------
 #[allow(clippy::too_many_arguments)]
 fn handle_ui_actions(
-    mut ui_state: ResMut<UiState>,
     mut ui_action: EventReader<GuiAction>,
     mut materialset: Option<ResMut<TerrainMaterialSet>>,
     mut sun_settings: Option<ResMut<SunSettings>>,
