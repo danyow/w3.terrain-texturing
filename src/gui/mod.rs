@@ -6,7 +6,7 @@ use crate::atmosphere::AtmosphereMat;
 use crate::cmds;
 use crate::config;
 use crate::environment::SunSettings;
-use crate::terrain_material::{MaterialSlot, TerrainMaterialSet, TextureType, TextureUpdatedEvent};
+use crate::terrain_material::{TerrainMaterialSet, TextureType, TextureUpdatedEvent};
 use crate::terrain_tiles::{LodSlot, TerrainMeshSettings};
 use crate::texturearray::TextureArray;
 use crate::{EditorEvent, EditorState};
@@ -38,7 +38,6 @@ pub struct UiState {
 /// Events triggered by user in the GUI (user actions)
 pub enum GuiAction {
     Toolbox(toolbox::ToolboxAction),
-    UpdateMaterial(MaterialSlot, MaterialSetting),
     UpdateSunSetting(SunSetting),
     UpdateAtmosphereSetting(AtmosphereSetting),
     UpdateMeshSetting(MeshSetting),
@@ -47,18 +46,6 @@ pub enum GuiAction {
     DebugCloseProject,
     DebugLoadTerrain(Box<config::TerrainConfig>),
     DebugShowClipmap(bool),
-}
-// ----------------------------------------------------------------------------
-#[derive(Debug)]
-#[allow(clippy::enum_variant_names)]
-pub enum MaterialSetting {
-    SetBlendSharpness(f32),
-    SetSlopeBaseDampening(f32),
-    SetSlopeNormalDampening(f32),
-    SetSpecularityScale(f32),
-    SetSpecularity(f32),
-    SetSpecularityBase(f32),
-    SetFalloff(f32),
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
@@ -235,7 +222,6 @@ fn handle_editor_events(
 #[allow(clippy::too_many_arguments)]
 fn handle_ui_actions(
     mut ui_action: EventReader<GuiAction>,
-    mut materialset: Option<ResMut<TerrainMaterialSet>>,
     mut sun_settings: Option<ResMut<SunSettings>>,
     mut atmosphere_settings: Option<ResMut<AtmosphereMat>>,
     mut mesh_settings: Option<ResMut<TerrainMeshSettings>>,
@@ -246,9 +232,6 @@ fn handle_ui_actions(
             GuiAction::Toolbox(_action) => {
                 // handled by toolbox module explicitely
                 // this would be the place for a reactive one shot system
-            }
-            GuiAction::UpdateMaterial(slot, setting) => {
-                update::update_material_settings(*slot, setting, &mut materialset);
             }
             GuiAction::QuitRequest => {
                 warn!("TODO quit request");

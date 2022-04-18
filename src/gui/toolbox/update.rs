@@ -4,11 +4,33 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::MouseButton;
 
+use crate::terrain_material::MaterialSlot;
 use crate::terrain_painting::PaintCommand;
-use crate::terrain_render::BrushPointer;
+use crate::terrain_render::{BrushPointer, TerrainMaterialSet};
 
 use super::texturebrush;
-use super::{PointerSettings, ToolSelection, ToolboxState};
+use super::{PointerSettings, ToolSelection, ToolboxState, MaterialSetting};
+// ----------------------------------------------------------------------------
+#[inline(always)]
+pub(super) fn update_material_settings(
+    slot: MaterialSlot,
+    action: &MaterialSetting,
+    materialset: &mut TerrainMaterialSet,
+) {
+    use MaterialSetting::*;
+
+    let param = &mut materialset.parameter[slot];
+
+    match action {
+        SetBlendSharpness(v) => param.blend_sharpness = *v,
+        SetSlopeBaseDampening(v) => param.slope_base_dampening = *v,
+        SetSlopeNormalDampening(v) => param.slope_normal_dampening = *v,
+        SetSpecularityScale(v) => param.specularity_scale = *v,
+        SetSpecularity(v) => param.specularity = *v,
+        SetSpecularityBase(v) => param.specularity_base = *v,
+        SetFalloff(v) => param.falloff = *v,
+    }
+}
 // ----------------------------------------------------------------------------
 #[inline(always)]
 pub(super) fn update_brush_pointer(settings: &PointerSettings, brush_pointer: &mut BrushPointer) {
@@ -21,8 +43,13 @@ pub(super) fn update_brush_on_texture_selection(
     toolbox: &mut ToolboxState,
     brush: &mut BrushPointer,
 ) {
-    toolbox.selection = Some(ToolSelection::Texturing);
-    update_brush_pointer(&toolbox.pointer_settings(), brush);
+    use ToolSelection::MaterialParameters;
+
+    // switch to texturing tool
+    if !matches!(toolbox.selection, Some(MaterialParameters)) {
+        toolbox.selection = Some(ToolSelection::Texturing);
+        update_brush_pointer(&toolbox.pointer_settings(), brush);
+    }
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]

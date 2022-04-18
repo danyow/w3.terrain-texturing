@@ -5,7 +5,7 @@ pub(super) fn show_ui(
     mut egui_ctx: ResMut<EguiContext>,
     mut ui_state: ResMut<UiState>,
     ui_images: Res<UiImages>,
-    materialset: Option<Res<TerrainMaterialSet>>,
+    materialset: Res<TerrainMaterialSet>,
     mesh_settings: Option<Res<TerrainMeshSettings>>,
     sun_settings: Option<Res<SunSettings>>,
     atmosphere_settings: Option<Res<AtmosphereMat>>,

@@ -6,7 +6,9 @@ use crate::terrain_material::MaterialSlot;
 use crate::terrain_painting::{
     BrushPlacement, OverwriteProbability, PaintingEvent, SlopeBlendThreshold, TextureScale,
 };
-use crate::terrain_render::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
+use crate::terrain_render::{
+    BrushPointer, BrushPointerEventData, BrushPointerEventReceiver, TerrainMaterialSet,
+};
 
 use common::{BrushSize, PointerSettings};
 
@@ -43,11 +45,25 @@ pub enum ToolboxAction {
     UpdateBrushSettings,
     SelectOverlayTexture(MaterialSlot),
     SelectBackgroundTexture(MaterialSlot),
+    UpdateMaterial(MaterialSlot, MaterialSetting),
+}
+// ---------------------------------------------------------------------------
+#[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
+pub enum MaterialSetting {
+    SetBlendSharpness(f32),
+    SetSlopeBaseDampening(f32),
+    SetSlopeNormalDampening(f32),
+    SetSpecularityScale(f32),
+    SetSpecularity(f32),
+    SetSpecularityBase(f32),
+    SetFalloff(f32),
 }
 // ---------------------------------------------------------------------------
 #[derive(Eq, PartialEq, Clone, Copy)]
 enum ToolSelection {
     Texturing,
+    MaterialParameters,
 }
 // ----------------------------------------------------------------------------
 mod common;
@@ -73,6 +89,7 @@ fn process_brush_clicks(
                 Texturing => {
                     update::create_texture_brush_paint_cmds(button, &settings.texture_brush)
                 }
+                MaterialParameters => continue,
             };
             if !cmds.is_empty() {
                 editor_events.send(PaintingEvent::new(BrushPlacement::new(pos, radius), cmds));
@@ -85,6 +102,7 @@ fn handle_ui_actions(
     mut ui_state: ResMut<UiState>,
     mut ui_action: EventReader<GuiAction>,
     mut brush: ResMut<BrushPointer>,
+    mut materialset: ResMut<TerrainMaterialSet>,
 ) {
     use ToolboxAction::*;
 
@@ -101,6 +119,9 @@ fn handle_ui_actions(
                 SelectBackgroundTexture(material_slot) => {
                     ui_state.toolbox.texture_brush.bkgrnd_texture = *material_slot;
                     update::update_brush_on_texture_selection(&mut ui_state.toolbox, &mut *brush);
+                }
+                UpdateMaterial(slot, setting) => {
+                    update::update_material_settings(*slot, setting, &mut *materialset);
                 }
             }
         }
@@ -159,7 +180,7 @@ impl ToolboxState {
         use ToolSelection::*;
         match self.selection {
             Some(Texturing) => true,
-            None => false,
+            Some(MaterialParameters) | None => false,
         }
     }
     // ------------------------------------------------------------------------
@@ -167,7 +188,7 @@ impl ToolboxState {
         use ToolSelection::*;
         match self.selection {
             Some(Texturing) => self.texture_brush.scale_pointer(scale),
-            None => {}
+            Some(MaterialParameters) | None => {}
         }
     }
     // ------------------------------------------------------------------------
@@ -175,7 +196,7 @@ impl ToolboxState {
         use ToolSelection::*;
         match self.selection {
             Some(Texturing) => self.texture_brush.pointer_settings(),
-            None => {
+            Some(MaterialParameters) | None => {
                 // pointer should be deactivated, see has_projected_pointer
                 unreachable!("pointer should have been deactivated!")
             }
