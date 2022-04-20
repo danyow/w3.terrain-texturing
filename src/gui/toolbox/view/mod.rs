@@ -53,6 +53,8 @@ use crate::gui::{GuiAction, UiExtension, UiImages};
 
 use super::{ToolSelection::*, ToolboxAction, ToolboxState};
 // ----------------------------------------------------------------------------
+mod common;
+
 mod materialpalette;
 mod materialsettings;
 mod textures;

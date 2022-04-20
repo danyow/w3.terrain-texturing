@@ -59,27 +59,20 @@ pub(super) fn show(
                 ui.add_enabled_ui(background_used, |ui| {
                     ui.small(format!("Background: material #{}", *brush.bkgrnd_texture + 1));
                 });
-                // ----------------------------------------------------------------------------
+                // ------------------------------------------------------------
                 ui.separator();
                 randomize_settings(ui, brush, overlay_used, background_used);
-                // ----------------------------------------------------------------------------
+                // ------------------------------------------------------------
                 ui.separator();
                 scale_and_blend_settings(ui, brush);
-                // ----------------------------------------------------------------------------
+                // ------------------------------------------------------------
                 ui.separator();
             });
             ui.end_row();
 
             // --- Brush size
-            ui.label("Brush size:");
-
-            let size = brush.size.to_u8();
-            if ui.add(Slider::new(brush.size.as_mut(), BRUSH_SIZE_MIN..=BRUSH_SIZE_MAX)
-                .show_value(false)
-                .text(format!("{} [m]", size)))
-                .changed()
-            {
-                result = Some(ToolboxAction::UpdateBrushSettings);
+            if let Some(action) = common::show_brushsize_control(ui, &mut brush.size) {
+                result = Some(action);
             }
 
             ui.end_row();
@@ -233,8 +226,8 @@ use crate::gui::TEXTURE_PREVIEW_SIZE_SMALL;
 use crate::gui::{GuiAction, UiImages};
 use crate::terrain_material::{MaterialSlot, TextureType};
 
-use crate::gui::toolbox::common::{BRUSH_SIZE_MAX, BRUSH_SIZE_MIN};
 use crate::gui::toolbox::texturebrush::{BrushSettings, BrushTexturesUsed};
 
+use super::common;
 use super::ToolboxAction;
 // ----------------------------------------------------------------------------
