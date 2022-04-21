@@ -16,6 +16,10 @@ pub fn show_ui(
         ui.deselectable_value(&mut toolbox.selection, Texturing, egui::RichText::new("Texturing").small())
             .on_hover_text("Texture Brush: overwriting of overlay and/or background texture.");
 
+        ui.deselectable_value(&mut toolbox.selection, Blending, egui::RichText::new("Blending").small())
+            .on_hover_text("Blending Brush: adjusting or overwriting of slope blend threshold \
+                (blending between overlay and background texture).");
+
         ui.deselectable_value(&mut toolbox.selection, Scaling, egui::RichText::new("Scaling").small())
             .on_hover_text("Scaling Brush: adjusting or overwriting of background texture scaling.");
 
@@ -26,6 +30,9 @@ pub fn show_ui(
     match toolbox.selection {
         Some(Texturing) => {
             textures::show(ui, ui_images, &mut toolbox.texture_brush, gui_event);
+        }
+        Some(Blending) => {
+            blending::show(ui, &mut toolbox.blending_brush, gui_event);
         }
         Some(Scaling) => {
             scaling::show(ui, &mut toolbox.scaling_brush, gui_event);
@@ -61,8 +68,9 @@ use super::{ToolSelection::*, ToolboxAction, ToolboxState};
 // ----------------------------------------------------------------------------
 mod common;
 
+mod blending;
 mod materialpalette;
 mod materialsettings;
-mod textures;
 mod scaling;
+mod textures;
 // ----------------------------------------------------------------------------

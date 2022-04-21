@@ -63,6 +63,22 @@ pub enum PaintCommand {
     RandomizedReduceBackgroundScalingWithVariance(OverwriteProbability, Variance),
     // slope blending
     SetSlopeBlendThreshold(SlopeBlendThreshold),
+    SetSlopeBlendThresholdWithVariance(SlopeBlendThreshold, Variance),
+    IncreaseSlopeBlendThreshold,
+    ReduceSlopeBlendThreshold,
+    IncreaseSlopeBlendThresholdWithVariance(Variance),
+    ReduceSlopeBlendThresholdWithVariance(Variance),
+    // slope blending - randomized versions
+    RandomizedSetSlopeBlendThreshold(OverwriteProbability, SlopeBlendThreshold),
+    RandomizedSetSlopeBlendThresholdWithVariance(
+        OverwriteProbability,
+        SlopeBlendThreshold,
+        Variance,
+    ),
+    RandomizedIncreaseSlopeBlendThreshold(OverwriteProbability),
+    RandomizedIncreaseSlopeBlendThresholdWithVariance(OverwriteProbability, Variance),
+    RandomizedReduceSlopeBlendThreshold(OverwriteProbability),
+    RandomizedReduceSlopeBlendThresholdWithVariance(OverwriteProbability, Variance),
 }
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainPaintingPlugin {
@@ -74,11 +90,6 @@ impl Plugin for TerrainPaintingPlugin {
 }
 // ----------------------------------------------------------------------------
 // systems
-// ----------------------------------------------------------------------------
-const BLENDING_BITPOS: u8 = 10;
-const BLENDING_BITMASK: u16 = 0b0001_1100_0000_0000;
-const SCALING_BITPOS: u8 = 13;
-const SCALING_BITMASK: u16 = 0b1110_0000_0000_0000;
 // ----------------------------------------------------------------------------
 fn process_brush_operations(
     config: Res<TerrainConfig>,
@@ -180,6 +191,60 @@ fn process_brush_operations(
                         &mask, &mut data, *value,
                     );
                 }
+                SetSlopeBlendThresholdWithVariance(value, variance) => {
+                    set_value_with_variance::<BLENDING_BITMASK, BLENDING_BITPOS, SlopeBlendThreshold>(
+                        &mask, &mut data, *value, *variance,
+                    );
+                }
+                IncreaseSlopeBlendThreshold => {
+                    increase_value::<BLENDING_BITMASK, BLENDING_BITPOS>(&mask, &mut data);
+                }
+                ReduceSlopeBlendThreshold => {
+                    reduce_value::<BLENDING_BITMASK, BLENDING_BITPOS>(&mask, &mut data);
+                }
+                IncreaseSlopeBlendThresholdWithVariance(variance) => {
+                    increase_value_with_variance::<BLENDING_BITMASK, BLENDING_BITPOS>(
+                        &mask, &mut data, *variance,
+                    );
+                }
+                ReduceSlopeBlendThresholdWithVariance(variance) => {
+                    reduce_value_with_variance::<BLENDING_BITMASK, BLENDING_BITPOS>(
+                        &mask, &mut data, *variance,
+                    );
+                }
+                // -- blending randomized versions
+                RandomizedSetSlopeBlendThreshold(prob, value) => {
+                    randomized_set_value::<BLENDING_BITMASK, BLENDING_BITPOS, SlopeBlendThreshold>(
+                        &mask, &mut data, *value, *prob,
+                    );
+                }
+                RandomizedSetSlopeBlendThresholdWithVariance(prob, value, variance) => {
+                    randomized_set_value_with_variance::<
+                        BLENDING_BITMASK,
+                        BLENDING_BITPOS,
+                        SlopeBlendThreshold,
+                    >(&mask, &mut data, *value, *variance, *prob);
+                }
+                RandomizedIncreaseSlopeBlendThreshold(prob) => {
+                    randomized_increase_value::<BLENDING_BITMASK, BLENDING_BITPOS>(
+                        &mask, &mut data, *prob,
+                    );
+                }
+                RandomizedIncreaseSlopeBlendThresholdWithVariance(prob, variance) => {
+                    randomized_increase_value_with_variance::<BLENDING_BITMASK, BLENDING_BITPOS>(
+                        &mask, &mut data, *variance, *prob,
+                    );
+                }
+                RandomizedReduceSlopeBlendThreshold(prob) => {
+                    randomized_reduce_value::<BLENDING_BITMASK, BLENDING_BITPOS>(
+                        &mask, &mut data, *prob,
+                    );
+                }
+                RandomizedReduceSlopeBlendThresholdWithVariance(prob, variance) => {
+                    randomized_reduce_value_with_variance::<BLENDING_BITMASK, BLENDING_BITPOS>(
+                        &mask, &mut data, *variance, *prob,
+                    );
+                }
             }
         }
         // updating full resolution is not enough: the clipmap must also be
@@ -231,6 +296,12 @@ fn calculate_region_of_interest(
 //   10..12 slope threshold
 //   13..15 UV scale
 //
+// ----------------------------------------------------------------------------
+const BLENDING_BITPOS: u8 = 10;
+const BLENDING_BITMASK: u16 = 0b0001_1100_0000_0000;
+const SCALING_BITPOS: u8 = 13;
+const SCALING_BITMASK: u16 = 0b1110_0000_0000_0000;
+// ----------------------------------------------------------------------------
 #[inline(always)]
 fn paint_overlay_texture(mask: &[bool], data: &mut [u16], slot: &MaterialSlot) {
     // zero is reserved for holes

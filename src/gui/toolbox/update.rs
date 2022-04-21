@@ -8,7 +8,7 @@ use crate::terrain_material::MaterialSlot;
 use crate::terrain_painting::PaintCommand;
 use crate::terrain_render::{BrushPointer, TerrainMaterialSet};
 
-use super::{scalingbrush, texturebrush};
+use super::{blendingbrush, scalingbrush, texturebrush};
 use super::{MaterialSetting, PointerSettings, ToolSelection, ToolboxState};
 // ----------------------------------------------------------------------------
 #[inline(always)]
@@ -105,6 +105,67 @@ pub(super) fn create_texture_brush_paint_cmds(
             cmds.push(SetSlopeBlendThreshold(settings.slope_blend));
         }
     }
+    cmds
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+pub(super) fn create_blending_brush_paint_cmds(
+    button: MouseButton,
+    settings: &blendingbrush::BrushSettings,
+) -> Vec<PaintCommand> {
+    use PaintCommand::*;
+
+    let mut cmds = Vec::default();
+    let overwrite_probability = settings.overwrite_probability();
+    let variance = settings.value_variance();
+
+    // other buttons are ignored for texture brush
+    match button {
+        MouseButton::Left if !settings.adjust_values => {
+            // direct ovewrite of slope blend
+            let paint_operation = match (overwrite_probability, variance) {
+                (None, None) => SetSlopeBlendThreshold(settings.slope_blend),
+                (None, Some(variance)) => {
+                    SetSlopeBlendThresholdWithVariance(settings.slope_blend, variance)
+                }
+                (Some(prob), None) => RandomizedSetSlopeBlendThreshold(prob, settings.slope_blend),
+                (Some(prob), Some(variance)) => RandomizedSetSlopeBlendThresholdWithVariance(
+                    prob,
+                    settings.slope_blend,
+                    variance,
+                ),
+            };
+            cmds.push(paint_operation);
+        }
+
+        MouseButton::Left if settings.adjust_values => {
+            // relative increase of slope blend
+            let paint_operation = match (overwrite_probability, variance) {
+                (None, None) => IncreaseSlopeBlendThreshold,
+                (None, Some(variance)) => IncreaseSlopeBlendThresholdWithVariance(variance),
+                (Some(prob), None) => RandomizedIncreaseSlopeBlendThreshold(prob),
+                (Some(prob), Some(variance)) => {
+                    RandomizedIncreaseSlopeBlendThresholdWithVariance(prob, variance)
+                }
+            };
+            cmds.push(paint_operation);
+        }
+
+        MouseButton::Right if settings.adjust_values => {
+            // relative reduction of slope blend
+            let paint_operation = match (overwrite_probability, variance) {
+                (None, None) => ReduceSlopeBlendThreshold,
+                (None, Some(variance)) => ReduceSlopeBlendThresholdWithVariance(variance),
+                (Some(prob), None) => RandomizedReduceSlopeBlendThreshold(prob),
+                (Some(prob), Some(variance)) => {
+                    RandomizedReduceSlopeBlendThresholdWithVariance(prob, variance)
+                }
+            };
+            cmds.push(paint_operation);
+        }
+        _ => {}
+    }
+
     cmds
 }
 // ----------------------------------------------------------------------------

@@ -38,6 +38,7 @@ pub struct ToolboxState {
     pub enabled: bool,
     selection: Option<ToolSelection>,
     texture_brush: texturebrush::BrushSettings,
+    blending_brush: blendingbrush::BrushSettings,
     scaling_brush: scalingbrush::BrushSettings,
 }
 // ---------------------------------------------------------------------------
@@ -65,11 +66,14 @@ pub enum MaterialSetting {
 #[derive(Eq, PartialEq, Clone, Copy)]
 enum ToolSelection {
     Texturing,
+    Blending,
     Scaling,
     MaterialParameters,
 }
 // ----------------------------------------------------------------------------
 mod common;
+
+mod blendingbrush;
 mod scalingbrush;
 mod texturebrush;
 
@@ -92,6 +96,9 @@ fn process_brush_clicks(
             let cmds = match selection {
                 Texturing => {
                     update::create_texture_brush_paint_cmds(button, &settings.texture_brush)
+                }
+                Blending => {
+                    update::create_blending_brush_paint_cmds(button, &settings.blending_brush)
                 }
                 Scaling => update::create_scaling_brush_paint_cmds(button, &settings.scaling_brush),
                 MaterialParameters => continue,
@@ -184,7 +191,7 @@ impl ToolboxState {
     fn has_projected_pointer(&self) -> bool {
         use ToolSelection::*;
         match self.selection {
-            Some(Texturing) | Some(Scaling) => true,
+            Some(Texturing) | Some(Scaling) | Some(Blending) => true,
             Some(MaterialParameters) | None => false,
         }
     }
@@ -193,6 +200,7 @@ impl ToolboxState {
         use ToolSelection::*;
         match self.selection {
             Some(Texturing) => self.texture_brush.scale_pointer(scale),
+            Some(Blending) => self.blending_brush.scale_pointer(scale),
             Some(Scaling) => self.scaling_brush.scale_pointer(scale),
             Some(MaterialParameters) | None => {}
         }
@@ -202,6 +210,7 @@ impl ToolboxState {
         use ToolSelection::*;
         match self.selection {
             Some(Texturing) => self.texture_brush.pointer_settings(),
+            Some(Blending) => self.blending_brush.pointer_settings(),
             Some(Scaling) => self.scaling_brush.pointer_settings(),
             Some(MaterialParameters) | None => {
                 // pointer should be deactivated, see has_projected_pointer
