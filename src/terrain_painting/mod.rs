@@ -37,6 +37,8 @@ pub struct OverwriteProbability(pub f32);
 pub struct TextureScale(pub u8);
 #[derive(Clone, Copy, Debug)]
 pub struct SlopeBlendThreshold(pub u8);
+#[derive(Clone, Copy, Debug)]
+pub struct Variance(pub u8);
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub enum PaintCommand {
@@ -47,18 +49,18 @@ pub enum PaintCommand {
     RandomizedSetBackgroundMaterial(OverwriteProbability, MaterialSlot),
     // scaling
     SetBackgroundScaling(TextureScale),
-    SetBackgroundScalingWithVariance(TextureScale, TextureScale),
+    SetBackgroundScalingWithVariance(TextureScale, Variance),
     IncreaseBackgroundScaling,
     ReduceBackgroundScaling,
-    IncreaseBackgroundScalingWithVariance(TextureScale),
-    ReduceBackgroundScalingWithVariance(TextureScale),
+    IncreaseBackgroundScalingWithVariance(Variance),
+    ReduceBackgroundScalingWithVariance(Variance),
     // scaling - randomized versions
     RandomizedSetBackgroundScaling(OverwriteProbability, TextureScale),
-    RandomizedSetBackgroundScalingWithVariance(OverwriteProbability, TextureScale, TextureScale),
+    RandomizedSetBackgroundScalingWithVariance(OverwriteProbability, TextureScale, Variance),
     RandomizedIncreaseBackgroundScaling(OverwriteProbability),
-    RandomizedIncreaseBackgroundScalingWithVariance(OverwriteProbability, TextureScale),
+    RandomizedIncreaseBackgroundScalingWithVariance(OverwriteProbability, Variance),
     RandomizedReduceBackgroundScaling(OverwriteProbability),
-    RandomizedReduceBackgroundScalingWithVariance(OverwriteProbability, TextureScale),
+    RandomizedReduceBackgroundScalingWithVariance(OverwriteProbability, Variance),
     // slope blending
     SetSlopeBlendThreshold(SlopeBlendThreshold),
 }
@@ -301,12 +303,12 @@ fn set_value<const BIT_MASK: u16, const BIT_POS: u8, V: ControlMapValue>(
 fn randomized_set_value<const BIT_MASK: u16, const BIT_POS: u8, V: ControlMapValue>(
     mask: &[bool],
     data: &mut [u16],
-    value: TextureScale,
+    value: V,
     probability: OverwriteProbability,
 ) {
     let mut rng = thread_rng();
 
-    let value = *value as u16;
+    let value = value.as_value();
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
             *d = (*d & !BIT_MASK) + (value << BIT_POS);
@@ -318,13 +320,13 @@ fn randomized_set_value<const BIT_MASK: u16, const BIT_POS: u8, V: ControlMapVal
 fn set_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8, V: ControlMapValue>(
     mask: &[bool],
     data: &mut [u16],
-    value: TextureScale,
-    variance: TextureScale,
+    value: V,
+    variance: Variance,
 ) {
     let mut rng = thread_rng();
 
-    let value = *value as u16;
-    let variance = *variance as u16;
+    let value = value.as_value();
+    let variance = variance.as_value();
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         let value = (value + rng.gen_range(0..=variance)).clamp(0, 7);
         *d = (*d & !BIT_MASK) + (value << BIT_POS);
@@ -339,14 +341,14 @@ fn randomized_set_value_with_variance<
 >(
     mask: &[bool],
     data: &mut [u16],
-    value: TextureScale,
-    variance: TextureScale,
+    value: V,
+    variance: Variance,
     probability: OverwriteProbability,
 ) {
     let mut rng = thread_rng();
 
-    let value = *value as u16;
-    let variance = *variance as u16;
+    let value = value.as_value();
+    let variance = variance.as_value();
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
             let value = (value + rng.gen_range(0..=variance)).clamp(0, 7);
@@ -383,11 +385,11 @@ fn randomized_increase_value<const BIT_MASK: u16, const BIT_POS: u8>(
 fn increase_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
     mask: &[bool],
     data: &mut [u16],
-    variance: TextureScale,
+    variance: Variance,
 ) {
     let mut rng = thread_rng();
 
-    let variance = *variance as u16;
+    let variance = variance.as_value();
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         let value = (((*d & BIT_MASK) >> BIT_POS) + rng.gen_range(0..=variance)).clamp(0, 7);
         *d = (*d & !BIT_MASK) + (value << BIT_POS);
@@ -398,12 +400,12 @@ fn increase_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
 fn randomized_increase_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
     mask: &[bool],
     data: &mut [u16],
-    variance: TextureScale,
+    variance: Variance,
     probability: OverwriteProbability,
 ) {
     let mut rng = thread_rng();
 
-    let variance = *variance as u16;
+    let variance = variance.as_value();
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
             let value = (((*d & BIT_MASK) >> BIT_POS) + rng.gen_range(0..=variance)).clamp(0, 7);
@@ -440,11 +442,11 @@ fn randomized_reduce_value<const BIT_MASK: u16, const BIT_POS: u8>(
 fn reduce_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
     mask: &[bool],
     data: &mut [u16],
-    variance: TextureScale,
+    variance: Variance,
 ) {
     let mut rng = thread_rng();
 
-    let variance = *variance as u16;
+    let variance = variance.as_value();
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         let value = ((*d & BIT_MASK) >> BIT_POS).saturating_sub(rng.gen_range(0..=variance));
         *d = (*d & !BIT_MASK) + (value << BIT_POS);
@@ -455,12 +457,12 @@ fn reduce_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
 fn randomized_reduce_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
     mask: &[bool],
     data: &mut [u16],
-    variance: TextureScale,
+    variance: Variance,
     probability: OverwriteProbability,
 ) {
     let mut rng = thread_rng();
 
-    let variance = *variance as u16;
+    let variance = variance.as_value();
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
             let value = ((*d & BIT_MASK) >> BIT_POS).saturating_sub(rng.gen_range(0..=variance));
@@ -506,6 +508,12 @@ impl ControlMapValue for TextureScale {
 // ----------------------------------------------------------------------------
 impl ControlMapValue for SlopeBlendThreshold {
     #[inline(always)]
+    fn as_value(&self) -> u16 {
+        self.0 as u16
+    }
+}
+// ----------------------------------------------------------------------------
+impl Variance {
     fn as_value(&self) -> u16 {
         self.0 as u16
     }

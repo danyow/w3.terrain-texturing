@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use crate::terrain_material::MaterialSlot;
 use crate::terrain_painting::{
     BrushPlacement, OverwriteProbability, PaintingEvent, SlopeBlendThreshold, TextureScale,
+    Variance,
 };
 use crate::terrain_render::{
     BrushPointer, BrushPointerEventData, BrushPointerEventReceiver, TerrainMaterialSet,

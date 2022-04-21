@@ -3,7 +3,9 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::Color;
 
-use super::{BrushSize, OverwriteProbability, PointerSettings, TextureScale, ToolBrushPointer};
+use super::{
+    BrushSize, OverwriteProbability, PointerSettings, TextureScale, ToolBrushPointer, Variance,
+};
 // ----------------------------------------------------------------------------
 pub(super) struct BrushSettings {
     pub size: BrushSize,
@@ -11,12 +13,11 @@ pub(super) struct BrushSettings {
     pub adjust_values: bool,
 
     pub draw_probability: u8,
-    pub variance: TextureScale,
+    pub variance: Variance,
 
     pub randomize: bool,
     pub use_variance: bool,
 }
-// ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 impl ToolBrushPointer for BrushSettings {
     // ------------------------------------------------------------------------
@@ -44,7 +45,7 @@ impl BrushSettings {
         }
     }
     // ------------------------------------------------------------------------
-    pub fn value_variance(&self) -> Option<TextureScale> {
+    pub fn value_variance(&self) -> Option<Variance> {
         if self.use_variance {
             Some(self.variance)
         } else {
@@ -64,7 +65,7 @@ impl Default for BrushSettings {
             adjust_values: true,
 
             draw_probability: 50,
-            variance: TextureScale(1),
+            variance: Variance(1),
             randomize: false,
             use_variance: false,
         }
