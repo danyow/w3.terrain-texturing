@@ -8,8 +8,8 @@ use crate::terrain_material::MaterialSlot;
 use crate::terrain_painting::PaintCommand;
 use crate::terrain_render::{BrushPointer, TerrainMaterialSet};
 
-use super::texturebrush;
-use super::{PointerSettings, ToolSelection, ToolboxState, MaterialSetting};
+use super::{scalingbrush, texturebrush};
+use super::{MaterialSetting, PointerSettings, ToolSelection, ToolboxState};
 // ----------------------------------------------------------------------------
 #[inline(always)]
 pub(super) fn update_material_settings(
@@ -105,6 +105,65 @@ pub(super) fn create_texture_brush_paint_cmds(
             cmds.push(SetSlopeBlendThreshold(settings.slope_blend));
         }
     }
+    cmds
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+pub(super) fn create_scaling_brush_paint_cmds(
+    button: MouseButton,
+    settings: &scalingbrush::BrushSettings,
+) -> Vec<PaintCommand> {
+    use PaintCommand::*;
+
+    let mut cmds = Vec::default();
+    let overwrite_probability = settings.overwrite_probability();
+    let variance = settings.value_variance();
+
+    // other buttons are ignored for texture brush
+    match button {
+        MouseButton::Left if !settings.adjust_values => {
+            // direct ovewrite of scaling
+            let paint_operation = match (overwrite_probability, variance) {
+                (None, None) => SetBackgroundScaling(settings.scaling),
+                (None, Some(variance)) => {
+                    SetBackgroundScalingWithVariance(settings.scaling, variance)
+                }
+                (Some(prob), None) => RandomizedSetBackgroundScaling(prob, settings.scaling),
+                (Some(prob), Some(variance)) => {
+                    RandomizedSetBackgroundScalingWithVariance(prob, settings.scaling, variance)
+                }
+            };
+            cmds.push(paint_operation);
+        }
+
+        MouseButton::Left if settings.adjust_values => {
+            // relative increase of scaling
+            let paint_operation = match (overwrite_probability, variance) {
+                (None, None) => IncreaseBackgroundScaling,
+                (None, Some(variance)) => IncreaseBackgroundScalingWithVariance(variance),
+                (Some(prob), None) => RandomizedIncreaseBackgroundScaling(prob),
+                (Some(prob), Some(variance)) => {
+                    RandomizedIncreaseBackgroundScalingWithVariance(prob, variance)
+                }
+            };
+            cmds.push(paint_operation);
+        }
+
+        MouseButton::Right if settings.adjust_values => {
+            // relative reduction of scaling
+            let paint_operation = match (overwrite_probability, variance) {
+                (None, None) => ReduceBackgroundScaling,
+                (None, Some(variance)) => ReduceBackgroundScalingWithVariance(variance),
+                (Some(prob), None) => RandomizedReduceBackgroundScaling(prob),
+                (Some(prob), Some(variance)) => {
+                    RandomizedReduceBackgroundScalingWithVariance(prob, variance)
+                }
+            };
+            cmds.push(paint_operation);
+        }
+        _ => {}
+    }
+
     cmds
 }
 // ----------------------------------------------------------------------------

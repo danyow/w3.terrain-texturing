@@ -37,6 +37,7 @@ pub struct ToolboxState {
     pub enabled: bool,
     selection: Option<ToolSelection>,
     texture_brush: texturebrush::BrushSettings,
+    scaling_brush: scalingbrush::BrushSettings,
 }
 // ---------------------------------------------------------------------------
 #[derive(Debug)]
@@ -63,10 +64,12 @@ pub enum MaterialSetting {
 #[derive(Eq, PartialEq, Clone, Copy)]
 enum ToolSelection {
     Texturing,
+    Scaling,
     MaterialParameters,
 }
 // ----------------------------------------------------------------------------
 mod common;
+mod scalingbrush;
 mod texturebrush;
 
 mod update;
@@ -89,6 +92,7 @@ fn process_brush_clicks(
                 Texturing => {
                     update::create_texture_brush_paint_cmds(button, &settings.texture_brush)
                 }
+                Scaling => update::create_scaling_brush_paint_cmds(button, &settings.scaling_brush),
                 MaterialParameters => continue,
             };
             if !cmds.is_empty() {
@@ -179,7 +183,7 @@ impl ToolboxState {
     fn has_projected_pointer(&self) -> bool {
         use ToolSelection::*;
         match self.selection {
-            Some(Texturing) => true,
+            Some(Texturing) | Some(Scaling) => true,
             Some(MaterialParameters) | None => false,
         }
     }
@@ -188,6 +192,7 @@ impl ToolboxState {
         use ToolSelection::*;
         match self.selection {
             Some(Texturing) => self.texture_brush.scale_pointer(scale),
+            Some(Scaling) => self.scaling_brush.scale_pointer(scale),
             Some(MaterialParameters) | None => {}
         }
     }
@@ -196,6 +201,7 @@ impl ToolboxState {
         use ToolSelection::*;
         match self.selection {
             Some(Texturing) => self.texture_brush.pointer_settings(),
+            Some(Scaling) => self.scaling_brush.pointer_settings(),
             Some(MaterialParameters) | None => {
                 // pointer should be deactivated, see has_projected_pointer
                 unreachable!("pointer should have been deactivated!")

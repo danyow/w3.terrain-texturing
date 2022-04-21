@@ -16,6 +16,9 @@ pub fn show_ui(
         ui.deselectable_value(&mut toolbox.selection, Texturing, egui::RichText::new("Texturing").small())
             .on_hover_text("Texture Brush: overwriting of overlay and/or background texture.");
 
+        ui.deselectable_value(&mut toolbox.selection, Scaling, egui::RichText::new("Scaling").small())
+            .on_hover_text("Scaling Brush: adjusting or overwriting of background texture scaling.");
+
         ui.deselectable_value(&mut toolbox.selection, MaterialParameters, ui.small_text("Material Parameters"));
     });
     ui.separator();
@@ -23,6 +26,9 @@ pub fn show_ui(
     match toolbox.selection {
         Some(Texturing) => {
             textures::show(ui, ui_images, &mut toolbox.texture_brush, gui_event);
+        }
+        Some(Scaling) => {
+            scaling::show(ui, &mut toolbox.scaling_brush, gui_event);
         }
         Some(MaterialParameters) => {
             materialsettings::show(
@@ -58,4 +64,5 @@ mod common;
 mod materialpalette;
 mod materialsettings;
 mod textures;
+mod scaling;
 // ----------------------------------------------------------------------------

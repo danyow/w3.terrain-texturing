@@ -1,4 +1,6 @@
 // ----------------------------------------------------------------------------
+use rand::{thread_rng, Rng};
+
 use bevy::math::{uvec2, vec2};
 use bevy::{ecs::schedule::StateData, prelude::*};
 
@@ -45,6 +47,18 @@ pub enum PaintCommand {
     RandomizedSetBackgroundMaterial(OverwriteProbability, MaterialSlot),
     // scaling
     SetBackgroundScaling(TextureScale),
+    SetBackgroundScalingWithVariance(TextureScale, TextureScale),
+    IncreaseBackgroundScaling,
+    ReduceBackgroundScaling,
+    IncreaseBackgroundScalingWithVariance(TextureScale),
+    ReduceBackgroundScalingWithVariance(TextureScale),
+    // scaling - randomized versions
+    RandomizedSetBackgroundScaling(OverwriteProbability, TextureScale),
+    RandomizedSetBackgroundScalingWithVariance(OverwriteProbability, TextureScale, TextureScale),
+    RandomizedIncreaseBackgroundScaling(OverwriteProbability),
+    RandomizedIncreaseBackgroundScalingWithVariance(OverwriteProbability, TextureScale),
+    RandomizedReduceBackgroundScaling(OverwriteProbability),
+    RandomizedReduceBackgroundScalingWithVariance(OverwriteProbability, TextureScale),
     // slope blending
     SetSlopeBlendThreshold(SlopeBlendThreshold),
 }
@@ -65,6 +79,8 @@ fn process_brush_operations(
     mut texture_clipmap: ResMut<TextureControlClipmap>,
     mut clipmap_tracker: ResMut<ClipmapTracker>,
 ) {
+    use PaintCommand::*;
+
     for PaintingEvent(placement, cmds) in paint_events.iter() {
         let (rectangle, mask) = calculate_region_of_interest(&*config, placement);
 
@@ -75,25 +91,68 @@ fn process_brush_operations(
         texture_clipmap.disable_cache();
 
         let mut data = texture_clipmap.extract_fullres(&rectangle);
+        // TODO: insert rectangle into an undo stack
 
         for cmd in cmds {
             match cmd {
-                PaintCommand::SetOverlayMaterial(slot) => {
-                    paint_overlay_texture(&mask, &mut data, slot)
-                }
-                PaintCommand::RandomizedSetOverlayMaterial(prob, slot) => {
-                    paint_randomized_overlay_texture(&mask, &mut data, slot, *prob);
-                }
-                PaintCommand::SetBackgroundMaterial(slot) => {
+                // -- texturing
+                SetOverlayMaterial(slot) => paint_overlay_texture(&mask, &mut data, slot),
+                SetBackgroundMaterial(slot) => {
                     paint_background_texture(&mask, &mut data, slot);
                 }
-                PaintCommand::RandomizedSetBackgroundMaterial(prob, slot) => {
+                // -- texturing randomized versions
+                RandomizedSetOverlayMaterial(prob, slot) => {
+                    paint_randomized_overlay_texture(&mask, &mut data, slot, *prob);
+                }
+                RandomizedSetBackgroundMaterial(prob, slot) => {
                     paint_randomized_background_texture(&mask, &mut data, slot, *prob);
                 }
-                PaintCommand::SetBackgroundScaling(value) => {
+                // -- scaling
+                SetBackgroundScaling(value) => {
                     set_background_scaling(&mask, &mut data, *value);
                 }
-                PaintCommand::SetSlopeBlendThreshold(value) => {
+                SetBackgroundScalingWithVariance(value, variance) => {
+                    set_background_scaling_with_variance(&mask, &mut data, *value, *variance);
+                }
+                IncreaseBackgroundScaling => {
+                    increase_background_scaling(&mask, &mut data);
+                }
+                ReduceBackgroundScaling => {
+                    reduce_background_scaling(&mask, &mut data);
+                }
+                IncreaseBackgroundScalingWithVariance(variance) => {
+                    increase_background_scaling_with_variance(&mask, &mut data, *variance);
+                }
+                ReduceBackgroundScalingWithVariance(variance) => {
+                    reduce_background_scaling_with_variance(&mask, &mut data, *variance);
+                }
+                // -- scaling randomized versions
+                RandomizedSetBackgroundScaling(prob, value) => {
+                    set_randomized_background_scaling(&mask, &mut data, *value, *prob);
+                }
+                RandomizedSetBackgroundScalingWithVariance(prob, value, variance) => {
+                    set_randomized_background_scaling_with_variance(
+                        &mask, &mut data, *value, *variance, *prob,
+                    );
+                }
+                RandomizedIncreaseBackgroundScaling(prob) => {
+                    randomized_increase_background_scaling(&mask, &mut data, *prob);
+                }
+                RandomizedIncreaseBackgroundScalingWithVariance(prob, variance) => {
+                    randomized_increase_background_scaling_with_variance(
+                        &mask, &mut data, *variance, *prob,
+                    );
+                }
+                RandomizedReduceBackgroundScaling(prob) => {
+                    randomized_reduce_background_scaling(&mask, &mut data, *prob);
+                }
+                RandomizedReduceBackgroundScalingWithVariance(prob, variance) => {
+                    randomized_reduce_background_scaling_with_variance(
+                        &mask, &mut data, *variance, *prob,
+                    );
+                }
+                // -- blending
+                SetSlopeBlendThreshold(value) => {
                     set_slope_blend_threshold(&mask, &mut data, *value);
                 }
             }
@@ -172,7 +231,6 @@ fn paint_randomized_overlay_texture(
     slot: &MaterialSlot,
     probability: OverwriteProbability,
 ) {
-    use rand::{thread_rng, Rng};
     let mut rng = thread_rng();
 
     // zero is reserved for holes
@@ -191,7 +249,6 @@ fn paint_randomized_background_texture(
     slot: &MaterialSlot,
     probability: OverwriteProbability,
 ) {
-    use rand::{thread_rng, Rng};
     let mut rng = thread_rng();
 
     // zero is reserved for holes
@@ -211,11 +268,184 @@ fn set_slope_blend_threshold(mask: &[bool], data: &mut [u16], value: SlopeBlendT
     }
 }
 // ----------------------------------------------------------------------------
+// scaling ops
+// ----------------------------------------------------------------------------
 #[inline(always)]
 fn set_background_scaling(mask: &[bool], data: &mut [u16], value: TextureScale) {
     let value = *value as u16;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+    }
+} // ----------------------------------------------------------------------------
+#[inline(always)]
+fn set_randomized_background_scaling(
+    mask: &[bool],
+    data: &mut [u16],
+    value: TextureScale,
+    probability: OverwriteProbability,
+) {
+    let mut rng = thread_rng();
+
+    let value = *value as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        if rng.gen_bool(*probability as f64) {
+            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn set_background_scaling_with_variance(
+    mask: &[bool],
+    data: &mut [u16],
+    value: TextureScale,
+    variance: TextureScale,
+) {
+    let mut rng = thread_rng();
+
+    let value = *value as u16;
+    let variance = *variance as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        let value = (value + rng.gen_range(0..=variance)).clamp(0, 7);
+        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn set_randomized_background_scaling_with_variance(
+    mask: &[bool],
+    data: &mut [u16],
+    value: TextureScale,
+    variance: TextureScale,
+    probability: OverwriteProbability,
+) {
+    let mut rng = thread_rng();
+
+    let value = *value as u16;
+    let variance = *variance as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        if rng.gen_bool(*probability as f64) {
+            let value = (value + rng.gen_range(0..=variance)).clamp(0, 7);
+            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn increase_background_scaling(mask: &[bool], data: &mut [u16]) {
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        let value = (((*d & 0b1110_0000_0000_0000) >> 13) + 1).clamp(0, 7);
+        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn randomized_increase_background_scaling(
+    mask: &[bool],
+    data: &mut [u16],
+    probability: OverwriteProbability,
+) {
+    let mut rng = thread_rng();
+
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        if rng.gen_bool(*probability as f64) {
+            let value = (((*d & 0b1110_0000_0000_0000) >> 13) + 1).clamp(0, 7);
+            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn increase_background_scaling_with_variance(
+    mask: &[bool],
+    data: &mut [u16],
+    variance: TextureScale,
+) {
+    let mut rng = thread_rng();
+
+    let variance = *variance as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        let value =
+            (((*d & 0b1110_0000_0000_0000) >> 13) + rng.gen_range(0..=variance)).clamp(0, 7);
+        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn randomized_increase_background_scaling_with_variance(
+    mask: &[bool],
+    data: &mut [u16],
+    variance: TextureScale,
+    probability: OverwriteProbability,
+) {
+    let mut rng = thread_rng();
+
+    let variance = *variance as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        if rng.gen_bool(*probability as f64) {
+            let value =
+                (((*d & 0b1110_0000_0000_0000) >> 13) + rng.gen_range(0..=variance)).clamp(0, 7);
+            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn reduce_background_scaling(mask: &[bool], data: &mut [u16]) {
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        let value = ((*d & 0b1110_0000_0000_0000) >> 13).saturating_sub(1);
+        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn randomized_reduce_background_scaling(
+    mask: &[bool],
+    data: &mut [u16],
+    probability: OverwriteProbability,
+) {
+    let mut rng = thread_rng();
+
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        if rng.gen_bool(*probability as f64) {
+            let value = ((*d & 0b1110_0000_0000_0000) >> 13).saturating_sub(1);
+            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn reduce_background_scaling_with_variance(
+    mask: &[bool],
+    data: &mut [u16],
+    variance: TextureScale,
+) {
+    let mut rng = thread_rng();
+
+    let variance = *variance as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        let value =
+            ((*d & 0b1110_0000_0000_0000) >> 13).saturating_sub(rng.gen_range(0..=variance));
+        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn randomized_reduce_background_scaling_with_variance(
+    mask: &[bool],
+    data: &mut [u16],
+    variance: TextureScale,
+    probability: OverwriteProbability,
+) {
+    let mut rng = thread_rng();
+
+    let variance = *variance as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        if rng.gen_bool(*probability as f64) {
+            let value =
+                ((*d & 0b1110_0000_0000_0000) >> 13).saturating_sub(rng.gen_range(0..=variance));
+            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        }
     }
 }
 // ----------------------------------------------------------------------------
