@@ -73,6 +73,11 @@ impl Plugin for TerrainPaintingPlugin {
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
+const BLENDING_BITPOS: u8 = 10;
+const BLENDING_BITMASK: u16 = 0b0001_1100_0000_0000;
+const SCALING_BITPOS: u8 = 13;
+const SCALING_BITMASK: u16 = 0b1110_0000_0000_0000;
+// ----------------------------------------------------------------------------
 fn process_brush_operations(
     config: Res<TerrainConfig>,
     mut paint_events: EventReader<PaintingEvent>,
@@ -109,51 +114,69 @@ fn process_brush_operations(
                 }
                 // -- scaling
                 SetBackgroundScaling(value) => {
-                    set_background_scaling(&mask, &mut data, *value);
+                    set_value::<SCALING_BITMASK, SCALING_BITPOS, TextureScale>(
+                        &mask, &mut data, *value,
+                    );
                 }
                 SetBackgroundScalingWithVariance(value, variance) => {
-                    set_background_scaling_with_variance(&mask, &mut data, *value, *variance);
+                    set_value_with_variance::<SCALING_BITMASK, SCALING_BITPOS, TextureScale>(
+                        &mask, &mut data, *value, *variance,
+                    );
                 }
                 IncreaseBackgroundScaling => {
-                    increase_background_scaling(&mask, &mut data);
+                    increase_value::<SCALING_BITMASK, SCALING_BITPOS>(&mask, &mut data);
                 }
                 ReduceBackgroundScaling => {
-                    reduce_background_scaling(&mask, &mut data);
+                    reduce_value::<SCALING_BITMASK, SCALING_BITPOS>(&mask, &mut data);
                 }
                 IncreaseBackgroundScalingWithVariance(variance) => {
-                    increase_background_scaling_with_variance(&mask, &mut data, *variance);
+                    increase_value_with_variance::<SCALING_BITMASK, SCALING_BITPOS>(
+                        &mask, &mut data, *variance,
+                    );
                 }
                 ReduceBackgroundScalingWithVariance(variance) => {
-                    reduce_background_scaling_with_variance(&mask, &mut data, *variance);
+                    reduce_value_with_variance::<SCALING_BITMASK, SCALING_BITPOS>(
+                        &mask, &mut data, *variance,
+                    );
                 }
                 // -- scaling randomized versions
                 RandomizedSetBackgroundScaling(prob, value) => {
-                    set_randomized_background_scaling(&mask, &mut data, *value, *prob);
-                }
-                RandomizedSetBackgroundScalingWithVariance(prob, value, variance) => {
-                    set_randomized_background_scaling_with_variance(
-                        &mask, &mut data, *value, *variance, *prob,
+                    randomized_set_value::<SCALING_BITMASK, SCALING_BITPOS, TextureScale>(
+                        &mask, &mut data, *value, *prob,
                     );
                 }
+                RandomizedSetBackgroundScalingWithVariance(prob, value, variance) => {
+                    randomized_set_value_with_variance::<
+                        SCALING_BITMASK,
+                        SCALING_BITPOS,
+                        TextureScale,
+                    >(&mask, &mut data, *value, *variance, *prob);
+                }
                 RandomizedIncreaseBackgroundScaling(prob) => {
-                    randomized_increase_background_scaling(&mask, &mut data, *prob);
+                    randomized_increase_value::<SCALING_BITMASK, SCALING_BITPOS>(
+                        &mask, &mut data, *prob,
+                    );
                 }
                 RandomizedIncreaseBackgroundScalingWithVariance(prob, variance) => {
-                    randomized_increase_background_scaling_with_variance(
+                    randomized_increase_value_with_variance::<SCALING_BITMASK, SCALING_BITPOS>(
                         &mask, &mut data, *variance, *prob,
                     );
                 }
                 RandomizedReduceBackgroundScaling(prob) => {
-                    randomized_reduce_background_scaling(&mask, &mut data, *prob);
+                    randomized_reduce_value::<SCALING_BITMASK, SCALING_BITPOS>(
+                        &mask, &mut data, *prob,
+                    );
                 }
                 RandomizedReduceBackgroundScalingWithVariance(prob, variance) => {
-                    randomized_reduce_background_scaling_with_variance(
+                    randomized_reduce_value_with_variance::<SCALING_BITMASK, SCALING_BITPOS>(
                         &mask, &mut data, *variance, *prob,
                     );
                 }
                 // -- blending
                 SetSlopeBlendThreshold(value) => {
-                    set_slope_blend_threshold(&mask, &mut data, *value);
+                    set_value::<BLENDING_BITMASK, BLENDING_BITPOS, SlopeBlendThreshold>(
+                        &mask, &mut data, *value,
+                    );
                 }
             }
         }
@@ -260,25 +283,22 @@ fn paint_randomized_background_texture(
     }
 }
 // ----------------------------------------------------------------------------
-#[inline(always)]
-fn set_slope_blend_threshold(mask: &[bool], data: &mut [u16], value: SlopeBlendThreshold) {
-    let value = *value as u16;
-    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        *d = (*d & 0b1110_0011_1111_1111) + (value << 10);
-    }
-}
-// ----------------------------------------------------------------------------
-// scaling ops
+// generic ops for scaling and blending
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn set_background_scaling(mask: &[bool], data: &mut [u16], value: TextureScale) {
-    let value = *value as u16;
+fn set_value<const BIT_MASK: u16, const BIT_POS: u8, V: ControlMapValue>(
+    mask: &[bool],
+    data: &mut [u16],
+    value: V,
+) {
+    // let value = (*value) as u16;
+    let value = value.as_value();
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        *d = (*d & !BIT_MASK) + (value << BIT_POS);
     }
 } // ----------------------------------------------------------------------------
 #[inline(always)]
-fn set_randomized_background_scaling(
+fn randomized_set_value<const BIT_MASK: u16, const BIT_POS: u8, V: ControlMapValue>(
     mask: &[bool],
     data: &mut [u16],
     value: TextureScale,
@@ -289,13 +309,13 @@ fn set_randomized_background_scaling(
     let value = *value as u16;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
-            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+            *d = (*d & !BIT_MASK) + (value << BIT_POS);
         }
     }
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn set_background_scaling_with_variance(
+fn set_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8, V: ControlMapValue>(
     mask: &[bool],
     data: &mut [u16],
     value: TextureScale,
@@ -307,12 +327,16 @@ fn set_background_scaling_with_variance(
     let variance = *variance as u16;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         let value = (value + rng.gen_range(0..=variance)).clamp(0, 7);
-        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        *d = (*d & !BIT_MASK) + (value << BIT_POS);
     }
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn set_randomized_background_scaling_with_variance(
+fn randomized_set_value_with_variance<
+    const BIT_MASK: u16,
+    const BIT_POS: u8,
+    V: ControlMapValue,
+>(
     mask: &[bool],
     data: &mut [u16],
     value: TextureScale,
@@ -326,21 +350,21 @@ fn set_randomized_background_scaling_with_variance(
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
             let value = (value + rng.gen_range(0..=variance)).clamp(0, 7);
-            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+            *d = (*d & !BIT_MASK) + (value << BIT_POS);
         }
     }
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn increase_background_scaling(mask: &[bool], data: &mut [u16]) {
+fn increase_value<const BIT_MASK: u16, const BIT_POS: u8>(mask: &[bool], data: &mut [u16]) {
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        let value = (((*d & 0b1110_0000_0000_0000) >> 13) + 1).clamp(0, 7);
-        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        let value = (((*d & BIT_MASK) >> BIT_POS) + 1).clamp(0, 7);
+        *d = (*d & !BIT_MASK) + (value << BIT_POS);
     }
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn randomized_increase_background_scaling(
+fn randomized_increase_value<const BIT_MASK: u16, const BIT_POS: u8>(
     mask: &[bool],
     data: &mut [u16],
     probability: OverwriteProbability,
@@ -349,14 +373,14 @@ fn randomized_increase_background_scaling(
 
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
-            let value = (((*d & 0b1110_0000_0000_0000) >> 13) + 1).clamp(0, 7);
-            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+            let value = (((*d & BIT_MASK) >> BIT_POS) + 1).clamp(0, 7);
+            *d = (*d & !BIT_MASK) + (value << BIT_POS);
         }
     }
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn increase_background_scaling_with_variance(
+fn increase_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
     mask: &[bool],
     data: &mut [u16],
     variance: TextureScale,
@@ -365,73 +389,13 @@ fn increase_background_scaling_with_variance(
 
     let variance = *variance as u16;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        let value =
-            (((*d & 0b1110_0000_0000_0000) >> 13) + rng.gen_range(0..=variance)).clamp(0, 7);
-        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+        let value = (((*d & BIT_MASK) >> BIT_POS) + rng.gen_range(0..=variance)).clamp(0, 7);
+        *d = (*d & !BIT_MASK) + (value << BIT_POS);
     }
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn randomized_increase_background_scaling_with_variance(
-    mask: &[bool],
-    data: &mut [u16],
-    variance: TextureScale,
-    probability: OverwriteProbability,
-) {
-    let mut rng = thread_rng();
-
-    let variance = *variance as u16;
-    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        if rng.gen_bool(*probability as f64) {
-            let value =
-                (((*d & 0b1110_0000_0000_0000) >> 13) + rng.gen_range(0..=variance)).clamp(0, 7);
-            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
-        }
-    }
-}
-// ----------------------------------------------------------------------------
-#[inline(always)]
-fn reduce_background_scaling(mask: &[bool], data: &mut [u16]) {
-    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        let value = ((*d & 0b1110_0000_0000_0000) >> 13).saturating_sub(1);
-        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
-    }
-}
-// ----------------------------------------------------------------------------
-#[inline(always)]
-fn randomized_reduce_background_scaling(
-    mask: &[bool],
-    data: &mut [u16],
-    probability: OverwriteProbability,
-) {
-    let mut rng = thread_rng();
-
-    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        if rng.gen_bool(*probability as f64) {
-            let value = ((*d & 0b1110_0000_0000_0000) >> 13).saturating_sub(1);
-            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
-        }
-    }
-}
-// ----------------------------------------------------------------------------
-#[inline(always)]
-fn reduce_background_scaling_with_variance(
-    mask: &[bool],
-    data: &mut [u16],
-    variance: TextureScale,
-) {
-    let mut rng = thread_rng();
-
-    let variance = *variance as u16;
-    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        let value =
-            ((*d & 0b1110_0000_0000_0000) >> 13).saturating_sub(rng.gen_range(0..=variance));
-        *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
-    }
-}
-// ----------------------------------------------------------------------------
-#[inline(always)]
-fn randomized_reduce_background_scaling_with_variance(
+fn randomized_increase_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
     mask: &[bool],
     data: &mut [u16],
     variance: TextureScale,
@@ -442,9 +406,65 @@ fn randomized_reduce_background_scaling_with_variance(
     let variance = *variance as u16;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
-            let value =
-                ((*d & 0b1110_0000_0000_0000) >> 13).saturating_sub(rng.gen_range(0..=variance));
-            *d = (*d & 0b0001_1111_1111_1111) + (value << 13);
+            let value = (((*d & BIT_MASK) >> BIT_POS) + rng.gen_range(0..=variance)).clamp(0, 7);
+            *d = (*d & !BIT_MASK) + (value << BIT_POS);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn reduce_value<const BIT_MASK: u16, const BIT_POS: u8>(mask: &[bool], data: &mut [u16]) {
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        let value = ((*d & BIT_MASK) >> BIT_POS).saturating_sub(1);
+        *d = (*d & !BIT_MASK) + (value << BIT_POS);
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn randomized_reduce_value<const BIT_MASK: u16, const BIT_POS: u8>(
+    mask: &[bool],
+    data: &mut [u16],
+    probability: OverwriteProbability,
+) {
+    let mut rng = thread_rng();
+
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        if rng.gen_bool(*probability as f64) {
+            let value = ((*d & BIT_MASK) >> BIT_POS).saturating_sub(1);
+            *d = (*d & !BIT_MASK) + (value << BIT_POS);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn reduce_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
+    mask: &[bool],
+    data: &mut [u16],
+    variance: TextureScale,
+) {
+    let mut rng = thread_rng();
+
+    let variance = *variance as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        let value = ((*d & BIT_MASK) >> BIT_POS).saturating_sub(rng.gen_range(0..=variance));
+        *d = (*d & !BIT_MASK) + (value << BIT_POS);
+    }
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn randomized_reduce_value_with_variance<const BIT_MASK: u16, const BIT_POS: u8>(
+    mask: &[bool],
+    data: &mut [u16],
+    variance: TextureScale,
+    probability: OverwriteProbability,
+) {
+    let mut rng = thread_rng();
+
+    let variance = *variance as u16;
+    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
+        if rng.gen_bool(*probability as f64) {
+            let value = ((*d & BIT_MASK) >> BIT_POS).saturating_sub(rng.gen_range(0..=variance));
+            *d = (*d & !BIT_MASK) + (value << BIT_POS);
         }
     }
 }
@@ -469,6 +489,26 @@ impl BrushPlacement {
         }
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+// helper trait for generic paint operations
+// ----------------------------------------------------------------------------
+trait ControlMapValue {
+    fn as_value(&self) -> u16;
+}
+// ----------------------------------------------------------------------------
+impl ControlMapValue for TextureScale {
+    #[inline(always)]
+    fn as_value(&self) -> u16 {
+        self.0 as u16
+    }
+}
+// ----------------------------------------------------------------------------
+impl ControlMapValue for SlopeBlendThreshold {
+    #[inline(always)]
+    fn as_value(&self) -> u16 {
+        self.0 as u16
+    }
 }
 // ----------------------------------------------------------------------------
 // Default impl
