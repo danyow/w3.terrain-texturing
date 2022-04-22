@@ -160,3 +160,23 @@ impl ClipmapLayerInfo {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
+impl TerrainRenderSettings {
+    // ------------------------------------------------------------------------
+    pub fn exclusive_view_active(&self) -> bool {
+        self.show_fragment_normals
+            || self.show_combined_normals
+            || self.show_blend_threshold
+            || self.show_bkgrnd_scaling
+            || self.show_tint_map
+    }
+    // ------------------------------------------------------------------------
+    pub fn reset_exclusive_view(&mut self) {
+        self.show_fragment_normals = false;
+        self.show_combined_normals = false;
+        self.show_blend_threshold = false;
+        self.show_bkgrnd_scaling = false;
+        self.show_tint_map = false;
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------

@@ -15,14 +15,15 @@ pub(super) fn show_settings(
             // this should be an aligned 2+ column layout which adds equally sized columns
             // according to available width. it also needs to allow complete width separators
             // between groups of sections. (so basically a table with mergable columns)
+            // Note: a checkbox with min_width would allow to use ui.horizontal_wrapped
+            // instead of Grids
 
             // background texture checkbox is used as max width
             let column_min_width = ui.checkbox_width("background texture");
             let columns = (ui.available_size().x / column_min_width).floor() as usize;
 
             // activating an exclusive view will ignore the other selected settings so disable ui
-            let exclusive_selected = check_exclusive_views(settings);
-            ui.add_enabled_ui(!exclusive_selected, |ui| {
+            ui.add_enabled_ui(!settings.exclusive_view_active(), |ui| {
                 ui.checkbox(&mut settings.use_flat_shading, "use flat shading")
                     .on_hover_text("use non-interpolated vertex normals (no texture normal)");
                 ui.separator();
@@ -105,11 +106,7 @@ fn select_exclusive_view(
     use ExclusiveViewSelection::*;
 
     // reset all and set selected to current value
-    settings.show_fragment_normals = false;
-    settings.show_combined_normals = false;
-    settings.show_blend_threshold = false;
-    settings.show_bkgrnd_scaling = false;
-    settings.show_tint_map = false;
+    settings.reset_exclusive_view();
 
     match selection {
         Normals => settings.show_fragment_normals = value,
@@ -118,13 +115,5 @@ fn select_exclusive_view(
         UvScaling => settings.show_bkgrnd_scaling = value,
         TintMap => settings.show_tint_map = value,
     }
-}
-// ----------------------------------------------------------------------------
-fn check_exclusive_views(settings: &TerrainRenderSettings) -> bool {
-    settings.show_fragment_normals
-        || settings.show_combined_normals
-        || settings.show_blend_threshold
-        || settings.show_bkgrnd_scaling
-        || settings.show_tint_map
 }
 // ----------------------------------------------------------------------------
