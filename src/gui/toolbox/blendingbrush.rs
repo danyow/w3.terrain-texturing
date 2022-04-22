@@ -3,13 +3,9 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::Color;
 
-use super::{
-    BrushSize, OverwriteProbability, PointerSettings, SlopeBlendThreshold, ToolBrushPointer,
-    Variance,
-};
+use super::{OverwriteProbability, SlopeBlendThreshold, ToolBrushPointer, Variance};
 // ----------------------------------------------------------------------------
 pub(super) struct BrushSettings {
-    pub size: BrushSize,
     pub slope_blend: SlopeBlendThreshold,
     pub adjust_values: bool,
 
@@ -22,16 +18,8 @@ pub(super) struct BrushSettings {
 // ----------------------------------------------------------------------------
 impl ToolBrushPointer for BrushSettings {
     // ------------------------------------------------------------------------
-    fn scale_pointer(&mut self, scale: f32) {
-        self.size.scale(scale);
-    }
-    // ------------------------------------------------------------------------
-    fn pointer_settings(&self) -> PointerSettings {
-        PointerSettings {
-            size: self.size,
-            ring_width: self.size.ring_width(),
-            color: Color::BLUE,
-        }
+    fn pointer_color(&self) -> Color {
+        Color::BLUE
     }
     // ------------------------------------------------------------------------
 }
@@ -61,7 +49,6 @@ impl BrushSettings {
 impl Default for BrushSettings {
     fn default() -> Self {
         Self {
-            size: BrushSize::default(),
             slope_blend: SlopeBlendThreshold::default(),
             adjust_values: true,
 

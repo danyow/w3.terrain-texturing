@@ -40,6 +40,8 @@ pub struct ToolboxState {
     texture_brush: texturebrush::BrushSettings,
     blending_brush: blendingbrush::BrushSettings,
     scaling_brush: scalingbrush::BrushSettings,
+
+    brush_size: BrushSize,
 }
 // ---------------------------------------------------------------------------
 #[derive(Debug)]
@@ -121,6 +123,9 @@ fn handle_ui_actions(
     for action in ui_action.iter() {
         if let GuiAction::Toolbox(action) = action {
             match action {
+                UpdateBrushSettings if !ui_state.toolbox.has_projected_pointer() => {
+                    // ignore update if there is no pointer for currently selected tool
+                }
                 UpdateBrushSettings => {
                     update::update_brush_pointer(&ui_state.toolbox.pointer_settings(), &mut *brush);
                 }
@@ -151,27 +156,24 @@ fn update_brush_pointer_info(
     mut mouse_wheel: EventReader<MouseWheel>,
     windows: Res<Windows>,
 ) {
+    let toolbox = &mut ui_state.toolbox;
     // check if cursor is not over gui or used by gui (slider draging into 3d area)
-    if ui_state.toolbox.enabled && !ui_state.wants_input() {
+    if toolbox.enabled && toolbox.has_projected_pointer() && !ui_state.wants_input() {
         let win = windows.get_primary().expect("no primary window");
 
-        brush_pointer.active = ui_state.toolbox.has_projected_pointer();
-        if brush_pointer.active {
-            if let Some(mouse_pos) = win.cursor_position() {
-                brush_pointer.pos = mouse_pos * win.scale_factor() as f32;
-                brush_pointer.click_primary = mouse_input.just_pressed(MouseButton::Left);
-                brush_pointer.click_secondary = mouse_input.just_pressed(MouseButton::Right);
+        brush_pointer.active = true;
+        if let Some(mouse_pos) = win.cursor_position() {
+            brush_pointer.pos = mouse_pos * win.scale_factor() as f32;
+            brush_pointer.click_primary = mouse_input.just_pressed(MouseButton::Left);
+            brush_pointer.click_secondary = mouse_input.just_pressed(MouseButton::Right);
 
-                for e in mouse_wheel.iter() {
-                    ui_state.toolbox.rescale_pointer(e.y);
+            for e in mouse_wheel.iter() {
+                ui_state.toolbox.rescale_pointer(e.y);
 
-                    update::update_brush_pointer(
-                        &ui_state.toolbox.pointer_settings(),
-                        &mut brush_pointer,
-                    );
-                }
-            } else {
-                brush_pointer.active = false;
+                update::update_brush_pointer(
+                    &ui_state.toolbox.pointer_settings(),
+                    &mut brush_pointer,
+                );
             }
         }
     } else {
@@ -182,8 +184,7 @@ fn update_brush_pointer_info(
 // toolbox state
 // ----------------------------------------------------------------------------
 trait ToolBrushPointer {
-    fn scale_pointer(&mut self, scale: f32);
-    fn pointer_settings(&self) -> PointerSettings;
+    fn pointer_color(&self) -> Color;
 }
 // ----------------------------------------------------------------------------
 impl ToolboxState {
@@ -191,31 +192,30 @@ impl ToolboxState {
     fn has_projected_pointer(&self) -> bool {
         use ToolSelection::*;
         match self.selection {
-            Some(Texturing) | Some(Scaling) | Some(Blending) => true,
             Some(MaterialParameters) | None => false,
+            Some(Texturing) | Some(Scaling) | Some(Blending) => true,
         }
     }
     // ------------------------------------------------------------------------
     fn rescale_pointer(&mut self, scale: f32) {
-        use ToolSelection::*;
-        match self.selection {
-            Some(Texturing) => self.texture_brush.scale_pointer(scale),
-            Some(Blending) => self.blending_brush.scale_pointer(scale),
-            Some(Scaling) => self.scaling_brush.scale_pointer(scale),
-            Some(MaterialParameters) | None => {}
-        }
+        self.brush_size.scale(scale);
     }
     // ------------------------------------------------------------------------
     fn pointer_settings(&self) -> PointerSettings {
         use ToolSelection::*;
-        match self.selection {
-            Some(Texturing) => self.texture_brush.pointer_settings(),
-            Some(Blending) => self.blending_brush.pointer_settings(),
-            Some(Scaling) => self.scaling_brush.pointer_settings(),
+        let color = match self.selection {
+            Some(Texturing) => self.texture_brush.pointer_color(),
+            Some(Blending) => self.blending_brush.pointer_color(),
+            Some(Scaling) => self.scaling_brush.pointer_color(),
             Some(MaterialParameters) | None => {
                 // pointer should be deactivated, see has_projected_pointer
                 unreachable!("pointer should have been deactivated!")
             }
+        };
+        PointerSettings {
+            size: self.brush_size,
+            ring_width: self.brush_size.ring_width(),
+            color,
         }
     }
     // ------------------------------------------------------------------------

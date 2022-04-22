@@ -3,6 +3,7 @@
 #[inline]
 pub(super) fn show(
     ui: &mut egui::Ui,
+    brush_size: &mut BrushSize,
     brush: &mut BrushSettings,
     gui_event: &mut EventWriter<GuiAction>,
 ) {
@@ -35,7 +36,7 @@ pub(super) fn show(
         .min_col_width(CAPTION_COLUMN_WIDTH)
         .num_columns(2)
         .show(ui, |ui| {
-            if let Some(action) = common::show_brushsize_control(ui, &mut brush.size) {
+            if let Some(action) = common::show_brushsize_control(ui, brush_size) {
                 gui_event.send(Toolbox(action));
             }
         });
@@ -102,5 +103,5 @@ use bevy_egui::egui::{self, Slider, Ui};
 use crate::gui::toolbox::scalingbrush::BrushSettings;
 use crate::gui::GuiAction;
 
-use super::common;
+use super::common::{self, BrushSize};
 // ----------------------------------------------------------------------------

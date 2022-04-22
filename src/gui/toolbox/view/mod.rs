@@ -12,6 +12,7 @@ pub fn show_ui(
     ui.label("Toolbox");
 
     // tool selection
+    let selected_tool = toolbox.selection;
     ui.horizontal_wrapped(|ui| {
         ui.deselectable_value(&mut toolbox.selection, Texturing, egui::RichText::new("Texturing").small())
             .on_hover_text("Texture Brush: overwriting of overlay and/or background texture.");
@@ -25,17 +26,21 @@ pub fn show_ui(
 
         ui.deselectable_value(&mut toolbox.selection, MaterialParameters, ui.small_text("Material Parameters"));
     });
+    if selected_tool != toolbox.selection {
+        gui_event.send(GuiAction::Toolbox(ToolboxAction::UpdateBrushSettings));
+    }
     ui.separator();
 
+    let brush_size = &mut toolbox.brush_size;
     match toolbox.selection {
         Some(Texturing) => {
-            textures::show(ui, ui_images, &mut toolbox.texture_brush, gui_event);
+            textures::show(ui, ui_images, brush_size, &mut toolbox.texture_brush, gui_event);
         }
         Some(Blending) => {
-            blending::show(ui, &mut toolbox.blending_brush, gui_event);
+            blending::show(ui, brush_size, &mut toolbox.blending_brush, gui_event);
         }
         Some(Scaling) => {
-            scaling::show(ui, &mut toolbox.scaling_brush, gui_event);
+            scaling::show(ui, brush_size, &mut toolbox.scaling_brush, gui_event);
         }
         Some(MaterialParameters) => {
             materialsettings::show(
@@ -49,7 +54,7 @@ pub fn show_ui(
         None => {
             // show default texture brush settings but deactivate it
             ui.add_enabled_ui(false, |ui| {
-                textures::show(ui, ui_images, &mut toolbox.texture_brush, gui_event);
+                textures::show(ui, ui_images, brush_size, &mut toolbox.texture_brush, gui_event);
             });
         }
     }
@@ -64,6 +69,7 @@ use crate::terrain_material::TerrainMaterialSet;
 
 use crate::gui::{GuiAction, UiExtension, UiImages};
 
+use super::common::BrushSize;
 use super::{ToolSelection::*, ToolboxAction, ToolboxState};
 // ----------------------------------------------------------------------------
 mod common;

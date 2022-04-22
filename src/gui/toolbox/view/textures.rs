@@ -4,6 +4,7 @@
 pub(super) fn show(
     ui: &mut egui::Ui,
     ui_images: &UiImages,
+    brush_size: &mut BrushSize,
     brush: &mut BrushSettings,
     gui_event: &mut EventWriter<GuiAction>,
 ) {
@@ -71,7 +72,7 @@ pub(super) fn show(
             ui.end_row();
 
             // --- Brush size
-            if let Some(action) = common::show_brushsize_control(ui, &mut brush.size) {
+            if let Some(action) = common::show_brushsize_control(ui, brush_size) {
                 result = Some(action);
             }
 
@@ -229,5 +230,5 @@ use crate::terrain_material::{MaterialSlot, TextureType};
 use crate::gui::toolbox::texturebrush::{BrushSettings, BrushTexturesUsed};
 
 use super::common;
-use super::ToolboxAction;
+use super::{ToolboxAction, BrushSize};
 // ----------------------------------------------------------------------------

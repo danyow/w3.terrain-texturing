@@ -1,4 +1,6 @@
 // ----------------------------------------------------------------------------
+pub(super) use crate::gui::toolbox::common::BrushSize;
+// ----------------------------------------------------------------------------
 #[rustfmt::skip]
 pub(super) fn show_brushsize_control(
     ui: &mut Ui,
@@ -23,7 +25,7 @@ pub(super) fn show_brushsize_control(
 // ----------------------------------------------------------------------------
 use bevy_egui::egui::{Slider, Ui};
 
-use crate::gui::toolbox::common::{BrushSize, BRUSH_SIZE_MAX, BRUSH_SIZE_MIN};
+use crate::gui::toolbox::common::{BRUSH_SIZE_MAX, BRUSH_SIZE_MIN};
 
 use super::ToolboxAction;
 // ----------------------------------------------------------------------------
