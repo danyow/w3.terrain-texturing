@@ -68,7 +68,7 @@ enum DebugEvent {
 #[derive(Default)]
 struct DefaultResources {
     logo: Handle<Image>,
-    // placeholder_texture: Handle<Image>,
+    placeholder_texture: Handle<Image>,
 }
 // ----------------------------------------------------------------------------
 // sync loader of essential files
@@ -83,6 +83,7 @@ fn setup_default_assets(
     info!("startup_system: setup_default_assets");
 
     let logo_resolution = 150;
+    let texture_resolution = 1024;
 
     let logo_data = loader::LoaderPlugin::load_png_data(
         png::ColorType::Rgba,
@@ -103,9 +104,27 @@ fn setup_default_assets(
     );
 
     resources.logo = textures.add(logo);
-    // resources.placeholder_texture = textures.add();
 
     ui_images.set(&mut egui_ctx, "logo", resources.logo.clone_weak());
+
+    // default material texture placeholder
+    let default_texture_data = loader::LoaderPlugin::load_png_data(
+        png::ColorType::Rgba,
+        png::BitDepth::Eight,
+        texture_resolution,
+        "assets/placeholder_texture.png",
+    )?;
+
+    resources.placeholder_texture = textures.add(Image::new(
+        Extent3d {
+            width: texture_resolution,
+            height: texture_resolution,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        default_texture_data,
+        TextureFormat::Rgba8UnormSrgb,
+    ));
 
     info!("startup_system: setup_default_assets.done");
     Ok(())

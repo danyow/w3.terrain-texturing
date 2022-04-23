@@ -99,32 +99,20 @@ pub(super) fn setup_default_materialset(
     texture_arrays.remove(&materialset.diffuse);
     texture_arrays.remove(&materialset.normal);
 
-    // generate new ones
-    let logo = textures.get(&placeholder.logo).expect("loaded logo");
-
-    // create placeholder texture arrays
+    // generate new placeholder texture arrays
     let dim = 1024;
 
-    // let default_color = [128u8, 128u8, 128u8, 128u8];
-    let default_color = [255u8, 255u8, 255u8, 255u8];
-    let default_normal = [0u8, 0u8, 255u8, 0u8];
+    //  vec3(0, 0, 1) encoded as rgb(0.5, 0.5, 1.0)
+    let default_normal = [128u8, 128u8, 255u8, 0u8];
 
-    let mut placeholder_diffuse = default_color.repeat(dim * dim);
     let placeholder_normal = default_normal.repeat(dim * dim);
-    // add logo
-
-    let logo_width_bytes = (logo.texture_descriptor.size.width * 4) as usize;
-    for y in 0..logo.texture_descriptor.size.height as usize {
-        let logo_offset = y * logo_width_bytes;
-        let logo_slice = &logo.data[logo_offset..logo_offset + logo_width_bytes];
-
-        let offset = 4 * (y * dim + 200);
-        placeholder_diffuse[offset..offset + logo_width_bytes].copy_from_slice(logo_slice);
-    }
+    let placeholder_diffuse = textures
+        .get(&placeholder.placeholder_texture)
+        .expect("loaded placeholder texture");
 
     let dim = dim as u32;
     let placeholder_diffuse = image::DynamicImage::ImageRgba8(
-        image::ImageBuffer::from_raw(dim, dim, placeholder_diffuse).unwrap(),
+        image::ImageBuffer::from_raw(dim, dim, placeholder_diffuse.data.clone()).unwrap(),
     );
     let placeholder_normal = image::DynamicImage::ImageRgba8(
         image::ImageBuffer::from_raw(dim, dim, placeholder_normal).unwrap(),
