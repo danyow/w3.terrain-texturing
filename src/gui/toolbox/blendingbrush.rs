@@ -3,7 +3,9 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::Color;
 
-use super::{OverwriteProbability, SlopeBlendThreshold, ToolBrushPointer, Variance};
+use crate::terrain_render::TerrainRenderSettings;
+
+use super::{OverwriteProbability, SlopeBlendThreshold, ToolSettings, Variance};
 // ----------------------------------------------------------------------------
 pub(super) struct BrushSettings {
     pub slope_blend: SlopeBlendThreshold,
@@ -14,12 +16,28 @@ pub(super) struct BrushSettings {
 
     pub randomize: bool,
     pub use_variance: bool,
+
+    pub show_blend_threshold: bool,
 }
 // ----------------------------------------------------------------------------
-impl ToolBrushPointer for BrushSettings {
+impl ToolSettings for BrushSettings {
     // ------------------------------------------------------------------------
     fn pointer_color(&self) -> Color {
         Color::BLUE
+    }
+    // ------------------------------------------------------------------------
+    fn sync_rendersettings(&mut self, settings: &mut TerrainRenderSettings) {
+        settings.reset_exclusive_view();
+
+        // blending is only visible if both texture are activated
+        settings.ignore_overlay_texture = false;
+        settings.ignore_bkgrnd_texture = false;
+
+        // if it was previously set, set it again
+        if self.show_blend_threshold {
+            settings.show_blend_threshold = true;
+        }
+        self.show_blend_threshold = settings.show_blend_threshold;
     }
     // ------------------------------------------------------------------------
 }
@@ -56,6 +74,8 @@ impl Default for BrushSettings {
             variance: Variance(2),
             randomize: false,
             use_variance: false,
+
+            show_blend_threshold: false,
         }
     }
 }

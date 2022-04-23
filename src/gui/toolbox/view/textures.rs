@@ -8,9 +8,8 @@ pub(super) fn show(
     brush: &mut BrushSettings,
     gui_event: &mut EventWriter<GuiAction>,
 ) {
-    use GuiAction::*;
-
-    let mut result = None;
+    use GuiAction::Toolbox;
+    use ToolboxAction::*;
 
     egui::Grid::new("texture.brush.settings")
         .num_columns(2)
@@ -47,13 +46,35 @@ pub(super) fn show(
                 }
                 // update changes
                 if prev_texture_selection != brush.textures_used {
-                    result = Some(ToolboxAction::UpdateBrushSettings);
+                    // update view settings based on current selection
+                    brush.show_only_overlay = false;
+                    brush.show_only_background = false;
+                    gui_event.send(Toolbox(ShowOnlyOverlayTexture(brush.show_only_overlay)));
+                    gui_event.send(Toolbox(ShowOnlyBackgroundTexture(brush.show_only_background)));
+                    gui_event.send(Toolbox(UpdateBrushSettings));
                 }
             });
 
             // --- Brush settings
             ui.vertical(|ui| {
-                ui.small("Selected Textures");
+                ui.horizontal_top(|ui| {
+                    ui.small("Selected Textures");
+
+                    // reduce spacing between "hotkey" buttons
+                    ui.spacing_mut().item_spacing.x /= 4.0;
+
+                    if ui.add_enabled(overlay_used, ui.small_selectable_button(brush.show_only_overlay, "O"))
+                        .on_hover_text("Show only overlay texture").clicked()
+                    {
+                        gui_event.send(Toolbox(ShowOnlyOverlayTexture(!brush.show_only_overlay)));
+                    }
+
+                    if ui.add_enabled(background_used, ui.small_selectable_button(brush.show_only_background, "B"))
+                        .on_hover_text("Show only background texture").clicked()
+                    {
+                        gui_event.send(Toolbox(ShowOnlyBackgroundTexture(!brush.show_only_background)));
+                    }
+                });
                 ui.add_enabled_ui(overlay_used, |ui| {
                     ui.small(format!("Overlay: material #{}", *brush.overlay_texture + 1));
                 });
@@ -73,17 +94,13 @@ pub(super) fn show(
 
             // --- Brush size
             if let Some(action) = common::show_brushsize_control(ui, brush_size) {
-                result = Some(action);
+                gui_event.send(Toolbox(action));
             }
 
             ui.end_row();
         });
 
     ui.separator();
-
-    if let Some(action) = result {
-        gui_event.send(Toolbox(action));
-    }
 }
 // ----------------------------------------------------------------------------
 #[inline]
@@ -222,7 +239,7 @@ fn scale_and_blend_settings(ui: &mut Ui, brush: &mut BrushSettings) {
 use bevy::prelude::*;
 use bevy_egui::egui::{self, Color32, ImageButton, Response, Sense, Slider, Ui};
 
-use crate::gui::TEXTURE_PREVIEW_SIZE_SMALL;
+use crate::gui::{UiExtension, TEXTURE_PREVIEW_SIZE_SMALL};
 
 use crate::gui::{GuiAction, UiImages};
 use crate::terrain_material::{MaterialSlot, TextureType};
@@ -230,5 +247,5 @@ use crate::terrain_material::{MaterialSlot, TextureType};
 use crate::gui::toolbox::texturebrush::{BrushSettings, BrushTexturesUsed};
 
 use super::common;
-use super::{ToolboxAction, BrushSize};
+use super::{BrushSize, ToolboxAction};
 // ----------------------------------------------------------------------------

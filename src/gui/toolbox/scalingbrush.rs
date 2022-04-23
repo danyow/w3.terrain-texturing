@@ -3,7 +3,9 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::Color;
 
-use super::{OverwriteProbability, TextureScale, ToolBrushPointer, Variance};
+use crate::terrain_render::TerrainRenderSettings;
+
+use super::{OverwriteProbability, TextureScale, ToolSettings, Variance};
 // ----------------------------------------------------------------------------
 pub(super) struct BrushSettings {
     pub scaling: TextureScale,
@@ -14,12 +16,27 @@ pub(super) struct BrushSettings {
 
     pub randomize: bool,
     pub use_variance: bool,
+
+    pub show_bkgrnd_scaling: bool,
 }
 // ----------------------------------------------------------------------------
-impl ToolBrushPointer for BrushSettings {
+impl ToolSettings for BrushSettings {
     // ------------------------------------------------------------------------
     fn pointer_color(&self) -> Color {
         Color::YELLOW
+    }
+    // ------------------------------------------------------------------------
+    fn sync_rendersettings(&mut self, settings: &mut TerrainRenderSettings) {
+        settings.reset_exclusive_view();
+
+        // scaling is used on background texture so it should be switched on
+        settings.ignore_bkgrnd_texture = false;
+
+        // if debug was previously set, set it again
+        if self.show_bkgrnd_scaling {
+            settings.show_bkgrnd_scaling = true;
+        }
+        self.show_bkgrnd_scaling = settings.show_bkgrnd_scaling;
     }
     // ------------------------------------------------------------------------
 }
@@ -56,6 +73,8 @@ impl Default for BrushSettings {
             variance: Variance(1),
             randomize: false,
             use_variance: false,
+
+            show_bkgrnd_scaling: false,
         }
     }
 }

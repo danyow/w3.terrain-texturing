@@ -9,6 +9,7 @@ use crate::terrain_painting::{
 };
 use crate::terrain_render::{
     BrushPointer, BrushPointerEventData, BrushPointerEventReceiver, TerrainMaterialSet,
+    TerrainRenderSettings,
 };
 
 use common::{BrushSize, PointerSettings};
@@ -47,10 +48,15 @@ pub struct ToolboxState {
 #[derive(Debug)]
 /// Events triggered by user in the GUI (user actions)
 pub enum ToolboxAction {
+    ChangedToolSelection,
     UpdateBrushSettings,
     SelectOverlayTexture(MaterialSlot),
     SelectBackgroundTexture(MaterialSlot),
     UpdateMaterial(MaterialSlot, MaterialSetting),
+    ShowOnlyOverlayTexture(bool),
+    ShowOnlyBackgroundTexture(bool),
+    ShowBackgroundScaling(bool),
+    ShowSlopeBlendThreshold(bool),
 }
 // ---------------------------------------------------------------------------
 #[derive(Debug)]
@@ -117,12 +123,20 @@ fn handle_ui_actions(
     mut ui_action: EventReader<GuiAction>,
     mut brush: ResMut<BrushPointer>,
     mut materialset: ResMut<TerrainMaterialSet>,
+    mut rendersettings: ResMut<TerrainRenderSettings>,
 ) {
     use ToolboxAction::*;
 
     for action in ui_action.iter() {
         if let GuiAction::Toolbox(action) = action {
             match action {
+                ChangedToolSelection => {
+                    update::on_changed_tool_selection(
+                        &mut ui_state.toolbox,
+                        &mut *brush,
+                        &mut *rendersettings,
+                    );
+                }
                 UpdateBrushSettings if !ui_state.toolbox.has_projected_pointer() => {
                     // ignore update if there is no pointer for currently selected tool
                 }
@@ -131,14 +145,52 @@ fn handle_ui_actions(
                 }
                 SelectOverlayTexture(material_slot) => {
                     ui_state.toolbox.texture_brush.overlay_texture = *material_slot;
-                    update::update_brush_on_texture_selection(&mut ui_state.toolbox, &mut *brush);
+                    update::update_brush_on_material_selection(
+                        &mut ui_state.toolbox,
+                        &mut *brush,
+                        &mut *rendersettings,
+                        true,
+                    );
                 }
                 SelectBackgroundTexture(material_slot) => {
                     ui_state.toolbox.texture_brush.bkgrnd_texture = *material_slot;
-                    update::update_brush_on_texture_selection(&mut ui_state.toolbox, &mut *brush);
+                    update::update_brush_on_material_selection(
+                        &mut ui_state.toolbox,
+                        &mut *brush,
+                        &mut *rendersettings,
+                        false,
+                    );
                 }
                 UpdateMaterial(slot, setting) => {
                     update::update_material_settings(*slot, setting, &mut *materialset);
+                }
+                ShowOnlyOverlayTexture(only_overlay) => {
+                    update::render_only_overlay_material(
+                        &mut ui_state.toolbox.texture_brush,
+                        &mut *rendersettings,
+                        *only_overlay,
+                    );
+                }
+                ShowOnlyBackgroundTexture(only_bkgrnd) => {
+                    update::render_only_bkgrnd_material(
+                        &mut ui_state.toolbox.texture_brush,
+                        &mut *rendersettings,
+                        *only_bkgrnd,
+                    );
+                }
+                ShowBackgroundScaling(show) => {
+                    update::render_only_bkgrnd_scaling(
+                        &mut ui_state.toolbox.scaling_brush,
+                        &mut *rendersettings,
+                        *show,
+                    );
+                }
+                ShowSlopeBlendThreshold(show) => {
+                    update::render_only_slopeblend_threshold(
+                        &mut ui_state.toolbox.blending_brush,
+                        &mut *rendersettings,
+                        *show,
+                    );
                 }
             }
         }
@@ -183,8 +235,9 @@ fn update_brush_pointer_info(
 // ----------------------------------------------------------------------------
 // toolbox state
 // ----------------------------------------------------------------------------
-trait ToolBrushPointer {
+trait ToolSettings {
     fn pointer_color(&self) -> Color;
+    fn sync_rendersettings(&mut self, settings: &mut TerrainRenderSettings);
 }
 // ----------------------------------------------------------------------------
 impl ToolboxState {
@@ -216,6 +269,16 @@ impl ToolboxState {
             size: self.brush_size,
             ring_width: self.brush_size.ring_width(),
             color,
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn sync_rendersettings(&mut self, rendersettings: &mut TerrainRenderSettings) {
+        use ToolSelection::*;
+        match self.selection {
+            Some(Texturing) => self.texture_brush.sync_rendersettings(rendersettings),
+            Some(Blending) => self.blending_brush.sync_rendersettings(rendersettings),
+            Some(Scaling) => self.scaling_brush.sync_rendersettings(rendersettings),
+            Some(MaterialParameters) | None => {}
         }
     }
     // ------------------------------------------------------------------------

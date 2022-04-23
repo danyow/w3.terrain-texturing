@@ -27,7 +27,7 @@ pub fn show_ui(
         ui.deselectable_value(&mut toolbox.selection, MaterialParameters, ui.small_text("Material Parameters"));
     });
     if selected_tool != toolbox.selection {
-        gui_event.send(GuiAction::Toolbox(ToolboxAction::UpdateBrushSettings));
+        gui_event.send(GuiAction::Toolbox(ToolboxAction::ChangedToolSelection));
     }
     ui.separator();
 

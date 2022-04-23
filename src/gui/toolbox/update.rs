@@ -6,7 +6,7 @@ use bevy::prelude::MouseButton;
 
 use crate::terrain_material::MaterialSlot;
 use crate::terrain_painting::PaintCommand;
-use crate::terrain_render::{BrushPointer, TerrainMaterialSet};
+use crate::terrain_render::{BrushPointer, TerrainMaterialSet, TerrainRenderSettings};
 
 use super::{blendingbrush, scalingbrush, texturebrush};
 use super::{MaterialSetting, PointerSettings, ToolSelection, ToolboxState};
@@ -32,6 +32,73 @@ pub(super) fn update_material_settings(
     }
 }
 // ----------------------------------------------------------------------------
+pub(super) fn render_only_overlay_material(
+    brush: &mut texturebrush::BrushSettings,
+    rendersettings: &mut TerrainRenderSettings,
+    render_overlay: bool,
+) {
+    brush.show_only_overlay = render_overlay;
+    if brush.show_only_overlay {
+        brush.show_only_background = false;
+    }
+
+    rendersettings.reset_exclusive_view();
+    rendersettings.ignore_bkgrnd_texture = render_overlay;
+    if rendersettings.ignore_bkgrnd_texture {
+        rendersettings.ignore_overlay_texture = false;
+    }
+}
+// ----------------------------------------------------------------------------
+pub(super) fn render_only_bkgrnd_material(
+    brush: &mut texturebrush::BrushSettings,
+    rendersettings: &mut TerrainRenderSettings,
+    render_bkgrnd: bool,
+) {
+    brush.show_only_background = render_bkgrnd;
+    if brush.show_only_background {
+        brush.show_only_overlay = false;
+    }
+
+    rendersettings.reset_exclusive_view();
+    rendersettings.ignore_overlay_texture = render_bkgrnd;
+    if rendersettings.ignore_overlay_texture {
+        rendersettings.ignore_bkgrnd_texture = false;
+    }
+}
+// ----------------------------------------------------------------------------
+pub(super) fn render_only_bkgrnd_scaling(
+    brush: &mut scalingbrush::BrushSettings,
+    rendersettings: &mut TerrainRenderSettings,
+    show: bool,
+) {
+    brush.show_bkgrnd_scaling = show;
+
+    rendersettings.reset_exclusive_view();
+    rendersettings.show_bkgrnd_scaling = show;
+}
+// ----------------------------------------------------------------------------
+pub(super) fn render_only_slopeblend_threshold(
+    brush: &mut blendingbrush::BrushSettings,
+    rendersettings: &mut TerrainRenderSettings,
+    show: bool,
+) {
+    brush.show_blend_threshold = show;
+
+    rendersettings.reset_exclusive_view();
+    rendersettings.show_blend_threshold = show;
+}
+// ----------------------------------------------------------------------------
+pub(super) fn on_changed_tool_selection(
+    toolbox: &mut ToolboxState,
+    brush_pointer: &mut BrushPointer,
+    rendersettings: &mut TerrainRenderSettings,
+) {
+    if toolbox.has_projected_pointer() {
+        update_brush_pointer(&toolbox.pointer_settings(), brush_pointer);
+    }
+    toolbox.sync_rendersettings(rendersettings);
+}
+// ----------------------------------------------------------------------------
 #[inline(always)]
 pub(super) fn update_brush_pointer(settings: &PointerSettings, brush_pointer: &mut BrushPointer) {
     brush_pointer.radius = settings.radius();
@@ -39,16 +106,44 @@ pub(super) fn update_brush_pointer(settings: &PointerSettings, brush_pointer: &m
     brush_pointer.color = settings.color();
 }
 // ----------------------------------------------------------------------------
-pub(super) fn update_brush_on_texture_selection(
+pub(super) fn update_brush_on_material_selection(
     toolbox: &mut ToolboxState,
-    brush: &mut BrushPointer,
+    brush_pointer: &mut BrushPointer,
+    rendersettings: &mut TerrainRenderSettings,
+    overlay_selected: bool,
 ) {
-    use ToolSelection::MaterialParameters;
+    use ToolSelection::{MaterialParameters, Texturing};
 
-    // switch to texturing tool
-    if !matches!(toolbox.selection, Some(MaterialParameters)) {
-        toolbox.selection = Some(ToolSelection::Texturing);
-        update_brush_pointer(&toolbox.pointer_settings(), brush);
+    match toolbox.selection {
+        Some(MaterialParameters) | None => {
+            // texture is used in current tool -> no need to switch tool or
+            // change active texture in brush
+        }
+        _ => {
+            use texturebrush::BrushTexturesUsed::*;
+
+            // switch to texturing brush...
+            toolbox.selection = Some(Texturing);
+
+            // ...and activate background or overlay texture selection of the brush
+            // to allow direct painting with selected texture
+            match toolbox.texture_brush.textures_used {
+                Overlay if !overlay_selected => {
+                    toolbox.texture_brush.textures_used = Background;
+                }
+                Background if overlay_selected => {
+                    toolbox.texture_brush.textures_used = Overlay;
+                }
+                _ => {
+                    // texture was already active
+                }
+            }
+
+            update_brush_pointer(&toolbox.pointer_settings(), brush_pointer);
+            // make sure the shortcut show_* button states are synced with current
+            // rendersettings
+            toolbox.sync_rendersettings(rendersettings);
+        }
     }
 }
 // ----------------------------------------------------------------------------

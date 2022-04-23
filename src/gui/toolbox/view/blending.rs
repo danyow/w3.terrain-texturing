@@ -24,7 +24,9 @@ pub(super) fn show(
             });
 
             ui.vertical(|ui| {
-                scale_settings(ui, brush);
+                if let Some(action) = scale_settings(ui, brush) {
+                    gui_event.send(Toolbox(action));
+                }
                 randomize_settings(ui, brush);
             });
         });
@@ -45,11 +47,23 @@ pub(super) fn show(
 }
 // ----------------------------------------------------------------------------
 #[inline]
-fn scale_settings(ui: &mut Ui, brush: &mut BrushSettings) {
+fn scale_settings(ui: &mut Ui, brush: &mut BrushSettings) -> Option<ToolboxAction> {
+    use ToolboxAction::ShowSlopeBlendThreshold;
+
+    let mut result = None;
+
     // relative adjustment of values or directly overwriting
     ui.horizontal(|ui| {
         ui.radio_value(&mut brush.adjust_values, true, "adjust");
         ui.radio_value(&mut brush.adjust_values, false, "overwrite");
+
+        if ui
+            .add(ui.small_selectable_button(brush.show_blend_threshold, "B"))
+            .on_hover_text("Show slope blend threshold.")
+            .clicked()
+        {
+            result = Some(ShowSlopeBlendThreshold(!brush.show_blend_threshold));
+        }
     });
 
     // copy values (borrow checker)
@@ -61,6 +75,8 @@ fn scale_settings(ui: &mut Ui, brush: &mut BrushSettings) {
             .show_value(false)
             .text(format!("{} blend", slope_blend)),
     );
+
+    result
 }
 // ----------------------------------------------------------------------------
 #[inline]
@@ -101,7 +117,8 @@ use bevy::prelude::*;
 use bevy_egui::egui::{self, Slider, Ui};
 
 use crate::gui::toolbox::blendingbrush::BrushSettings;
-use crate::gui::GuiAction;
+use crate::gui::{GuiAction, UiExtension};
 
-use super::common::{self, BrushSize};
+use super::common;
+use super::{BrushSize, ToolboxAction};
 // ----------------------------------------------------------------------------
