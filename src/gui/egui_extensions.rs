@@ -19,6 +19,8 @@ pub(super) trait UiExtension {
     // ------------------------------------------------------------------------
     fn small_text(&self, text: impl Into<String>) -> egui::RichText;
     // ------------------------------------------------------------------------
+    fn small_selectable_button(&self, selected: bool, label: impl Into<String>) -> egui::Button;
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 impl UiExtension for egui::Ui {
@@ -73,6 +75,17 @@ impl UiExtension for egui::Ui {
     // ------------------------------------------------------------------------
     fn small_text(&self, text: impl Into<String>) -> egui::RichText {
         egui::RichText::new(text).small()
+    }
+    // ------------------------------------------------------------------------
+    fn small_selectable_button(&self, selected: bool, label: impl Into<String>) -> egui::Button {
+        let label = egui::RichText::new(label).small();
+        if selected {
+            egui::Button::new(label)
+                .small()
+                .fill(self.style().visuals.selection.bg_fill)
+        } else {
+            egui::Button::new(label).small()
+        }
     }
     // ------------------------------------------------------------------------
 }
