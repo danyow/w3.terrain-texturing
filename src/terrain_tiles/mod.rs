@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 /// defines the max time for blocking errormap/mesh generation until remaining
 /// work is deferred to next frame. prevents blocking of complete app.
-const MAX_MESH_GENERATION_TIME_MS: instant::Duration = instant::Duration::from_millis(30);
+const MAX_MESH_GENERATION_TIME_MS: instant::Duration = instant::Duration::from_millis(15);
 // ----------------------------------------------------------------------------
 /// defines how many tiles are processed in parallel before a check for max
 /// generation time is made
