@@ -572,7 +572,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     let viewDirection = normalize(view.world_position.xyz);
     let halfwayDirection = normalize(lightDirection + viewDirection);
 
-    let ambientStrength = 0.003;
+    let ambientStrength = 0.05;
     let diffuseStrength = max(dot(normal, lightDirection), 0.0);
     let specularStrength = 0.5;
     // shininess
@@ -585,7 +585,13 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     let diffuseCol = diffuseStrength * sunlight.color;
     let specularCol = specularStrength * specular * sunlight.color;
 
-    let col = ambientCol + diffuseCol + specularCol;
+    // if the sun is below horizon only use ambient lighting
+    let alpha = dot(vec3<f32>(0.0, 1.0, 0.0), lightDirection);
+    // some smoothing of intensity cutoff
+    let intensity = clamp((alpha - 0.01) / 0.2, 0.0, 1.0);
+
+    // var col = ambientCol + (diffuseCol + specularCol) * intensity;
+    var col = ambientCol + (diffuseCol + specularCol);
 
     var fragmentCol = vec4<f32>(col * diffuse.rgb, 1.0);
 
