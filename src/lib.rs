@@ -144,10 +144,15 @@ enum TaskResultData {
 }
 // ----------------------------------------------------------------------------
 fn setup_terrain_loading(
-    terrain_config: ResMut<config::TerrainConfig>,
+    terrain_config: Res<config::TerrainConfig>,
+    mut mesh_settings: ResMut<terrain_tiles::TerrainMeshSettings>,
     mut editor_events: EventWriter<EditorEvent>,
     mut task_manager: ResMut<cmds::AsyncCommandManager>,
 ) {
+    // auto setup some default lod count and error levels based on terrain size
+    mesh_settings.setup_defaults_from_size(terrain_config.map_size());
+
+    // queue loading tasks
     task_manager.add_new(cmds::WaitForTerrainLoaded::default().into());
     task_manager.add_new(cmds::LoadHeightmap::default().into());
     task_manager.add_new(cmds::LoadTextureMap::default().into());

@@ -57,6 +57,50 @@ impl Default for TerrainMeshSettings {
 // ----------------------------------------------------------------------------
 impl TerrainMeshSettings {
     // ------------------------------------------------------------------------
+    pub fn setup_defaults_from_size(&mut self, mapsize: u32) {
+        if mapsize > 4096 {
+            self.lod_count = 6;
+            self.min_error = 0.01;
+            self.max_error = 5.0;
+            self.max_distance = 4000.0;
+            // error values are porbably more dependent on height range in map
+            // than mapsize
+            self.lods = vec![
+                TerrainLodSettings::new(0, 0.0, 0.1),
+                TerrainLodSettings::new(1, 250.0, 0.075),
+                TerrainLodSettings::new(2, 500.0, 0.3),
+                TerrainLodSettings::new(3, 1000.0, 0.5),
+                TerrainLodSettings::new(4, 2000.0, 1.0),
+                TerrainLodSettings::new(5, 3500.0, 1.5),
+            ];
+        } else if mapsize > 2048 {
+            self.lod_count = 4;
+            self.min_error = 0.01;
+            self.max_error = 1.0;
+            self.max_distance = 1000.0;
+            self.lods = vec![
+                TerrainLodSettings::new(0, 0.0, 0.01),
+                TerrainLodSettings::new(1, 250.0, 0.05),
+                TerrainLodSettings::new(2, 500.0, 0.25),
+                TerrainLodSettings::new(3, 750.0, 0.5),
+            ];
+        } else {
+            self.lod_count = 3;
+            self.min_error = 0.01;
+            self.max_error = 1.0;
+            self.max_distance = 1000.0;
+            self.lods = vec![
+                TerrainLodSettings::new(0, 0.0, 0.1),
+                TerrainLodSettings::new(1, 100.0, 0.5),
+                TerrainLodSettings::new(2, 1000.0, 1.0),
+            ];
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl TerrainMeshSettings {
+    // ------------------------------------------------------------------------
     pub fn lod_settings(&self) -> impl Iterator<Item = &TerrainLodSettings> {
         self.lods.iter()
     }
