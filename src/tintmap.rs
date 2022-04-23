@@ -80,8 +80,13 @@ impl ClipmapData for TintMap {
         // is allowed to apply -> calculate stride
         let mut result = Vec::with_capacity(target_size * target_size * px_size);
 
-        let start_offset = px_size * (src_y * src_size + src_x);
-        let stride = px_size * (src_roi_size / target_size);
+        let stride = src_roi_size / target_size;
+        // do not use the same position for all clipmap level: offset with half
+        // of stride. seems to make the clipmap changes *slightly* more stable
+        let start_offset = (src_y + (stride / 2)) * src_size + src_x + stride / 2;
+
+        let stride = px_size * stride;
+        let start_offset = px_size * start_offset;
 
         let mut offset = start_offset;
         for sy in 0..target_size {

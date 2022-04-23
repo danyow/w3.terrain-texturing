@@ -72,8 +72,10 @@ impl ClipmapData for TextureControl {
 
         let mut result = Vec::with_capacity(target_size * target_size);
 
-        let start_offset = src_y * src_size + src_x;
         let stride = src_roi_size / target_size;
+        // do not use the same position for all clipmap level: offset with half
+        // of stride. seems to make the clipmap changes *slightly* more stable
+        let start_offset = (src_y + stride / 2) * src_size + src_x + stride / 2;
 
         let mut offset = start_offset;
         for sy in 0..target_size {
