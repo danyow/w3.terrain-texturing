@@ -153,7 +153,10 @@ impl ClipmapLayerInfo {
     pub fn new(rectangle: &Rectangle, clipmap_size: u32) -> Self {
         Self {
             map_offset: rectangle.pos,
-            resolution: rectangle.size.x as f32 / clipmap_size as f32,
+            // WORKAROUND:
+            // accessing clipmap at max coords results in a visible border
+            // because of rounding errors (?) -> arbitrarily reduce the range
+            resolution: rectangle.size.x as f32 / (clipmap_size - 1) as f32,
             size: rectangle.size.x as f32,
         }
     }
