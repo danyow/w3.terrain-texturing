@@ -24,6 +24,7 @@ struct VertexOutput {
     [[builtin(position)]]  position: vec4<f32>;
     [[location(0), interpolate(linear, center)]]    texture_coords: vec2<f32>;
     [[location(1)]]                                 center: vec3<f32>;
+    [[location(2)]]                                 adjusted_ring_width: f32;
 };
 // ----------------------------------------------------------------------------
 [[stage(vertex)]]
@@ -37,6 +38,9 @@ fn vertex([[builtin(vertex_index)]] in_vertex_index: u32) -> VertexOutput {
     // are covered.
     // Note: out of terrain mesh alpha is zero
     if (world_pos.w > 0.0 && distance(brush.cam_pos, world_pos.xyz) < brush.max_visibility) {
+        // adjust ring width based on distance to cam
+        let scale = clamp(distance(brush.cam_pos, world_pos.xyz) / 100.0, 0.2, 1.0);
+        let adjusted_ring_width = brush.ring_width * scale;
 
         let uv = vec2<f32>(f32((in_vertex_index << 1u) & 2u), f32(in_vertex_index & 2u));
 
@@ -52,14 +56,14 @@ fn vertex([[builtin(vertex_index)]] in_vertex_index: u32) -> VertexOutput {
         result.data[3] = f32(brush.button);
         # endif
 
-        return VertexOutput(position, texture_coords, center);
+        return VertexOutput(position, texture_coords, center, adjusted_ring_width);
     } else {
         let uv = vec2<f32>(0.0);
         let texture_coords = vec2<f32>(0.0);
         let position = vec4<f32>(-1.0);
         let center = vec3<f32>(0.0);
 
-        return VertexOutput(position, texture_coords, center);
+        return VertexOutput(position, texture_coords, center, 0.0);
     }
 }
 // ----------------------------------------------------------------------------
