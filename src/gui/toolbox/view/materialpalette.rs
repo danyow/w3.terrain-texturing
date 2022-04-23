@@ -26,11 +26,6 @@ pub(super) fn show(
             let overlay_texture = brush.overlay_texture;
             let bkgrnd_texture = brush.bkgrnd_texture;
 
-            // auto assignment to overlay / bkgrnd of primary button based on
-            // currently selected brush mode
-            let primary_selects_bkgrnd =
-                matches!(brush.textures_used, BrushTexturesUsed::Background);
-
             egui::Grid::new("toolbox.palette")
                 .striped(true)
                 .min_col_width(min_width)
@@ -45,7 +40,6 @@ pub(super) fn show(
                             slot,
                             overlay_texture == slot,
                             bkgrnd_texture == slot,
-                            primary_selects_bkgrnd,
                         ) {
                             gui_event.send(GuiAction::Toolbox(event));
                         }
@@ -73,7 +67,6 @@ fn show_material_selection(
     slot: MaterialSlot,
     matches_selected_overlay: bool,
     matches_selected_bkgrnd: bool,
-    primary_selects_bkgrnd: bool,
 ) -> Option<ToolboxAction> {
     use ToolboxAction::*;
 
@@ -103,14 +96,7 @@ fn show_material_selection(
 
         let response = ui.add(material_button);
         if response.clicked_by(egui::PointerButton::Primary) {
-            // auto assignment to overlay / bkgrnd of primary button based on
-            // currently selected brush mode
-            let selection = if primary_selects_bkgrnd {
-                SelectBackgroundTexture(slot)
-            } else {
-                SelectOverlayTexture(slot)
-            };
-            result = Some(selection);
+            result = Some(SelectOverlayTexture(slot));
         }
         if response.clicked_by(egui::PointerButton::Secondary) {
             result = Some(SelectBackgroundTexture(slot));
