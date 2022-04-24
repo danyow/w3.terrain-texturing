@@ -590,8 +590,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     // some smoothing of intensity cutoff
     let intensity = clamp((alpha - 0.01) / 0.2, 0.0, 1.0);
 
-    // var col = ambientCol + (diffuseCol + specularCol) * intensity;
-    var col = ambientCol + (diffuseCol + specularCol);
+    var col = ambientCol + (diffuseCol + specularCol) * intensity;
 
     var fragmentCol = vec4<f32>(col * diffuse.rgb, 1.0);
 
