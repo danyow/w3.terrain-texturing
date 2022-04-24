@@ -66,7 +66,7 @@ impl TerrainMeshSettings {
             // error values are porbably more dependent on height range in map
             // than mapsize
             self.lods = vec![
-                TerrainLodSettings::new(0, 0.0, 0.1),
+                TerrainLodSettings::new(0, 0.0, 0.01),
                 TerrainLodSettings::new(1, 250.0, 0.075),
                 TerrainLodSettings::new(2, 500.0, 0.3),
                 TerrainLodSettings::new(3, 1000.0, 0.5),
