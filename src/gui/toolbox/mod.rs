@@ -4,8 +4,8 @@ use bevy::prelude::*;
 
 use crate::terrain_material::MaterialSlot;
 use crate::terrain_painting::{
-    BrushPlacement, OverwriteProbability, PaintingEvent, SlopeBlendThreshold, TextureScale,
-    Variance,
+    BrushPlacement, OverwriteProbability, PaintingEvent, PickedType, PickerEvent, PickerResult,
+    PickerResultEvent, SlopeBlendThreshold, TextureScale, Variance,
 };
 use crate::terrain_render::{
     BrushPointer, BrushPointerEventData, BrushPointerEventReceiver, TerrainMaterialSet,
@@ -29,7 +29,8 @@ impl Plugin for TexturingToolboxPlugin {
                     .label("handle_ui_actions")
                     .after("gui_actions"),
             )
-            .add_system(process_brush_clicks.before("handle_ui_actions"));
+            .add_system(process_brush_clicks.before("handle_ui_actions"))
+            .add_system(process_picker_results);
     }
     // ------------------------------------------------------------------------
 }
@@ -57,6 +58,9 @@ pub enum ToolboxAction {
     ShowOnlyBackgroundTexture(bool),
     ShowBackgroundScaling(bool),
     ShowSlopeBlendThreshold(bool),
+    TexturePickerSelected(bool),
+    SlopeBlendThresholdPickerSelected(bool),
+    BkgrndScalingPickerSelected(bool),
 }
 // ---------------------------------------------------------------------------
 #[derive(Debug)]
@@ -93,28 +97,93 @@ pub(super) mod view;
 fn process_brush_clicks(
     receiver: Res<BrushPointerEventReceiver>,
     ui_state: Res<UiState>,
-    mut editor_events: EventWriter<PaintingEvent>,
+    mut painting_events: EventWriter<PaintingEvent>,
+    mut picker_events: EventWriter<PickerEvent>,
 ) {
+    use PickedType::*;
     use ToolSelection::*;
 
     while let Ok(BrushPointerEventData::Centered(button, pos, radius)) = receiver.try_recv() {
         let settings = &ui_state.toolbox;
 
         if let Some(selection) = settings.selection {
-            let cmds = match selection {
+            let placement = BrushPlacement::new(pos, radius);
+            match selection {
+                // -- picker
+                Texturing if settings.texture_brush.picker_activated => {
+                    let cmds = update::create_texture_picker_cmds(button, &settings.texture_brush);
+                    picker_events.send(PickerEvent::new(placement, cmds));
+                }
+                Blending if settings.blending_brush.picker_activated => {
+                    picker_events.send(PickerEvent::new(placement, vec![SlopeBlendThreshold]));
+                }
+                Scaling if settings.scaling_brush.picker_activated => {
+                    picker_events.send(PickerEvent::new(placement, vec![BackgroundScaling]));
+                }
+                // -- painting
                 Texturing => {
-                    update::create_texture_brush_paint_cmds(button, &settings.texture_brush)
+                    let cmds = update::create_texture_paint_cmds(button, &settings.texture_brush);
+                    painting_events.send(PaintingEvent::new(placement, cmds));
                 }
                 Blending => {
-                    update::create_blending_brush_paint_cmds(button, &settings.blending_brush)
+                    let cmds = update::create_blending_paint_cmds(button, &settings.blending_brush);
+                    painting_events.send(PaintingEvent::new(placement, cmds));
                 }
-                Scaling => update::create_scaling_brush_paint_cmds(button, &settings.scaling_brush),
+                Scaling => {
+                    let cmds = update::create_scaling_paint_cmds(button, &settings.scaling_brush);
+                    painting_events.send(PaintingEvent::new(placement, cmds));
+                }
                 MaterialParameters => continue,
-            };
-            if !cmds.is_empty() {
-                editor_events.send(PaintingEvent::new(BrushPlacement::new(pos, radius), cmds));
             }
         }
+    }
+}
+// ----------------------------------------------------------------------------
+fn process_picker_results(
+    mut ui_state: ResMut<UiState>,
+    mut brush: ResMut<BrushPointer>,
+    mut picker_results: EventReader<PickerResultEvent>,
+    mut rendersettings: ResMut<TerrainRenderSettings>,
+) {
+    use PickerResult::*;
+
+    let picker_used = !picker_results.is_empty();
+
+    for pick in picker_results.iter() {
+        match **pick {
+            OverlayTexture(material_slot) => {
+                ui_state.toolbox.texture_brush.overlay_texture = material_slot;
+                update::update_brush_on_material_selection(
+                    &mut ui_state.toolbox,
+                    &mut *brush,
+                    &mut *rendersettings,
+                    true,
+                );
+            }
+            BackgroundTexture(material_slot) => {
+                ui_state.toolbox.texture_brush.bkgrnd_texture = material_slot;
+                update::update_brush_on_material_selection(
+                    &mut ui_state.toolbox,
+                    &mut *brush,
+                    &mut *rendersettings,
+                    false,
+                );
+            }
+            BlendThreshold(value) => {
+                update::update_brush_on_blendthreshold_pick(
+                    &mut ui_state.toolbox,
+                    &mut *brush,
+                    value,
+                );
+            }
+            BackgroundScaling(value) => {
+                update::update_brush_on_scaling_pick(&mut ui_state.toolbox, &mut *brush, value);
+            }
+        }
+    }
+
+    if picker_used {
+        ui_state.toolbox.reset_picker();
     }
 }
 // ----------------------------------------------------------------------------
@@ -192,6 +261,18 @@ fn handle_ui_actions(
                         *show,
                     );
                 }
+                TexturePickerSelected(selected) => {
+                    ui_state.toolbox.texture_brush.picker_activated = *selected;
+                    update::picker_selection(&mut ui_state.toolbox, &mut *brush, *selected);
+                }
+                SlopeBlendThresholdPickerSelected(selected) => {
+                    ui_state.toolbox.blending_brush.picker_activated = *selected;
+                    update::picker_selection(&mut ui_state.toolbox, &mut *brush, *selected);
+                }
+                BkgrndScalingPickerSelected(selected) => {
+                    ui_state.toolbox.scaling_brush.picker_activated = *selected;
+                    update::picker_selection(&mut ui_state.toolbox, &mut *brush, *selected);
+                }
             }
         }
     }
@@ -252,6 +333,16 @@ impl ToolboxState {
     // ------------------------------------------------------------------------
     fn rescale_pointer(&mut self, scale: f32) {
         self.brush_size.scale(scale);
+    }
+    // ------------------------------------------------------------------------
+    fn reset_picker(&mut self) {
+        use ToolSelection::*;
+        match self.selection {
+            Some(Texturing) => self.texture_brush.picker_activated = false,
+            Some(Blending) => self.blending_brush.picker_activated = false,
+            Some(Scaling) => self.scaling_brush.picker_activated = false,
+            Some(MaterialParameters) | None => {}
+        }
     }
     // ------------------------------------------------------------------------
     fn pointer_settings(&self) -> PointerSettings {

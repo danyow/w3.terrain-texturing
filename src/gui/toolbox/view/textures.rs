@@ -60,6 +60,9 @@ pub(super) fn show(
                 ui.horizontal_top(|ui| {
                     ui.small("Selected Textures");
 
+                    //FIXME this "padding" should calculated based on min siderbar size
+                    ui.add_space(70.0);
+
                     // reduce spacing between "hotkey" buttons
                     ui.spacing_mut().item_spacing.x /= 4.0;
 
@@ -73,6 +76,11 @@ pub(super) fn show(
                         .on_hover_text("Show only background texture").clicked()
                     {
                         gui_event.send(Toolbox(ShowOnlyBackgroundTexture(!brush.show_only_background)));
+                    }
+                    if ui.add(ui.small_selectable_button(brush.picker_activated, "P"))
+                        .on_hover_text("Pick an overlay/background texture.").clicked()
+                    {
+                        gui_event.send(Toolbox(TexturePickerSelected(!brush.picker_activated)));
                     }
                 });
                 ui.add_enabled_ui(overlay_used, |ui| {

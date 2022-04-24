@@ -15,7 +15,9 @@ pub struct TerrainPaintingPlugin;
 impl TerrainPaintingPlugin {
     // ------------------------------------------------------------------------
     pub fn process_brush_operations<T: StateData>(state: T) -> SystemSet {
-        SystemSet::on_update(state).with_system(process_brush_operations)
+        SystemSet::on_update(state)
+            .with_system(process_brush_operations)
+            .with_system(process_picker_operations)
     }
     // ------------------------------------------------------------------------
 }
@@ -24,6 +26,8 @@ impl TerrainPaintingPlugin {
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct PaintingEvent(BrushPlacement, Vec<PaintCommand>);
+pub struct PickerEvent(BrushPlacement, Vec<PickedType>);
+pub struct PickerResultEvent(PickerResult);
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct BrushPlacement {
@@ -39,6 +43,20 @@ pub struct TextureScale(pub u8);
 pub struct SlopeBlendThreshold(pub u8);
 #[derive(Clone, Copy, Debug)]
 pub struct Variance(pub u8);
+// ----------------------------------------------------------------------------
+pub enum PickedType {
+    OverlayTexture,
+    BackgroundTexture,
+    SlopeBlendThreshold,
+    BackgroundScaling,
+}
+// ----------------------------------------------------------------------------
+pub enum PickerResult {
+    OverlayTexture(MaterialSlot),
+    BackgroundTexture(MaterialSlot),
+    BlendThreshold(SlopeBlendThreshold),
+    BackgroundScaling(TextureScale),
+}
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub enum PaintCommand {
@@ -84,12 +102,53 @@ pub enum PaintCommand {
 impl Plugin for TerrainPaintingPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
-        app.add_event::<PaintingEvent>();
+        app.add_event::<PaintingEvent>()
+            .add_event::<PickerEvent>()
+            .add_event::<PickerResultEvent>();
     }
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 // systems
+// ----------------------------------------------------------------------------
+fn process_picker_operations(
+    config: Res<TerrainConfig>,
+    texture_clipmap: Res<TextureControlClipmap>,
+    mut picker_events: EventReader<PickerEvent>,
+    mut picker_results: EventWriter<PickerResultEvent>,
+) {
+    use PickerResult::*;
+
+    for PickerEvent(placement, picks) in picker_events.iter() {
+        let (rectangle, _) = calculate_region_of_interest(&*config, placement);
+
+        let data = texture_clipmap.extract_fullres(&rectangle)[0];
+
+        for target in picks {
+            match target {
+                PickedType::OverlayTexture => {
+                    let slot =
+                        pick_material::<OVERLAY_TEXTURE_BITMASK, OVERLAY_TEXTURE_BITPOS>(data);
+                    picker_results.send(PickerResultEvent(OverlayTexture(slot)));
+                }
+                PickedType::BackgroundTexture => {
+                    let slot = pick_material::<BKGRND_TEXTURE_BITMASK, BKGRND_TEXTURE_BITPOS>(data);
+                    picker_results.send(PickerResultEvent(BackgroundTexture(slot)));
+                }
+                PickedType::SlopeBlendThreshold => {
+                    let value = pick_value::<BLENDING_BITMASK, BLENDING_BITPOS>(data);
+                    picker_results.send(PickerResultEvent(BlendThreshold(SlopeBlendThreshold(
+                        value,
+                    ))));
+                }
+                PickedType::BackgroundScaling => {
+                    let value = pick_value::<SCALING_BITMASK, SCALING_BITPOS>(data);
+                    picker_results.send(PickerResultEvent(BackgroundScaling(TextureScale(value))));
+                }
+            }
+        }
+    }
+}
 // ----------------------------------------------------------------------------
 fn process_brush_operations(
     config: Res<TerrainConfig>,
@@ -313,6 +372,21 @@ const BLENDING_BITPOS: u8 = 10;
 const BLENDING_BITMASK: u16 = 0b0001_1100_0000_0000;
 const SCALING_BITPOS: u8 = 13;
 const SCALING_BITMASK: u16 = 0b1110_0000_0000_0000;
+// ----------------------------------------------------------------------------
+// picker operation
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn pick_material<const BIT_MASK: u16, const BIT_POS: u8>(data: u16) -> MaterialSlot {
+    // zero is reserved for holes
+    (((data & BIT_MASK) >> BIT_POS) as u8)
+        .saturating_sub(1)
+        .into()
+}
+// ----------------------------------------------------------------------------
+#[inline(always)]
+fn pick_value<const BIT_MASK: u16, const BIT_POS: u8>(data: u16) -> u8 {
+    ((data & BIT_MASK) >> BIT_POS) as u8
+}
 // ----------------------------------------------------------------------------
 // painting operations
 // ----------------------------------------------------------------------------
@@ -541,6 +615,22 @@ impl PaintingEvent {
         Self(placement, cmds)
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl PickerEvent {
+    // ------------------------------------------------------------------------
+    pub fn new(placement: BrushPlacement, picks: Vec<PickedType>) -> Self {
+        Self(placement, picks)
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl std::ops::Deref for PickerResultEvent {
+    type Target = PickerResult;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 // ----------------------------------------------------------------------------
 impl BrushPlacement {

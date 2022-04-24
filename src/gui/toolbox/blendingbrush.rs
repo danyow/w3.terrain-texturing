@@ -18,6 +18,7 @@ pub(super) struct BrushSettings {
     pub use_variance: bool,
 
     pub show_blend_threshold: bool,
+    pub picker_activated: bool,
 }
 // ----------------------------------------------------------------------------
 impl ToolSettings for BrushSettings {
@@ -76,6 +77,7 @@ impl Default for BrushSettings {
             use_variance: false,
 
             show_blend_threshold: false,
+            picker_activated: false,
         }
     }
 }

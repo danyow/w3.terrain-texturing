@@ -24,6 +24,7 @@ pub(super) struct BrushSettings {
 
     pub show_only_overlay: bool,
     pub show_only_background: bool,
+    pub picker_activated: bool,
 }
 // ----------------------------------------------------------------------------
 #[derive(Eq, PartialEq, Clone, Copy)]
@@ -120,6 +121,7 @@ impl Default for BrushSettings {
 
             show_only_overlay: false,
             show_only_background: false,
+            picker_activated: false,
         }
     }
 }

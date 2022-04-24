@@ -5,9 +5,10 @@
 use bevy::prelude::MouseButton;
 
 use crate::terrain_material::MaterialSlot;
-use crate::terrain_painting::PaintCommand;
+use crate::terrain_painting::{PaintCommand, PickedType, SlopeBlendThreshold, TextureScale};
 use crate::terrain_render::{BrushPointer, TerrainMaterialSet, TerrainRenderSettings};
 
+use super::common::BrushSize;
 use super::{blendingbrush, scalingbrush, texturebrush};
 use super::{MaterialSetting, PointerSettings, ToolSelection, ToolboxState};
 // ----------------------------------------------------------------------------
@@ -30,6 +31,25 @@ pub(super) fn update_material_settings(
         SetSpecularityBase(v) => param.specularity_base = *v,
         SetFalloff(v) => param.falloff = *v,
     }
+}
+// ----------------------------------------------------------------------------
+pub(super) fn picker_selection(
+    toolbox: &mut ToolboxState,
+    brush_pointer: &mut BrushPointer,
+    select: bool,
+) {
+    let mut pointer_settings = toolbox.pointer_settings();
+
+    if select {
+        let current_col = pointer_settings.color;
+
+        pointer_settings.size = BrushSize::minimal();
+        pointer_settings.ring_width = 0.25;
+        pointer_settings.color.set_r(1.0);
+        pointer_settings.color.set_g(current_col.g() * 0.25);
+        pointer_settings.color.set_b(current_col.b() * 0.25);
+    }
+    update_brush_pointer(&pointer_settings, brush_pointer);
 }
 // ----------------------------------------------------------------------------
 pub(super) fn render_only_overlay_material(
@@ -93,6 +113,9 @@ pub(super) fn on_changed_tool_selection(
     brush_pointer: &mut BrushPointer,
     rendersettings: &mut TerrainRenderSettings,
 ) {
+    // reset if it was previously set
+    toolbox.reset_picker();
+
     if toolbox.has_projected_pointer() {
         update_brush_pointer(&toolbox.pointer_settings(), brush_pointer);
     }
@@ -147,8 +170,55 @@ pub(super) fn update_brush_on_material_selection(
     }
 }
 // ----------------------------------------------------------------------------
+pub(super) fn update_brush_on_blendthreshold_pick(
+    toolbox: &mut ToolboxState,
+    brush_pointer: &mut BrushPointer,
+    value: SlopeBlendThreshold,
+) {
+    toolbox.blending_brush.slope_blend = value;
+    toolbox.blending_brush.adjust_values = false;
+    update_brush_pointer(&toolbox.pointer_settings(), &mut *brush_pointer);
+}
+// ----------------------------------------------------------------------------
+pub(super) fn update_brush_on_scaling_pick(
+    toolbox: &mut ToolboxState,
+    brush_pointer: &mut BrushPointer,
+    value: TextureScale,
+) {
+    toolbox.scaling_brush.scaling = value;
+    toolbox.scaling_brush.adjust_values = false;
+    update_brush_pointer(&toolbox.pointer_settings(), &mut *brush_pointer);
+}
+// ----------------------------------------------------------------------------
+pub(super) fn create_texture_picker_cmds(
+    button: MouseButton,
+    settings: &texturebrush::BrushSettings,
+) -> Vec<PickedType> {
+    use texturebrush::BrushTexturesUsed::*;
+    use PickedType::*;
+
+    let mut cmds = Vec::default();
+
+    // other buttons are ignored
+    if let MouseButton::Left = button {
+        match settings.textures_used {
+            Overlay => {
+                cmds.push(OverlayTexture);
+            }
+            Background => {
+                cmds.push(BackgroundTexture);
+            }
+            OverlayAndBackground => {
+                cmds.push(OverlayTexture);
+                cmds.push(BackgroundTexture);
+            }
+        }
+    }
+    cmds
+}
+// ----------------------------------------------------------------------------
 #[inline(always)]
-pub(super) fn create_texture_brush_paint_cmds(
+pub(super) fn create_texture_paint_cmds(
     button: MouseButton,
     settings: &texturebrush::BrushSettings,
 ) -> Vec<PaintCommand> {
@@ -204,7 +274,7 @@ pub(super) fn create_texture_brush_paint_cmds(
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-pub(super) fn create_blending_brush_paint_cmds(
+pub(super) fn create_blending_paint_cmds(
     button: MouseButton,
     settings: &blendingbrush::BrushSettings,
 ) -> Vec<PaintCommand> {
@@ -265,7 +335,7 @@ pub(super) fn create_blending_brush_paint_cmds(
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-pub(super) fn create_scaling_brush_paint_cmds(
+pub(super) fn create_scaling_paint_cmds(
     button: MouseButton,
     settings: &scalingbrush::BrushSettings,
 ) -> Vec<PaintCommand> {

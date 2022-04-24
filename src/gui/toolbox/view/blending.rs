@@ -48,7 +48,7 @@ pub(super) fn show(
 // ----------------------------------------------------------------------------
 #[inline]
 fn scale_settings(ui: &mut Ui, brush: &mut BrushSettings) -> Option<ToolboxAction> {
-    use ToolboxAction::ShowSlopeBlendThreshold;
+    use ToolboxAction::{ShowSlopeBlendThreshold, SlopeBlendThresholdPickerSelected};
 
     let mut result = None;
 
@@ -57,12 +57,25 @@ fn scale_settings(ui: &mut Ui, brush: &mut BrushSettings) -> Option<ToolboxActio
         ui.radio_value(&mut brush.adjust_values, true, "adjust");
         ui.radio_value(&mut brush.adjust_values, false, "overwrite");
 
+        //FIXME this "padding" should calculated based on min siderbar size
+        ui.add_space(40.0);
+
+        // reduce spacing between "hotkey" buttons
+        ui.spacing_mut().item_spacing.x /= 4.0;
+
         if ui
             .add(ui.small_selectable_button(brush.show_blend_threshold, "B"))
             .on_hover_text("Show slope blend threshold.")
             .clicked()
         {
             result = Some(ShowSlopeBlendThreshold(!brush.show_blend_threshold));
+        }
+        if ui
+            .add(ui.small_selectable_button(brush.picker_activated, "P"))
+            .on_hover_text("Pick slope blend threshold value.")
+            .clicked()
+        {
+            result = Some(SlopeBlendThresholdPickerSelected(!brush.picker_activated));
         }
     });
 
