@@ -114,16 +114,26 @@ fn process_brush_operations(
         for cmd in cmds {
             match cmd {
                 // -- texturing
-                SetOverlayMaterial(slot) => paint_overlay_texture(&mask, &mut data, slot),
+                SetOverlayMaterial(slot) => {
+                    paint_texture::<OVERLAY_TEXTURE_BITMASK, OVERLAY_TEXTURE_BITPOS>(
+                        &mask, &mut data, slot,
+                    );
+                }
                 SetBackgroundMaterial(slot) => {
-                    paint_background_texture(&mask, &mut data, slot);
+                    paint_texture::<BKGRND_TEXTURE_BITMASK, BKGRND_TEXTURE_BITPOS>(
+                        &mask, &mut data, slot,
+                    );
                 }
                 // -- texturing randomized versions
                 RandomizedSetOverlayMaterial(prob, slot) => {
-                    paint_randomized_overlay_texture(&mask, &mut data, slot, *prob);
+                    randomized_paint_texture::<OVERLAY_TEXTURE_BITMASK, OVERLAY_TEXTURE_BITPOS>(
+                        &mask, &mut data, slot, *prob,
+                    );
                 }
                 RandomizedSetBackgroundMaterial(prob, slot) => {
-                    paint_randomized_background_texture(&mask, &mut data, slot, *prob);
+                    randomized_paint_texture::<BKGRND_TEXTURE_BITMASK, BKGRND_TEXTURE_BITPOS>(
+                        &mask, &mut data, slot, *prob,
+                    );
                 }
                 // -- scaling
                 SetBackgroundScaling(value) => {
@@ -288,8 +298,6 @@ fn calculate_region_of_interest(
     (rectangle, mask)
 }
 // ----------------------------------------------------------------------------
-// painting operations
-// ----------------------------------------------------------------------------
 // 0..4 overlay texture idx
 // 5..9 background textures idx
 // 10..15 blend control
@@ -297,31 +305,32 @@ fn calculate_region_of_interest(
 //   13..15 UV scale
 //
 // ----------------------------------------------------------------------------
+const OVERLAY_TEXTURE_BITPOS: u8 = 0;
+const OVERLAY_TEXTURE_BITMASK: u16 = 0b0000_0000_0001_1111;
+const BKGRND_TEXTURE_BITPOS: u8 = 5;
+const BKGRND_TEXTURE_BITMASK: u16 = 0b0000_0011_1110_0000;
 const BLENDING_BITPOS: u8 = 10;
 const BLENDING_BITMASK: u16 = 0b0001_1100_0000_0000;
 const SCALING_BITPOS: u8 = 13;
 const SCALING_BITMASK: u16 = 0b1110_0000_0000_0000;
 // ----------------------------------------------------------------------------
+// painting operations
+// ----------------------------------------------------------------------------
 #[inline(always)]
-fn paint_overlay_texture(mask: &[bool], data: &mut [u16], slot: &MaterialSlot) {
+fn paint_texture<const BIT_MASK: u16, const BIT_POS: u8>(
+    mask: &[bool],
+    data: &mut [u16],
+    slot: &MaterialSlot,
+) {
     // zero is reserved for holes
     let material = **slot as u16 + 1;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        *d = (*d & 0b1111_1111_1110_0000) + material;
+        *d = (*d & !BIT_MASK) + (material << BIT_POS);
     }
 }
 // ----------------------------------------------------------------------------
 #[inline(always)]
-fn paint_background_texture(mask: &[bool], data: &mut [u16], slot: &MaterialSlot) {
-    // zero is reserved for holes
-    let material = **slot as u16 + 1;
-    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        *d = (*d & 0b1111_1100_0001_1111) + (material << 5);
-    }
-}
-// ----------------------------------------------------------------------------
-#[inline(always)]
-fn paint_randomized_overlay_texture(
+fn randomized_paint_texture<const BIT_MASK: u16, const BIT_POS: u8>(
     mask: &[bool],
     data: &mut [u16],
     slot: &MaterialSlot,
@@ -333,25 +342,7 @@ fn paint_randomized_overlay_texture(
     let material = **slot as u16 + 1;
     for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
         if rng.gen_bool(*probability as f64) {
-            *d = (*d & 0b1111_1111_1110_0000) + material;
-        }
-    }
-}
-// ----------------------------------------------------------------------------
-#[inline(always)]
-fn paint_randomized_background_texture(
-    mask: &[bool],
-    data: &mut [u16],
-    slot: &MaterialSlot,
-    probability: OverwriteProbability,
-) {
-    let mut rng = thread_rng();
-
-    // zero is reserved for holes
-    let material = **slot as u16 + 1;
-    for (d, _) in data.iter_mut().zip(mask.iter()).filter(|(_, m)| **m) {
-        if rng.gen_bool(*probability as f64) {
-            *d = (*d & 0b1111_1100_0001_1111) + (material << 5);
+            *d = (*d & !BIT_MASK) + (material << BIT_POS);
         }
     }
 }
