@@ -373,6 +373,14 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     let controlMapValueC: vec4<u32> = textureLoad(controlMap, clipmapPosCoord + vec2<i32>(0, 1), i32(clipmap_level));
     let controlMapValueD: vec4<u32> = textureLoad(controlMap, clipmapPosCoord + vec2<i32>(1, 1), i32(clipmap_level));
 
+    // Note about zero texture id: zero slot represents a terrain hole
+    // by subtracting 1 the id overflows and the shader uses the *last* texture
+    // in the texture array. this is a dedicated placeholder texture in the editor
+    // independent of the loaded materialset to visualize terrain holes
+    // it seems only background zero texture indicates a terrain hole (overlay
+    // texture is ignored in the case). unclear what a non-zero bkgrnd and zero
+    // overlay texture represent.
+
     // --- overlay textures
     let overlayTextureSlots = vec4<u32>(
         (controlMapValueA.x & 31u) - 1u,

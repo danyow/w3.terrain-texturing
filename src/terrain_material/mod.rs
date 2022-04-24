@@ -102,54 +102,76 @@ pub(super) fn setup_default_materialset(
     // generate new placeholder texture arrays
     let dim = 1024;
 
+    // -- prepare default diffuse/normal textures that will be cloned
     //  vec3(0, 0, 1) encoded as rgb(0.5, 0.5, 1.0)
     let default_normal = [128u8, 128u8, 255u8, 0u8];
 
     let placeholder_normal = default_normal.repeat(dim * dim);
+    let placeholder_terrain_hole = [0u8, 0u8, 0u8, 0u8].repeat(dim * dim);
     let placeholder_diffuse = textures
         .get(&placeholder.placeholder_texture)
         .expect("loaded placeholder texture");
 
+    // --- assembling texture array
     let dim = dim as u32;
-    let placeholder_diffuse = image::DynamicImage::ImageRgba8(
-        image::ImageBuffer::from_raw(dim, dim, placeholder_diffuse.data.clone()).unwrap(),
-    );
-    let placeholder_normal = image::DynamicImage::ImageRgba8(
-        image::ImageBuffer::from_raw(dim, dim, placeholder_normal).unwrap(),
-    );
 
     let mut diffuse_array =
-        TextureArrayBuilder::new(dim, 31, Rgba8UnormSrgb, TERRAIN_TEXTURE_MIP_LEVELS);
-    let mip_sizes = diffuse_array.mip_sizes();
-    let placeholder_diffuse = TextureArray::generate_mips(placeholder_diffuse, &mip_sizes);
-    let placeholder_normal = TextureArray::generate_mips(placeholder_normal, &mip_sizes);
+        TextureArrayBuilder::new(dim, 32, Rgba8UnormSrgb, TERRAIN_TEXTURE_MIP_LEVELS);
 
-    let mut update_events = Vec::with_capacity(2 * 31);
+    let mip_sizes = diffuse_array.mip_sizes();
+
+    let create_image = |data| -> image::DynamicImage {
+        image::DynamicImage::ImageRgba8(image::ImageBuffer::from_raw(dim, dim, data).unwrap())
+    };
+
+    let mut update_events = Vec::with_capacity(2 * 32);
+
+    // -- diffuse -------------------------------------------------------------
+    let placeholder_diffuse =
+        TextureArray::generate_mips(create_image(placeholder_diffuse.data.clone()), &mip_sizes);
+    let placeholder_terrain_hole =
+        TextureArray::generate_mips(create_image(placeholder_terrain_hole), &mip_sizes);
+
+    let mut add_diffuse_texture = |slot, mips| {
+        diffuse_array.add_texture_with_mips(mips);
+        update_events.push(TerrainTextureUpdated(TextureUpdatedEvent(slot, Diffuse)));
+    };
 
     for slot in 0..31 {
-        diffuse_array.add_texture_with_mips(placeholder_diffuse.clone());
-
-        update_events.push(TerrainTextureUpdated(TextureUpdatedEvent(
-            slot.into(),
-            Diffuse,
-        )));
+        add_diffuse_texture(slot.into(), placeholder_diffuse.clone());
     }
+    // Note terrain holes: zero slot represents a terrain hole in the game.
+    // the shader subracts 1 from the material index, the id overflows and the
+    // shader uses the *last* texture in the texture array. thus a dedicated
+    // placeholder texture is added as last element in the materialslot.
+    //
+    // add texture to represent terrain holes as last
+    add_diffuse_texture(31.into(), placeholder_terrain_hole);
+
+    // add assembled texture array to resources
     materialset.diffuse = texture_arrays.add(diffuse_array.build());
 
+    // -- normals -------------------------------------------------------------
     // Note: must not be loaded as SRGB!
     let mut normal_array =
-        TextureArrayBuilder::new(dim as u32, 31, Rgba8Unorm, TERRAIN_TEXTURE_MIP_LEVELS);
-    for slot in 0..31 {
-        normal_array.add_texture_with_mips(placeholder_normal.clone());
+        TextureArrayBuilder::new(dim as u32, 32, Rgba8Unorm, TERRAIN_TEXTURE_MIP_LEVELS);
 
-        update_events.push(TerrainTextureUpdated(TextureUpdatedEvent(
-            slot.into(),
-            Normal,
-        )));
+    let placeholder_normal =
+        TextureArray::generate_mips(create_image(placeholder_normal), &mip_sizes);
+
+    let mut add_texture_normals = |slot, mips| {
+        normal_array.add_texture_with_mips(mips);
+        update_events.push(TerrainTextureUpdated(TextureUpdatedEvent(slot, Normal)));
+    };
+
+    // Note: also add normal placeholder for terrain holes
+    for slot in 0..32 {
+        add_texture_normals(slot.into(), placeholder_normal.clone());
     }
+    // add assembled texture array to resources
     materialset.normal = texture_arrays.add(normal_array.build());
 
-    // notify editor to update preview images in ui
+    // -- notify editor to update preview images in ui ------------------------
     editor_events.send_batch(update_events.drain(..));
 
     debug!("generating default material pallete.end");
