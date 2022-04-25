@@ -58,6 +58,7 @@ impl TerrainTilesGeneratorPlugin {
             .with_system(adjust_tile_mesh_lod.before(MeshGeneration))
             .with_system(adjust_meshes_on_config_change.before(MeshGeneration))
             .with_system(collect_stats.after(MeshGeneration))
+            .with_system(update_mesh_index_bound.after(MeshGeneration))
     }
     // ------------------------------------------------------------------------
     pub fn reset_data<T: StateData>(state: T) -> SystemSet {
@@ -107,12 +108,18 @@ impl TerrainTileComponent {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
+#[derive(Clone, Copy)]
+struct IndexBound(f32);
+// ----------------------------------------------------------------------------
 #[derive(Clone)]
 struct MeshReduction {
     lod: u8,
     current: f32,
     target: f32,
     priority: u32,
+
+    idx_bound: IndexBound,
+    idx_bound_wireframe: IndexBound,
 }
 // ----------------------------------------------------------------------------
 mod generator;
@@ -171,6 +178,39 @@ struct AdaptiveTileMeshLods;
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
+fn update_mesh_index_bound(
+    mut query: Query<(&mut TerrainTileComponent, &Handle<TerrainMesh>)>,
+    meshes: Res<Assets<TerrainMesh>>,
+    render_settings: Res<TerrainRenderSettings>,
+) {
+    // meshes are static but number of generated triangles depends on used error
+    // threshold. for some error threshold the vertex count will drop below
+    // u16::MAX and allows to use smaller u16 indices for *ALL* bigger error
+    // thresholds.
+    //
+    // update the u16 ibound based on last error threshold and vertex number
+    if meshes.is_changed() {
+        let with_wireframe = render_settings.overlay_wireframe;
+
+        for (mut tile, mesh_handle) in query.iter_mut() {
+            let current = tile.mesh_conf.current;
+            let bound = if with_wireframe {
+                &mut tile.mesh_conf.idx_bound_wireframe
+            } else {
+                &mut tile.mesh_conf.idx_bound
+            };
+            if bound.needs_update(current) {
+                if let Some(vertex_count) = meshes
+                    .get(mesh_handle)
+                    .filter(|m| m.pending_upload())
+                    .map(|m| m.stats().vertices)
+                {
+                    bound.update(current, vertex_count);
+                }
+            }
+        }
+    }
+}
 // ----------------------------------------------------------------------------
 fn collect_stats(mut stats: ResMut<TerrainStats>, meshes: Res<Assets<TerrainMesh>>) {
     if meshes.is_changed() {
@@ -425,6 +465,7 @@ fn async_tilemesh_generation(
                                     terraindata_view,
                                     triangle_errors,
                                     include_wireframe_info,
+                                    tile.mesh_conf.use_small_index(include_wireframe_info),
                                 )
                             })
                         }
@@ -612,6 +653,42 @@ fn despawn_tiles(mut commands: Commands, tiles: Query<Entity, With<TerrainTileCo
     commands.insert_resource(TerrainStats::default());
 }
 // ----------------------------------------------------------------------------
+impl MeshReduction {
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn use_small_index(&self, with_wireframe: bool) -> bool {
+        if with_wireframe {
+            self.idx_bound_wireframe.greater_or_equal(self.target)
+        } else {
+            self.idx_bound.greater_or_equal(self.target)
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl IndexBound {
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn needs_update(&self, error_threshold: f32) -> bool {
+        // vertex count grows with error threshold monotonically. thus the
+        // stored boundary for threshold can only be lowered.
+        error_threshold < self.0
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn update(&mut self, error_threshold: f32, vertex_count: u32) {
+        if vertex_count < u16::MAX as u32 {
+            self.0 = error_threshold
+        }
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn greater_or_equal(&self, error_threshold: f32) -> bool {
+        error_threshold >= self.0
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
 impl Default for MeshReduction {
     fn default() -> Self {
         Self {
@@ -621,7 +698,15 @@ impl Default for MeshReduction {
             // showed quicker and only near tiles are "upgraded"
             target: 2.0,
             priority: 0,
+            idx_bound: IndexBound::default(),
+            idx_bound_wireframe: IndexBound::default(),
         }
+    }
+}
+// ----------------------------------------------------------------------------
+impl Default for IndexBound {
+    fn default() -> Self {
+        Self(f32::MAX)
     }
 }
 // ----------------------------------------------------------------------------

@@ -235,6 +235,7 @@ pub(super) fn generate_errormap(
     errors
 }
 // ----------------------------------------------------------------------------
+#[allow(clippy::too_many_arguments)]
 pub(super) fn generate_tilemesh(
     tile_id: TerrainTileId<TILE_SIZE>,
     map_resolution: f32,
@@ -243,21 +244,90 @@ pub(super) fn generate_tilemesh(
     terraindata_view: TerrainDataView,
     triangle_errors: &TileHeightErrors,
     include_wireframe_info: bool,
+    small_index: bool,
 ) -> TerrainMesh {
     if include_wireframe_info {
-        generate_mesh(
-            error_threshold,
-            triangle_errors,
-            WireframedTileMeshBuilder::new(tile_id, map_resolution, base_height, terraindata_view),
-        )
+        let builder = WireframedTileMeshBuilder::new(
+            tile_id,
+            map_resolution,
+            base_height,
+            terraindata_view,
+            small_index,
+        );
+
+        if small_index {
+            generate_mesh_with_small_idx(error_threshold, triangle_errors, builder)
+        } else {
+            generate_mesh(error_threshold, triangle_errors, builder)
+        }
     } else {
-        generate_mesh(
-            error_threshold,
-            triangle_errors,
-            TileMeshBuilder::new(tile_id, map_resolution, base_height, terraindata_view),
-        )
+        let builder = TileMeshBuilder::new(
+            tile_id,
+            map_resolution,
+            base_height,
+            terraindata_view,
+            small_index,
+        );
+        if small_index {
+            generate_mesh_with_small_idx(error_threshold, triangle_errors, builder)
+        } else {
+            generate_mesh(error_threshold, triangle_errors, builder)
+        }
     }
 }
+// ----------------------------------------------------------------------------
+// special case:
+//      it's established that the generated mesh will have < u16::MAX vertices
+// ----------------------------------------------------------------------------
+fn generate_mesh_with_small_idx(
+    error_threshold: f32,
+    triangle_errors: &TileHeightErrors,
+    mut mesh_builder: impl MeshBuilder,
+) -> TerrainMesh {
+    // top tile triangles are always added
+    process_triangle_with_small_idx(
+        TileTriangle::root_left_bottom(),
+        error_threshold,
+        triangle_errors,
+        &mut mesh_builder,
+    );
+    process_triangle_with_small_idx(
+        TileTriangle::root_right_upper(),
+        error_threshold,
+        triangle_errors,
+        &mut mesh_builder,
+    );
+
+    mesh_builder.build()
+}
+// ----------------------------------------------------------------------------
+fn process_triangle_with_small_idx(
+    triangle: TileTriangle,
+    error_threshold: f32,
+    error_map: &TileHeightErrors,
+    mesh_builder: &mut impl MeshBuilder,
+) {
+    // calculate middle point which is used as lookup address in error map
+    if triangle.can_be_split() && error_map.get(triangle.m()) > error_threshold {
+        process_triangle_with_small_idx(
+            triangle.split_left(),
+            error_threshold,
+            error_map,
+            mesh_builder,
+        );
+        process_triangle_with_small_idx(
+            triangle.split_right(),
+            error_threshold,
+            error_map,
+            mesh_builder,
+        );
+    } else {
+        mesh_builder.add_triangle::<true>(triangle);
+    }
+}
+// ----------------------------------------------------------------------------
+// conservative case:
+//      unknown number of vertices for tile. use u32 indices as default
 // ----------------------------------------------------------------------------
 fn generate_mesh(
     error_threshold: f32,
@@ -302,7 +372,7 @@ fn process_triangle(
             mesh_builder,
         );
     } else {
-        mesh_builder.add_triangle(triangle);
+        mesh_builder.add_triangle::<false>(triangle);
     }
 }
 // ----------------------------------------------------------------------------
@@ -637,7 +707,8 @@ struct TileMeshBuilder<'heightmap, 'normalmap> {
     terrain_data: TerrainDataView<'heightmap, 'normalmap>,
 
     known_indices: HashMap<UVec2, u32>,
-    indices: Vec<u32>,
+    indices_u32: Vec<u32>,
+    indices_u16: Vec<u16>,
     interleaved_buffer: Vec<[f32; 4]>,
 }
 // ----------------------------------------------------------------------------
@@ -648,9 +719,16 @@ impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
         map_resolution: f32,
         base_height: f32,
         terrain_data: TerrainDataView<'heightmap, 'normalmap>,
+        use_small_index: bool,
     ) -> Self {
         // just a guess
         let expected_vertices = (TILE_SIZE * TILE_SIZE) as usize / 8;
+
+        let (indices_u32, indices_u16) = if use_small_index {
+            (Vec::default(), Vec::with_capacity(expected_vertices * 2))
+        } else {
+            (Vec::with_capacity(expected_vertices * 2), Vec::default())
+        };
 
         Self {
             sampling_offset: tileid.sampling_offset(),
@@ -659,10 +737,44 @@ impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
             terrain_data,
 
             known_indices: HashMap::with_capacity(expected_vertices),
-            indices: Vec::with_capacity(expected_vertices * 2),
+            indices_u32,
+            indices_u16,
 
             interleaved_buffer: Vec::with_capacity(expected_vertices),
         }
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn add_vertex(&mut self, vertex_2d: UVec2) -> u32 {
+        let next_index = self.interleaved_buffer.len() as u32;
+
+        // map heightmap (x,y) coordinates to world terrain coordinates
+        let absolute_map_coords = vertex_2d + self.sampling_offset;
+
+        let (height, vertex_normal) = self
+            .terrain_data
+            .sample_height_and_normal(absolute_map_coords);
+
+        // center tile around 0/0
+        let new_vertex = [
+            self.resolution * (vertex_2d.x as f32 - (TILE_SIZE / 2) as f32),
+            self.base_height + height,
+            self.resolution * (vertex_2d.y as f32 - (TILE_SIZE / 2) as f32),
+        ];
+
+        self.interleaved_buffer.push([
+            new_vertex[0],
+            new_vertex[1],
+            new_vertex[2],
+            // cast packed u32 normal to f32 so the complete array can
+            // be cast as is to &[u8] before upload to gpu
+            cast(vertex_normal),
+        ]);
+
+        self.known_indices
+            .insert(uvec2(vertex_2d.x, vertex_2d.y), next_index);
+
+        next_index
     }
     // ------------------------------------------------------------------------
 }
@@ -679,7 +791,8 @@ struct WireframedTileMeshBuilder<'heightmap, 'normalmap> {
     terrain_data: TerrainDataView<'heightmap, 'normalmap>,
 
     known_indices: HashMap<UVec3, u32>,
-    indices: Vec<u32>,
+    indices_u32: Vec<u32>,
+    indices_u16: Vec<u16>,
     interleaved_buffer: Vec<[f32; 5]>,
 }
 // ----------------------------------------------------------------------------
@@ -690,9 +803,16 @@ impl<'heightmap, 'normalmap> WireframedTileMeshBuilder<'heightmap, 'normalmap> {
         map_resolution: f32,
         base_height: f32,
         terrain_data: TerrainDataView<'heightmap, 'normalmap>,
+        use_small_index: bool,
     ) -> Self {
         // just a guess
         let expected_vertices = (TILE_SIZE * TILE_SIZE) as usize / 8;
+
+        let (indices_u32, indices_u16) = if use_small_index {
+            (Vec::default(), Vec::with_capacity(expected_vertices * 2))
+        } else {
+            (Vec::with_capacity(expected_vertices * 2), Vec::default())
+        };
 
         Self {
             sampling_offset: tileid.sampling_offset(),
@@ -701,55 +821,74 @@ impl<'heightmap, 'normalmap> WireframedTileMeshBuilder<'heightmap, 'normalmap> {
             terrain_data,
 
             known_indices: HashMap::with_capacity(expected_vertices),
-            indices: Vec::with_capacity(expected_vertices * 2),
+            indices_u32,
+            indices_u16,
 
             interleaved_buffer: Vec::with_capacity(expected_vertices),
         }
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn add_vertex(&mut self, vertex_2d: UVec2, triangle_corner: u32) -> u32 {
+        let next_index = self.interleaved_buffer.len() as u32;
+
+        // map heightmap (x,y) coordinates to world terrain coordinates
+        let absolute_map_coords = vertex_2d + self.sampling_offset;
+
+        let (height, vertex_normal) = self
+            .terrain_data
+            .sample_height_and_normal(absolute_map_coords);
+
+        // center tile around 0/0
+        let new_vertex = [
+            self.resolution * (vertex_2d.x as f32 - (TILE_SIZE / 2) as f32),
+            self.base_height + height,
+            self.resolution * (vertex_2d.y as f32 - (TILE_SIZE / 2) as f32),
+        ];
+
+        self.interleaved_buffer.push([
+            new_vertex[0],
+            new_vertex[1],
+            new_vertex[2],
+            // cast packed u32 normal to f32 so the complete array can
+            // be cast as is to &[u8] before upload to gpu
+            cast(vertex_normal),
+            // add marker for vertex position in triangle (will be used for barycentric coords)
+            // and cast it to f32 (reason same as above)
+            cast(triangle_corner),
+        ]);
+
+        self.known_indices
+            .insert(uvec3(triangle_corner, vertex_2d.x, vertex_2d.y), next_index);
+
+        next_index
     }
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 // helper trait to support different kinds of builders
 trait MeshBuilder {
-    fn add_triangle(&mut self, triangle: TileTriangle);
+    fn add_triangle<const USE_SMALL_INDEX: bool>(&mut self, triangle: TileTriangle);
     fn build(self) -> TerrainMesh;
 }
 // ----------------------------------------------------------------------------
 impl<'heightmap, 'normalmap> MeshBuilder for TileMeshBuilder<'heightmap, 'normalmap> {
     // ------------------------------------------------------------------------
-    fn add_triangle(&mut self, triangle: TileTriangle) {
+    fn add_triangle<const USE_SMALL_INDEX: bool>(&mut self, triangle: TileTriangle) {
         for vertex_2d in [triangle.a, triangle.b, triangle.c].iter().copied() {
             if let Some(index) = self.known_indices.get(&uvec2(vertex_2d.x, vertex_2d.y)) {
-                self.indices.push(*index);
+                if USE_SMALL_INDEX {
+                    self.indices_u16.push(*index as u16);
+                } else {
+                    self.indices_u32.push(*index);
+                }
             } else {
-                let next_index = self.interleaved_buffer.len() as u32; //FIXME
-
-                // map heightmap (x,y) coordinates to world terrain coordinates
-                let absolute_map_coords = vertex_2d + self.sampling_offset;
-
-                let (height, vertex_normal) = self
-                    .terrain_data
-                    .sample_height_and_normal(absolute_map_coords);
-
-                // center tile around 0/0
-                let new_vertex = [
-                    self.resolution * (vertex_2d.x as f32 - (TILE_SIZE / 2) as f32),
-                    self.base_height + height,
-                    self.resolution * (vertex_2d.y as f32 - (TILE_SIZE / 2) as f32),
-                ];
-
-                self.interleaved_buffer.push([
-                    new_vertex[0],
-                    new_vertex[1],
-                    new_vertex[2],
-                    // cast packed u32 normal to f32 so the complete array can
-                    // be cast as is to &[u8] before upload to gpu
-                    cast(vertex_normal)
-                ]);
-
-                self.indices.push(next_index);
-                self.known_indices
-                    .insert(uvec2(vertex_2d.x, vertex_2d.y), next_index);
+                let index = self.add_vertex(vertex_2d);
+                if USE_SMALL_INDEX {
+                    self.indices_u16.push(index as u16);
+                } else {
+                    self.indices_u32.push(index);
+                }
             }
         }
     }
@@ -757,7 +896,16 @@ impl<'heightmap, 'normalmap> MeshBuilder for TileMeshBuilder<'heightmap, 'normal
     fn build(self) -> TerrainMesh {
         TerrainMesh::new(
             TerrainMeshVertexData::PositionAndNormal(self.interleaved_buffer),
-            Indices::U32(self.indices),
+            if self.indices_u16.is_empty() {
+                if self.known_indices.len() < u16::MAX as usize {
+                    // remap to smaller index
+                    Indices::U16(self.indices_u32.iter().copied().map(|i| i as u16).collect())
+                } else {
+                    Indices::U32(self.indices_u32)
+                }
+            } else {
+                Indices::U16(self.indices_u16)
+            },
         )
     }
     // ------------------------------------------------------------------------
@@ -765,7 +913,7 @@ impl<'heightmap, 'normalmap> MeshBuilder for TileMeshBuilder<'heightmap, 'normal
 // ----------------------------------------------------------------------------
 impl<'heightmap, 'normalmap> MeshBuilder for WireframedTileMeshBuilder<'heightmap, 'normalmap> {
     // ------------------------------------------------------------------------
-    fn add_triangle(&mut self, triangle: TileTriangle) {
+    fn add_triangle<const USE_SMALL_INDEX: bool>(&mut self, triangle: TileTriangle) {
         for (i, vertex_2d) in [triangle.a, triangle.b, triangle.c]
             .iter()
             .copied()
@@ -775,40 +923,18 @@ impl<'heightmap, 'normalmap> MeshBuilder for WireframedTileMeshBuilder<'heightma
                 .known_indices
                 .get(&uvec3(i as u32, vertex_2d.x, vertex_2d.y))
             {
-                self.indices.push(*index);
+                if USE_SMALL_INDEX {
+                    self.indices_u16.push(*index as u16);
+                } else {
+                    self.indices_u32.push(*index);
+                }
             } else {
-                let next_index = self.interleaved_buffer.len() as u32;
-
-                // map heightmap (x,y) coordinates to world terrain coordinates
-                let absolute_map_coords = vertex_2d + self.sampling_offset;
-
-                let (height, vertex_normal) = self
-                    .terrain_data
-                    .sample_height_and_normal(absolute_map_coords);
-
-                // center tile around 0/0
-                let new_vertex = [
-                    self.resolution * (vertex_2d.x as f32 - (TILE_SIZE / 2) as f32),
-                    self.base_height + height,
-                    self.resolution * (vertex_2d.y as f32 - (TILE_SIZE / 2) as f32),
-                ];
-
-                self.interleaved_buffer.push([
-                    new_vertex[0],
-                    new_vertex[1],
-                    new_vertex[2],
-                    // cast packed u32 normal to f32 so the complete array can
-                    // be cast as is to &[u8] before upload to gpu
-                    cast(vertex_normal),
-
-                    // add marker for vertex position in triangle (will be used for barycentric coords)
-                    // and cast it to f32 (reason same as above)
-                    cast(i as u32),
-                ]);
-
-                self.indices.push(next_index);
-                self.known_indices
-                    .insert(uvec3(i as u32, vertex_2d.x, vertex_2d.y), next_index);
+                let index = self.add_vertex(vertex_2d, i as u32);
+                if USE_SMALL_INDEX {
+                    self.indices_u16.push(index as u16);
+                } else {
+                    self.indices_u32.push(index);
+                }
             }
         }
     }
@@ -816,7 +942,16 @@ impl<'heightmap, 'normalmap> MeshBuilder for WireframedTileMeshBuilder<'heightma
     fn build(self) -> TerrainMesh {
         TerrainMesh::new(
             TerrainMeshVertexData::WithBarycentricCoordinates(self.interleaved_buffer),
-            Indices::U32(self.indices),
+            if self.indices_u16.is_empty() {
+                if self.known_indices.len() < u16::MAX as usize {
+                    // remap to smaller index
+                    Indices::U16(self.indices_u32.iter().copied().map(|i| i as u16).collect())
+                } else {
+                    Indices::U32(self.indices_u32)
+                }
+            } else {
+                Indices::U16(self.indices_u16)
+            },
         )
     }
     // ------------------------------------------------------------------------
