@@ -721,13 +721,13 @@ impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
         terrain_data: TerrainDataView<'heightmap, 'normalmap>,
         use_small_index: bool,
     ) -> Self {
-        // just a guess
-        let expected_vertices = (TILE_SIZE * TILE_SIZE) as usize / 8;
+        let max_vertex_count = (TILE_SIZE * TILE_SIZE) as usize;
 
+        // factor 2 is just a guess
         let (indices_u32, indices_u16) = if use_small_index {
-            (Vec::default(), Vec::with_capacity(expected_vertices * 2))
+            (Vec::default(), Vec::with_capacity(u16::MAX as usize * 2))
         } else {
-            (Vec::with_capacity(expected_vertices * 2), Vec::default())
+            (Vec::with_capacity(max_vertex_count * 2), Vec::default())
         };
 
         Self {
@@ -736,11 +736,11 @@ impl<'heightmap, 'normalmap> TileMeshBuilder<'heightmap, 'normalmap> {
             base_height,
             terrain_data,
 
-            known_indices: HashMap::with_capacity(expected_vertices),
+            known_indices: HashMap::with_capacity(max_vertex_count),
             indices_u32,
             indices_u16,
 
-            interleaved_buffer: Vec::with_capacity(expected_vertices),
+            interleaved_buffer: Vec::with_capacity(max_vertex_count),
         }
     }
     // ------------------------------------------------------------------------
@@ -805,13 +805,13 @@ impl<'heightmap, 'normalmap> WireframedTileMeshBuilder<'heightmap, 'normalmap> {
         terrain_data: TerrainDataView<'heightmap, 'normalmap>,
         use_small_index: bool,
     ) -> Self {
-        // just a guess
-        let expected_vertices = (TILE_SIZE * TILE_SIZE) as usize / 8;
+        let max_vertex_count = (TILE_SIZE * TILE_SIZE) as usize;
 
+        // factor 2 is just a guess
         let (indices_u32, indices_u16) = if use_small_index {
-            (Vec::default(), Vec::with_capacity(expected_vertices * 2))
+            (Vec::default(), Vec::with_capacity(u16::MAX as usize * 2))
         } else {
-            (Vec::with_capacity(expected_vertices * 2), Vec::default())
+            (Vec::with_capacity(max_vertex_count * 2), Vec::default())
         };
 
         Self {
@@ -820,11 +820,11 @@ impl<'heightmap, 'normalmap> WireframedTileMeshBuilder<'heightmap, 'normalmap> {
             base_height,
             terrain_data,
 
-            known_indices: HashMap::with_capacity(expected_vertices),
+            known_indices: HashMap::with_capacity(max_vertex_count),
             indices_u32,
             indices_u16,
 
-            interleaved_buffer: Vec::with_capacity(expected_vertices),
+            interleaved_buffer: Vec::with_capacity(max_vertex_count),
         }
     }
     // ------------------------------------------------------------------------
