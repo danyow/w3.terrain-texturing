@@ -13,6 +13,7 @@ layout(location = 0) out vec3 v_Pos;
 
 layout(set = 0, binding = 0) uniform CameraViewProj {
     mat4 ViewProj;
+    mat4 View;
     mat4 InverseView;
     mat4 Projection;
     vec3 WorldPosition;
