@@ -10,7 +10,8 @@ pub struct TerrainRenderPlugin;
 // ----------------------------------------------------------------------------
 pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
-pub use terrain::TerrainEnvironment;
+pub use environment::TerrainEnvironment;
+
 pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
@@ -83,6 +84,7 @@ pub struct ClipmapLayerInfo {
 }
 // ----------------------------------------------------------------------------
 mod brush;
+mod environment;
 mod pipeline;
 mod terrain;
 // ----------------------------------------------------------------------------
@@ -93,6 +95,7 @@ impl Plugin for TerrainRenderPlugin {
             .init_resource::<TerrainMaterialSet>()
             .init_resource::<TerrainEnvironment>()
             .add_plugin(pipeline::TerrainRenderGraphPlugin)
+            .add_plugin(environment::EnvironmentDataPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin)
             .add_plugin(brush::BrushPointerRenderPlugin);
     }

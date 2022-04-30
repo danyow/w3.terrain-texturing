@@ -16,13 +16,14 @@ use crate::resource::RenderResourcePlugin;
 
 use crate::terrain_tiles::TerrainTileComponent;
 
-use self::terrain_environment::queue_mesh_view_bind_group as queue_terrain_mesh_view_bind_group;
 use self::terrain_mesh::extract_meshes as extract_terrain_meshes;
 use self::terrain_mesh::queue_mesh_bind_group as queue_terrain_mesh_bind_group;
+use self::terrain_mesh::queue_mesh_view_bind_group as queue_terrain_mesh_view_bind_group;
 use self::terrain_mesh::TerrainMeshUniform;
 
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
+use super::environment::{GpuDirectionalLight, TerrainEnvironment};
 use super::pipeline::Terrain3d;
 
 use super::{
@@ -32,11 +33,9 @@ use super::{
 // ----------------------------------------------------------------------------
 mod pipeline;
 mod terrain_clipmap;
-mod terrain_environment;
 mod terrain_material;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
-pub use self::terrain_environment::TerrainEnvironment;
 pub use self::terrain_mesh::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
 pub struct TerrainMeshRenderPlugin;
@@ -49,7 +48,6 @@ impl Plugin for TerrainMeshRenderPlugin {
             .add_plugin(UniformComponentPlugin::<TerrainMeshUniform>::default())
             .add_plugin(RenderResourcePlugin::<TerrainMaterialSet>::default())
             .add_plugin(RenderResourcePlugin::<TerrainClipmap>::default())
-            .add_plugin(RenderResourcePlugin::<TerrainEnvironment>::default())
             .add_plugin(MutRenderAssetPlugin::<TerrainMesh>::default())
             .add_plugin(ExtractComponentPlugin::<ClipmapAssignment>::default())
             //TODO remove as soon as terrain mesh is dedicated type ?
@@ -131,7 +129,7 @@ fn queue_terrain_rendering(
 // ----------------------------------------------------------------------------
 type DrawCmdTerrain = (
     SetItemPipeline,
-    terrain_environment::SetMeshViewBindGroup<0>,
+    terrain_mesh::SetMeshViewBindGroup<0>,
     terrain_mesh::SetMeshBindGroup<1>,
     terrain_material::SetTerrainMaterialSetBindGroup<2>,
     terrain_clipmap::SetTerrainClipmapBindGroup<3>,

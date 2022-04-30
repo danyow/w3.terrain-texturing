@@ -20,14 +20,17 @@ use bevy::{
             ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode,
         },
         renderer::RenderDevice,
+        view::{ViewUniform, ViewUniformOffset, ViewUniforms},
     },
 };
 
 use crate::mut_renderasset::{MutRenderAsset, MutRenderAssets};
+use crate::resource::PreparedRenderResource;
+
 use crate::terrain_tiles::TerrainTileComponent;
 
 use super::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
-use super::ClipmapAssignment;
+use super::{ClipmapAssignment, GpuDirectionalLight, TerrainEnvironment};
 // ----------------------------------------------------------------------------
 // mesh
 // ----------------------------------------------------------------------------
@@ -55,6 +58,7 @@ pub struct TerrainMeshStats {
 // ----------------------------------------------------------------------------
 pub struct DrawMesh;
 pub struct SetMeshBindGroup<const I: usize>;
+pub struct SetMeshViewBindGroup<const I: usize>;
 // ----------------------------------------------------------------------------
 /// The GPU-representation of a [`TerrainMesh`].
 /// Consists of a vertex data buffer and index data buffer.
@@ -161,6 +165,39 @@ impl TerrainMeshVertexData {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
+// mesh view
+// ----------------------------------------------------------------------------
+pub struct TerrainMeshViewBindGroup {
+    value: BindGroup,
+}
+// ----------------------------------------------------------------------------
+pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 2] {
+    [
+        // View
+        BindGroupLayoutEntry {
+            binding: 0,
+            visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
+            ty: BindingType::Buffer {
+                ty: BufferBindingType::Uniform,
+                has_dynamic_offset: true,
+                min_binding_size: BufferSize::new(ViewUniform::std140_size_static() as u64),
+            },
+            count: None,
+        },
+        // Sun
+        BindGroupLayoutEntry {
+            binding: 1,
+            visibility: ShaderStages::FRAGMENT | ShaderStages::VERTEX,
+            ty: BindingType::Buffer {
+                ty: BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: BufferSize::new(GpuDirectionalLight::std140_size_static() as u64),
+            },
+            count: None,
+        },
+    ]
+}
+// ----------------------------------------------------------------------------
 // systems (extract)
 // ----------------------------------------------------------------------------
 #[allow(clippy::type_complexity)]
@@ -202,6 +239,37 @@ pub(super) fn extract_meshes(
 }
 // ----------------------------------------------------------------------------
 // systems (queue)
+// ----------------------------------------------------------------------------
+pub(super) fn queue_mesh_view_bind_group(
+    mut commands: Commands,
+    render_device: Res<RenderDevice>,
+    mesh_pipeline: Res<TerrainMeshRenderPipeline>,
+    view_uniforms: Res<ViewUniforms>,
+    environment: Res<PreparedRenderResource<TerrainEnvironment>>,
+) {
+    if let (Some(view_binding), Some(env)) =
+        (view_uniforms.uniforms.binding(), environment.as_ref())
+    {
+        let view_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: view_binding.clone(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: env.sun_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("terrain_mesh_view_bind_group"),
+            layout: &mesh_pipeline.view_layout,
+        });
+
+        commands.insert_resource(TerrainMeshViewBindGroup {
+            value: view_bind_group,
+        });
+    }
+}
 // ----------------------------------------------------------------------------
 pub(super) fn queue_mesh_bind_group(
     mut commands: Commands,
@@ -336,6 +404,32 @@ impl MutRenderAsset for TerrainMesh {
 }
 // ----------------------------------------------------------------------------
 // render cmds
+// ----------------------------------------------------------------------------
+impl<const I: usize> EntityRenderCommand for SetMeshViewBindGroup<I> {
+    type Param = (
+        SRes<TerrainMeshViewBindGroup>,
+        SQuery<Read<ViewUniformOffset>>,
+    );
+    #[inline]
+    fn render<'w>(
+        view: Entity,
+        _item: Entity,
+        (mesh_view_bind_group, view_query): SystemParamItem<'w, '_, Self::Param>,
+        pass: &mut TrackedRenderPass<'w>,
+    ) -> RenderCommandResult {
+        let view_uniform = view_query
+            .get(view)
+            .map_err(|e| error!("query error {} {:?}", e, _item))
+            .unwrap();
+        pass.set_bind_group(
+            I,
+            &mesh_view_bind_group.into_inner().value,
+            &[view_uniform.offset],
+        );
+
+        RenderCommandResult::Success
+    }
+}
 // ----------------------------------------------------------------------------
 impl<const I: usize> EntityRenderCommand for SetMeshBindGroup<I> {
     type Param = (
