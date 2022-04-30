@@ -9,13 +9,13 @@ use self::pointer::{
     BrushPointerPipelineId, GpuBrushPointer, GpuBrushPointerInfo, GpuBrushPointerResult,
 };
 // ----------------------------------------------------------------------------
-mod brush_pass;
+mod render_node;
 mod pipeline;
 mod pointer;
 // ----------------------------------------------------------------------------
 use async_channel::{Receiver, Sender};
 // ----------------------------------------------------------------------------
-pub use self::brush_pass::BrushPointerNode;
+pub use self::render_node::BrushPointerNode;
 // ----------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct BrushPointer {
