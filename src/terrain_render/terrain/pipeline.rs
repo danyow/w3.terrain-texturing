@@ -10,15 +10,12 @@ use bevy::{
             TextureFormat, VertexState,
         },
         renderer::RenderDevice,
-        texture::BevyDefault,
     },
 };
 
 use super::terrain_clipmap::clipmap_bind_group_layout;
 use super::terrain_material::materialset_bind_group_layout;
-use super::terrain_mesh::{
-    mesh_bind_group_layout, mesh_vertex_buffer_layout, mesh_view_bind_group_layout,
-};
+use super::terrain_mesh::{mesh_bind_group_layout, mesh_vertex_buffer_layout, mesh_view_bind_group_layout};
 
 use super::TerrainRenderSettings;
 // ----------------------------------------------------------------------------
@@ -212,9 +209,9 @@ impl SpecializedPipeline for TerrainMeshRenderPipeline {
                 entry_point: "fragment".into(),
                 shader_defs,
                 targets: vec![
-                    // diffuse
+                    // hdr texture output
                     ColorTargetState {
-                        format: TextureFormat::bevy_default(),
+                        format: TextureFormat::Rgba16Float,
                         blend,
                         write_mask: ColorWrites::ALL,
                     },

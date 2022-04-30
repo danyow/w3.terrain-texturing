@@ -87,6 +87,7 @@ mod brush;
 mod environment;
 mod rendergraph;
 mod terrain;
+mod tonemapping;
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainRenderPlugin {
     // ------------------------------------------------------------------------
@@ -96,6 +97,7 @@ impl Plugin for TerrainRenderPlugin {
             .add_plugin(environment::EnvironmentDataPlugin)
             .add_plugin(rendergraph::TerrainRenderGraphPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin)
+            .add_plugin(tonemapping::TonemappingPlugin)
             .add_plugin(brush::BrushPointerRenderPlugin);
     }
     // ------------------------------------------------------------------------

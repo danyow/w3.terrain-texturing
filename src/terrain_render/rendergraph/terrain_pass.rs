@@ -16,13 +16,14 @@ use bevy::{
         },
         renderer::{RenderContext, RenderDevice},
         texture::TextureCache,
-        view::{ExtractedView, ViewDepthTexture, ViewTarget},
+        view::{ExtractedView, ViewDepthTexture},
     },
 };
 // ----------------------------------------------------------------------------
 #[derive(Component)]
 struct TerrainPassRenderTargets {
     pub world_pos_view: TextureView,
+    pub hdr_view: TextureView,
 }
 // ----------------------------------------------------------------------------
 // systems
@@ -64,8 +65,25 @@ pub(super) fn prepare_rendertargets(
                 usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
             },
         );
+        let cached_hdr_target = texture_cache.get(
+            &render_device,
+            TextureDescriptor {
+                label: Some("terrain_hdr"),
+                size: Extent3d {
+                    depth_or_array_layers: 1,
+                    width: view.width as u32,
+                    height: view.height as u32,
+                },
+                mip_level_count: 1,
+                sample_count,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Rgba16Float,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            },
+        );
         commands.entity(entity).insert(TerrainPassRenderTargets {
             world_pos_view: cached_world_pos.default_view,
+            hdr_view: cached_hdr_target.default_view,
         });
     }
 }
@@ -113,7 +131,6 @@ pub struct TerrainPassNode {
     query: QueryState<
         (
             &'static RenderPhase<Terrain3d>,
-            &'static ViewTarget,
             &'static ViewDepthTexture,
             &'static TerrainPassRenderTargets,
         ),
@@ -125,6 +142,7 @@ impl TerrainPassNode {
     // ------------------------------------------------------------------------
     pub const IN_VIEW: &'static str = "view";
     pub const OUT_WORLD_POS: &'static str = "out_world_pos";
+    pub const OUT_HDR_VIEW: &'static str = "out_hdr_view";
     // ------------------------------------------------------------------------
     pub fn new(world: &mut World) -> Self {
         Self {
@@ -141,7 +159,10 @@ impl Node for TerrainPassNode {
     }
     // ------------------------------------------------------------------------
     fn output(&self) -> Vec<SlotInfo> {
-        vec![SlotInfo::new(Self::OUT_WORLD_POS, SlotType::TextureView)]
+        vec![
+            SlotInfo::new(Self::OUT_WORLD_POS, SlotType::TextureView),
+            SlotInfo::new(Self::OUT_HDR_VIEW, SlotType::TextureView),
+        ]
     }
     // ------------------------------------------------------------------------
     fn update(&mut self, world: &mut World) {
@@ -155,7 +176,7 @@ impl Node for TerrainPassNode {
         world: &World,
     ) -> Result<(), NodeRunError> {
         let view_entity = graph.get_input_entity(Self::IN_VIEW)?;
-        let (terrain3d_phase, target, depth, render_targets) =
+        let (terrain3d_phase, depth, render_targets) =
             match self.query.get_manual(world, view_entity) {
                 Ok(query) => query,
                 Err(_) => return Ok(()), // No window
@@ -164,10 +185,16 @@ impl Node for TerrainPassNode {
         let pass_descriptor = RenderPassDescriptor {
             label: Some("terrain_pass_3d"),
             color_attachments: &[
-                target.get_color_attachment(Operations {
-                    load: LoadOp::Load,
-                    store: true,
-                }),
+                RenderPassColorAttachment {
+                    view: &render_targets.hdr_view,
+                    resolve_target: None,
+                    // terrain meshes are not rendered full screen so clear target
+                    ops: Operations {
+                        // alpha channel will be set to 1.0 if fragment is used
+                        load: LoadOp::Clear(Color::rgba(0.0, 0.0, 0.0, 0.0).into()),
+                        store: true,
+                    },
+                },
                 RenderPassColorAttachment {
                     view: &render_targets.world_pos_view,
                     resolve_target: None,
@@ -205,6 +232,10 @@ impl Node for TerrainPassNode {
         // -- set output textures for subsequent nodes
         graph
             .set_output(Self::OUT_WORLD_POS, render_targets.world_pos_view.clone())
+            .unwrap();
+
+        graph
+            .set_output(Self::OUT_HDR_VIEW, render_targets.hdr_view.clone())
             .unwrap();
 
         Ok(())

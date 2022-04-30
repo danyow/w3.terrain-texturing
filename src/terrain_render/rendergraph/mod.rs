@@ -29,6 +29,7 @@ pub mod terrain_3d_graph {
     }
     pub mod node {
         pub const MAIN_PASS: &str = "terrain_pass";
+        pub const TONEMAPPING_PASS: &str = "tonemapping_pass";
         pub const BRUSH_POINTER_PASS: &str = "brush_pointer_pass";
     }
 }
@@ -84,9 +85,50 @@ impl Plugin for TerrainRenderGraphPlugin {
             )
             .unwrap();
 
+        add_tonemapping_node(render_app);
+
         add_brushpointer_overlay_node(render_app);
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+fn add_tonemapping_node(render_app: &mut App) {
+    use super::tonemapping::TonemappingNode;
+
+    use self::terrain_3d_graph::input;
+    use self::terrain_3d_graph::node;
+
+    let tonemapping_node = TonemappingNode::new(&mut render_app.world);
+
+    let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
+    let terrain_3d_graph = render_graph
+        .get_sub_graph_mut(terrain_3d_graph::NAME)
+        .unwrap();
+
+    let input_node_id = terrain_3d_graph.input_node().unwrap().id;
+
+    terrain_3d_graph.add_node(node::TONEMAPPING_PASS, tonemapping_node);
+    terrain_3d_graph
+        .add_node_edge(terrain_3d_graph::node::MAIN_PASS, node::TONEMAPPING_PASS)
+        .unwrap();
+
+    terrain_3d_graph
+        .add_slot_edge(
+            input_node_id,
+            input::VIEW_ENTITY,
+            node::TONEMAPPING_PASS,
+            TonemappingNode::IN_VIEW,
+        )
+        .unwrap();
+
+    terrain_3d_graph
+        .add_slot_edge(
+            node::MAIN_PASS,
+            TerrainPassNode::OUT_HDR_VIEW,
+            node::TONEMAPPING_PASS,
+            TonemappingNode::IN_HDR_VIEW,
+        )
+        .unwrap();
 }
 // ----------------------------------------------------------------------------
 fn add_brushpointer_overlay_node(render_app: &mut App) {
@@ -107,7 +149,7 @@ fn add_brushpointer_overlay_node(render_app: &mut App) {
     // dependency
     let input_node_id = terrain_3d_graph.input_node().unwrap().id;
     terrain_3d_graph
-        .add_node_edge(node::MAIN_PASS, node::BRUSH_POINTER_PASS)
+        .add_node_edge(node::TONEMAPPING_PASS, node::BRUSH_POINTER_PASS)
         .unwrap();
 
     terrain_3d_graph
