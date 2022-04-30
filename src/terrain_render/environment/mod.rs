@@ -10,11 +10,12 @@ pub struct EnvironmentDataPlugin;
 #[derive(Default, Clone)]
 pub struct EnvironmentData {
     pub sun: DirectionalLight,
+    pub tonemapping: Tonemapping,
 }
 // ----------------------------------------------------------------------------
-pub use self::resource::DirectionalLight;
+pub use self::resource::{DirectionalLight, Tonemapping};
 // ----------------------------------------------------------------------------
-pub(super) use self::resource::GpuDirectionalLight;
+pub(super) use self::resource::{GpuDirectionalLight, GpuTonemappingInfo};
 // ----------------------------------------------------------------------------
 impl Plugin for EnvironmentDataPlugin {
     // ------------------------------------------------------------------------

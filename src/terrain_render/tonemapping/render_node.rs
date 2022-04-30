@@ -15,7 +15,7 @@ use bevy::{
     },
 };
 
-use super::{pipeline::TonemappingRenderPipeline, systems::TonemappingPipelineId};
+use super::{pipeline::TonemappingRenderPipeline, systems::{TonemappingPipelineId, TonemappingBindGroup}};
 // ----------------------------------------------------------------------------
 pub struct TonemappingNode {
     query: QueryState<&'static ViewTarget, With<ExtractedView>>,
@@ -55,6 +55,13 @@ impl Node for TonemappingNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
+        let tonemapping_bind_group = world.get_resource::<TonemappingBindGroup>();
+
+        if tonemapping_bind_group.is_none() {
+            return Ok(());
+        }
+        let tonemapping_bind_group = tonemapping_bind_group.unwrap();
+
         let render_pipeline_cache = world.get_resource::<RenderPipelineCache>().unwrap();
         let tonemapping_pipeline = world.get_resource::<TonemappingRenderPipeline>().unwrap();
         let pipelineid = world.get_resource::<TonemappingPipelineId>().unwrap();
@@ -117,8 +124,7 @@ impl Node for TonemappingNode {
 
             tracked_pass.set_render_pipeline(pipeline);
             tracked_pass.set_bind_group(0, input_bind_group, &[]);
-
-            // tracked_pass.set_bind_group(1, &tonemapping.bind_group, &[]);
+            tracked_pass.set_bind_group(1, tonemapping_bind_group, &[]);
 
             // 3 empty vertices. vertex shader will generate appropriate
             // (full screen) triangle

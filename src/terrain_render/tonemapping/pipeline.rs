@@ -3,21 +3,25 @@ use bevy::{
     prelude::*,
     render::{
         render_resource::{
-            BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
-            ColorTargetState, ColorWrites, FragmentState, MultisampleState, PrimitiveState,
-            RenderPipelineDescriptor, ShaderStages, SpecializedPipeline, TextureFormat,
-            TextureSampleType, TextureViewDimension, VertexState,
+            std140::AsStd140, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+            BindingType, BufferBindingType, BufferSize, ColorTargetState, ColorWrites,
+            FragmentState, MultisampleState, PrimitiveState, RenderPipelineDescriptor,
+            ShaderStages, SpecializedPipeline, TextureFormat, TextureSampleType,
+            TextureViewDimension, VertexState,
         },
         renderer::RenderDevice,
         texture::BevyDefault,
     },
 };
+
+use super::GpuTonemappingInfo;
 // ----------------------------------------------------------------------------
 pub struct TonemappingRenderPipeline {
     shader_vert: Handle<Shader>,
     shader_frag: Handle<Shader>,
 
     pub(super) input_layout: BindGroupLayout,
+    pub(super) info_layout: BindGroupLayout,
 }
 // ----------------------------------------------------------------------------
 impl FromWorld for TonemappingRenderPipeline {
@@ -48,10 +52,30 @@ impl FromWorld for TonemappingRenderPipeline {
             ],
         });
 
+        let info_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("tonemapping_info_layout"),
+            entries: &[
+                // Tonemapping settings
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT | ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: BufferSize::new(
+                            GpuTonemappingInfo::std140_size_static() as u64
+                        ),
+                    },
+                    count: None,
+                },
+            ],
+        });
+
         Self {
             shader_vert,
             shader_frag,
             input_layout,
+            info_layout,
         }
     }
     // ------------------------------------------------------------------------
@@ -63,7 +87,7 @@ impl SpecializedPipeline for TonemappingRenderPipeline {
     fn specialize(&self, _: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: Some("tonemapping_pipeline".into()),
-            layout: Some(vec![self.input_layout.clone()]),
+            layout: Some(vec![self.input_layout.clone(), self.info_layout.clone()]),
             vertex: VertexState {
                 shader: self.shader_vert.clone(),
                 entry_point: "vertex".into(),

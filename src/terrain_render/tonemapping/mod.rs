@@ -4,7 +4,9 @@ use bevy::{
     render::{render_resource::SpecializedPipelines, RenderApp, RenderStage},
 };
 
-use self::{pipeline::TonemappingRenderPipeline, systems::TonemappingPipelineId};
+use super::environment::GpuTonemappingInfo;
+
+use self::{pipeline::TonemappingRenderPipeline, systems::{TonemappingPipelineId, TonemappingBindGroup}};
 // ----------------------------------------------------------------------------
 mod pipeline;
 mod render_node;
@@ -22,6 +24,7 @@ impl Plugin for TonemappingPlugin {
         let render_app = app.sub_app_mut(RenderApp);
 
         render_app
+            .init_resource::<Option<TonemappingBindGroup>>()
             .init_resource::<TonemappingPipelineId>()
             .init_resource::<TonemappingRenderPipeline>()
             .init_resource::<SpecializedPipelines<TonemappingRenderPipeline>>()
