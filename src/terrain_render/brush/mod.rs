@@ -95,7 +95,7 @@ impl Plugin for BrushPointerRenderPlugin {
                 input_node_id,
                 terrain_3d_graph::input::VIEW_ENTITY,
                 node::BRUSH_POINTER_PASS,
-                TerrainPassNode::IN_VIEW,
+                BrushPointerNode::IN_VIEW,
             )
             .unwrap();
 

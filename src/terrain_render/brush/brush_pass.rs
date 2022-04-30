@@ -41,8 +41,8 @@ impl Node for BrushPointerNode {
     // ------------------------------------------------------------------------
     fn input(&self) -> Vec<SlotInfo> {
         vec![
-            SlotInfo::new(BrushPointerNode::IN_VIEW, SlotType::Entity),
             SlotInfo::new(BrushPointerNode::IN_WORLD_POS, SlotType::TextureView),
+            SlotInfo::new(BrushPointerNode::IN_VIEW, SlotType::Entity),
         ]
     }
     // ------------------------------------------------------------------------
