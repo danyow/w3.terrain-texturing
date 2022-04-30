@@ -24,7 +24,7 @@ use self::terrain_mesh::TerrainMeshUniform;
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
 use super::environment::{GpuDirectionalLight, EnvironmentData};
-use super::pipeline::Terrain3d;
+use super::rendergraph::Terrain3d;
 
 use super::{
     ClipmapAssignment, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet,
@@ -49,9 +49,7 @@ impl Plugin for TerrainMeshRenderPlugin {
             .add_plugin(RenderResourcePlugin::<TerrainMaterialSet>::default())
             .add_plugin(RenderResourcePlugin::<TerrainClipmap>::default())
             .add_plugin(MutRenderAssetPlugin::<TerrainMesh>::default())
-            .add_plugin(ExtractComponentPlugin::<ClipmapAssignment>::default())
-            //TODO remove as soon as terrain mesh is dedicated type ?
-            .add_plugin(ExtractComponentPlugin::<TerrainTileComponent>::default());
+            .add_plugin(ExtractComponentPlugin::<ClipmapAssignment>::default());
 
         app.sub_app_mut(RenderApp)
             .add_render_command::<Terrain3d, DrawCmdTerrain>()

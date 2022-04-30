@@ -1,29 +1,21 @@
 // ----------------------------------------------------------------------------
 use bevy::{
     prelude::*,
-    render::{
-        render_graph::RenderGraph, render_resource::SpecializedPipelines, RenderApp, RenderStage,
-    },
+    render::{render_resource::SpecializedPipelines, RenderApp, RenderStage},
 };
 
-use self::brush_pass::BrushPointerNode;
 use self::pipeline::{BrushPointerPipelineKey, BrushPointerRenderPipeline};
 use self::pointer::{
     BrushPointerPipelineId, GpuBrushPointer, GpuBrushPointerInfo, GpuBrushPointerResult,
 };
-
-use super::pipeline::terrain_3d_graph;
-use super::pipeline::TerrainPassNode;
 // ----------------------------------------------------------------------------
 mod brush_pass;
 mod pipeline;
 mod pointer;
 // ----------------------------------------------------------------------------
-pub mod node {
-    pub const BRUSH_POINTER_PASS: &str = "brush_pointer_pass";
-}
-// ----------------------------------------------------------------------------
 use async_channel::{Receiver, Sender};
+// ----------------------------------------------------------------------------
+pub use self::brush_pass::BrushPointerNode;
 // ----------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct BrushPointer {
@@ -75,38 +67,6 @@ impl Plugin for BrushPointerRenderPlugin {
             // result can only be checked *after* the command queue was submitted!
             // so this has to be *after* the render phase
             .add_system_to_stage(RenderStage::Cleanup, pointer::check_brush_pointer_result);
-
-        let pointer_node = BrushPointerNode::new(&mut render_app.world);
-
-        let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
-        let terrain_3d_graph = render_graph
-            .get_sub_graph_mut(terrain_3d_graph::NAME)
-            .unwrap();
-
-        let input_node_id = terrain_3d_graph.input_node().unwrap().id;
-
-        terrain_3d_graph.add_node(node::BRUSH_POINTER_PASS, pointer_node);
-        terrain_3d_graph
-            .add_node_edge(terrain_3d_graph::node::MAIN_PASS, node::BRUSH_POINTER_PASS)
-            .unwrap();
-
-        terrain_3d_graph
-            .add_slot_edge(
-                input_node_id,
-                terrain_3d_graph::input::VIEW_ENTITY,
-                node::BRUSH_POINTER_PASS,
-                BrushPointerNode::IN_VIEW,
-            )
-            .unwrap();
-
-        terrain_3d_graph
-            .add_slot_edge(
-                terrain_3d_graph::node::MAIN_PASS,
-                TerrainPassNode::OUT_WORLD_POS,
-                node::BRUSH_POINTER_PASS,
-                BrushPointerNode::IN_WORLD_POS,
-            )
-            .unwrap();
     }
     // ------------------------------------------------------------------------
 }

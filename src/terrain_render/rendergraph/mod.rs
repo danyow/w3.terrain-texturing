@@ -29,6 +29,7 @@ pub mod terrain_3d_graph {
     }
     pub mod node {
         pub const MAIN_PASS: &str = "terrain_pass";
+        pub const BRUSH_POINTER_PASS: &str = "brush_pointer_pass";
     }
 }
 // ----------------------------------------------------------------------------
@@ -52,6 +53,7 @@ impl Plugin for TerrainRenderGraphPlugin {
             terrain_3d_graph::input::VIEW_ENTITY,
             SlotType::Entity,
         )]);
+
         terrain_3d_graph
             .add_slot_edge(
                 input_node_id,
@@ -81,7 +83,48 @@ impl Plugin for TerrainRenderGraphPlugin {
                 bevy::core_pipeline::node::MAIN_PASS_DRIVER,
             )
             .unwrap();
+
+        add_brushpointer_overlay_node(render_app);
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+fn add_brushpointer_overlay_node(render_app: &mut App) {
+    use super::brush::BrushPointerNode;
+
+    use self::terrain_3d_graph::input;
+    use self::terrain_3d_graph::node;
+
+    let pointer_node = BrushPointerNode::new(&mut render_app.world);
+
+    let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
+    let terrain_3d_graph = render_graph
+        .get_sub_graph_mut(terrain_3d_graph::NAME)
+        .unwrap();
+
+    terrain_3d_graph.add_node(node::BRUSH_POINTER_PASS, pointer_node);
+
+    // dependency
+    let input_node_id = terrain_3d_graph.input_node().unwrap().id;
+    terrain_3d_graph
+        .add_node_edge(node::MAIN_PASS, node::BRUSH_POINTER_PASS)
+        .unwrap();
+
+    terrain_3d_graph
+        .add_slot_edge(
+            input_node_id,
+            input::VIEW_ENTITY,
+            node::BRUSH_POINTER_PASS,
+            BrushPointerNode::IN_VIEW,
+        )
+        .unwrap();
+    terrain_3d_graph
+        .add_slot_edge(
+            node::MAIN_PASS,
+            TerrainPassNode::OUT_WORLD_POS,
+            node::BRUSH_POINTER_PASS,
+            BrushPointerNode::IN_WORLD_POS,
+        )
+        .unwrap();
 }
 // ----------------------------------------------------------------------------

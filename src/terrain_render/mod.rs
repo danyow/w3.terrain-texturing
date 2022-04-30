@@ -85,7 +85,7 @@ pub struct ClipmapLayerInfo {
 // ----------------------------------------------------------------------------
 mod brush;
 mod environment;
-mod pipeline;
+mod rendergraph;
 mod terrain;
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainRenderPlugin {
@@ -93,8 +93,8 @@ impl Plugin for TerrainRenderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainRenderSettings>()
             .init_resource::<TerrainMaterialSet>()
-            .add_plugin(pipeline::TerrainRenderGraphPlugin)
             .add_plugin(environment::EnvironmentDataPlugin)
+            .add_plugin(rendergraph::TerrainRenderGraphPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin)
             .add_plugin(brush::BrushPointerRenderPlugin);
     }
