@@ -13,7 +13,7 @@ use bevy::{
 
 use crate::resource::{PrepareResourceError, RenderResource};
 
-use super::TerrainEnvironment;
+use super::EnvironmentData;
 // ----------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct DirectionalLight {
@@ -37,10 +37,10 @@ pub struct GpuTerrainEnvironment {
 // ----------------------------------------------------------------------------
 // terrain environment -> renderresource processing
 // ----------------------------------------------------------------------------
-impl RenderResource for TerrainEnvironment {
+impl RenderResource for EnvironmentData {
     // In RenderStage::Extract step the resource is extracted from "app world" to
     // "render world" into an "ExtractedResource".
-    type ExtractedResource = TerrainEnvironment;
+    type ExtractedResource = EnvironmentData;
     // in RenderStage::Prepare step the extracted resource is transformed into its
     // GPU representation "PreparedResource"
     type PreparedResource = GpuTerrainEnvironment;

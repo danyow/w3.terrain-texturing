@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use crate::atmosphere::AtmosphereMat;
 use crate::shapes::XZGrid;
-use crate::terrain_render::TerrainEnvironment;
+use crate::terrain_render::EnvironmentData;
 
 use super::{Angle, TimeOfDay};
 // ----------------------------------------------------------------------------
@@ -105,7 +105,7 @@ pub(super) fn daylight_cycle(
     time: Res<Time>,
     mut settings: ResMut<SunSettings>,
     mut sky_mat: ResMut<AtmosphereMat>,
-    mut environment: ResMut<TerrainEnvironment>,
+    mut environment: ResMut<EnvironmentData>,
     mut query: QuerySet<(
         QueryState<(&mut Transform, &mut SunPlane)>,
         QueryState<&mut Visibility, With<SunDebugMesh>>,

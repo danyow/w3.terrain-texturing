@@ -30,7 +30,7 @@ use crate::resource::PreparedRenderResource;
 use crate::terrain_tiles::TerrainTileComponent;
 
 use super::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
-use super::{ClipmapAssignment, GpuDirectionalLight, TerrainEnvironment};
+use super::{ClipmapAssignment, GpuDirectionalLight, EnvironmentData};
 // ----------------------------------------------------------------------------
 // mesh
 // ----------------------------------------------------------------------------
@@ -245,7 +245,7 @@ pub(super) fn queue_mesh_view_bind_group(
     render_device: Res<RenderDevice>,
     mesh_pipeline: Res<TerrainMeshRenderPipeline>,
     view_uniforms: Res<ViewUniforms>,
-    environment: Res<PreparedRenderResource<TerrainEnvironment>>,
+    environment: Res<PreparedRenderResource<EnvironmentData>>,
 ) {
     if let (Some(view_binding), Some(env)) =
         (view_uniforms.uniforms.binding(), environment.as_ref())

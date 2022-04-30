@@ -10,7 +10,7 @@ pub struct TerrainRenderPlugin;
 // ----------------------------------------------------------------------------
 pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
-pub use environment::TerrainEnvironment;
+pub use environment::EnvironmentData;
 
 pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
@@ -93,7 +93,6 @@ impl Plugin for TerrainRenderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainRenderSettings>()
             .init_resource::<TerrainMaterialSet>()
-            .init_resource::<TerrainEnvironment>()
             .add_plugin(pipeline::TerrainRenderGraphPlugin)
             .add_plugin(environment::EnvironmentDataPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin)

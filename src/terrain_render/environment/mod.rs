@@ -8,7 +8,7 @@ mod resource;
 pub struct EnvironmentDataPlugin;
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
-pub struct TerrainEnvironment {
+pub struct EnvironmentData {
     pub sun: DirectionalLight,
 }
 // ----------------------------------------------------------------------------
@@ -19,7 +19,8 @@ pub(super) use self::resource::GpuDirectionalLight;
 impl Plugin for EnvironmentDataPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {
-        app.add_plugin(RenderResourcePlugin::<TerrainEnvironment>::default());
+        app.init_resource::<EnvironmentData>()
+            .add_plugin(RenderResourcePlugin::<EnvironmentData>::default());
     }
     // ------------------------------------------------------------------------
 }

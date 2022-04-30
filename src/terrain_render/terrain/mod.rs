@@ -23,7 +23,7 @@ use self::terrain_mesh::TerrainMeshUniform;
 
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
-use super::environment::{GpuDirectionalLight, TerrainEnvironment};
+use super::environment::{GpuDirectionalLight, EnvironmentData};
 use super::pipeline::Terrain3d;
 
 use super::{
