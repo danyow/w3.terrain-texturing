@@ -59,9 +59,9 @@ fn main(
     // g---h---i
 
     // clamp x to 0..datawidth for previous and next col
-    let x_prev = clamp(invocation_id.x + 1u, 1u, params.data_width + 1u) - 1u;
+    // let x_prev = clamp(invocation_id.x + 0u, 1u, params.data_width + 1u) - 1u;
     let x = invocation_id.x;
-    let x_next = clamp(invocation_id.x + 1u, 0u, params.data_width);
+    let x_next = clamp(invocation_id.x + 1u, 1u, params.data_width);
 
     // prev and next line are provided in data so there are no seams between
     // slices
@@ -69,53 +69,24 @@ fn main(
     let y = invocation_id.y + 1u;
     let y_next = invocation_id.y + 2u;
 
-    // sample heightmap at a..i positions
-    let ha = sample(x_prev, y_prev);
+    // sample heightmap at b, e, f, h positions
     let hb = sample(x, y_prev);
-    let hc = sample(x_next, y_prev);
-
-    let hd = sample(x_prev, y);
     let he = sample(x, y);
     let hf = sample(x_next, y);
-
-    let hg = sample(x_prev, y_next);
     let hh = sample(x, y_next);
-    let hi = sample(x_next, y_next);
-
-    // interpolate m..p
-    let hm = he + 0.25 * (abs(he - ha) + abs(hd - hb));
-    let hn = hf + 0.25 * (abs(hf - hb) + abs(he - hc));
-    let ho = hh + 0.25 * (abs(hh - hd) + abs(hg - he));
-    let hp = hi + 0.25 * (abs(hi - he) + abs(hh - hf));
-
-    // create vertices
-    let fx = f32(x);
-    let fy = f32(y);
 
     let scale = vec3<f32>(params.map_resolution, params.map_height_scaling, params.map_resolution);
-    let vb = vec3<f32>(fx,       hb, fy - 1.0) * scale;
-    let vd = vec3<f32>(fx - 1.0, hd, fy      ) * scale;
-    let ve = vec3<f32>(fx,       he, fy      ) * scale;
-    let vf = vec3<f32>(fx + 1.0, hf, fy      ) * scale;
-    let vh = vec3<f32>(fx,       hh, fy + 1.0) * scale;
-
-    let vm = vec3<f32>(fx - 0.5, hm, fy - 0.5) * scale;
-    let vn = vec3<f32>(fx + 0.5, hn, fy - 0.5) * scale;
-    let vo = vec3<f32>(fx - 0.5, ho, fy + 0.5) * scale;
-    let vp = vec3<f32>(fx + 0.5, hp, fy + 0.5) * scale;
+    let vb = vec3<f32>(0.0, hb, - 1.0) * scale;
+    let ve = vec3<f32>(0.0, he,   0.0) * scale;
+    let vf = vec3<f32>(1.0, hf,   0.0) * scale;
+    let vh = vec3<f32>(0.0, hh,   1.0) * scale;
 
     let normal = normalize(
-          normalize(cross(vh - ve, vp - ve))
-        + normalize(cross(vp - ve, vf - ve))
-        + normalize(cross(vf - ve, vn - ve))
-        + normalize(cross(vn - ve, vb - ve))
-        + normalize(cross(vb - ve, vm - ve))
-        + normalize(cross(vm - ve, vd - ve))
-        + normalize(cross(vd - ve, vo - ve))
-        + normalize(cross(vo - ve, vh - ve))
+          normalize(cross(vh - ve, vf - ve))
+        + normalize(cross(vf - ve, vb - ve))
     );
 
-    let target_location = (invocation_id.y * params.data_width + invocation_id.x);
+    let target_location = (invocation_id.y * params.data_width + x);
 
     normals.data[target_location] = pack_unit_direction_11_10_11(normal.x, normal.y, normal.z);
 }
