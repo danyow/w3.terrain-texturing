@@ -133,10 +133,10 @@ fn triplanar_mapping(
 
     // from presentation: prefer branching than sampling
     if (triplanarWeights.z > 0.0) {
-        var texturingPos = vec2<f32>(worldPosition.x, -worldPosition.y);
+        var texturingPos = vec2<f32>(-worldPosition.x, -worldPosition.y);
 
         if (worldNormal.z < 0.0) {
-            texturingPos.y = -texturingPos.y;
+            texturingPos.y = 1.0 - texturingPos.y;
         }
 
         let a = sample_texture(textureSlot, texturingPos, scaleValue, partialDDX_xy, partialDDY_xy);
@@ -145,12 +145,7 @@ fn triplanar_mapping(
     }
 
     if (triplanarWeights.y > 0.0) {
-        let texturingPos = worldPosition.xz;
-
-        // terrain normal never points down
-        // if (worldNormal.y < 0.0) {
-        //     texturingPos.x = -texturingPos.x;
-        // }
+        var texturingPos = worldPosition.xz;
 
         let a = sample_texture(textureSlot, texturingPos, scaleValue, partialDDX_xz, partialDDY_xz);
         output.diffuse = output.diffuse + triplanarWeights.y * a.diffuse;
@@ -158,10 +153,10 @@ fn triplanar_mapping(
     }
 
     if (triplanarWeights.x > 0.0) {
-        var texturingPos = vec2<f32>(-worldPosition.y, worldPosition.z);
+        var texturingPos = vec2<f32>(-worldPosition.z, worldPosition.y);
 
         if (worldNormal.x < 0.0) {
-            texturingPos.x = -texturingPos.x;
+            texturingPos = 1.0-texturingPos;
         }
 
         let a = sample_texture(textureSlot, texturingPos, scaleValue, partialDDX_yz, partialDDY_yz);
