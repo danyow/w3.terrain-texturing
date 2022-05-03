@@ -81,6 +81,10 @@ impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
             .update_slot(level, new_data);
     }
     // ------------------------------------------------------------------------
+    pub fn fullres_data_slice(&self) -> &[D::DataType] {
+        self.data.as_slice()
+    }
+    // ------------------------------------------------------------------------
     pub fn extract_fullres(&self, rectangle: &Rectangle) -> Vec<D::DataType> {
         self.extract(self.data.as_slice(), self.data_size, rectangle)
     }
