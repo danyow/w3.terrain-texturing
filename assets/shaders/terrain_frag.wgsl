@@ -326,8 +326,6 @@ struct FragmentOutput {
 [[stage(fragment)]]
 fn fragment(in: FragmentInput) -> FragmentOutput {
 
-    let gamma = 2.2;
-
     // color mesh depending on current lod level
     let lod = mesh.clipmap_and_lod >> 16u;
     let clipmap_level = mesh.clipmap_and_lod & 15u;
@@ -455,23 +453,6 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
         partialDDY_xy
     );
     // ------------------------------------------------------------------------
-    // TBN matrix for normals
-    // Note: because terrain is generated from heightmap a base tangent vector is
-    // assumed to be (1, 0, 0) (in the heightmap plane)
-    // renorthogonalize tangent with respect to normal
-    let fragmentTangent: vec3<f32> = normalize(vec3<f32>(1.0, 0.0, 0.0) - fragmentNormal * dot(vec3<f32>(1.0, 0.0, 0.0), fragmentNormal));
-    let biTangent: vec3<f32> = cross(fragmentNormal, fragmentTangent);
-    let TBN = mat3x3<f32>(fragmentTangent, biTangent, fragmentNormal);
-
-    // transform normalmap normals into world space
-    // normal vectors range is [-1..1] and mapped in texture to [0..1], so remap:
-    var overlayNormal = normalize(overlay.normal.rgb * 2.0 - 1.0);
-    overlayNormal = TBN * overlayNormal;
-
-    var bkgrndNormal = normalize(bkgrnd.normal.rgb * 2.0 - 1.0);
-    bkgrndNormal = TBN * bkgrndNormal.xyz;
-
-    // ------------------------------------------------------------------------
     // interpolate background texture material paramss based on neighboring controlmap textures
     // ------------------------------------------------------------------------
     let bkgrndTextureParamsA = textureParams.param[bkgrndTextureSlots.x];
@@ -506,6 +487,42 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
         + fractionalWeights.w * overlayTextureParamsD.blend_sharpness;
 
     // ------------------------------------------------------------------------
+    // combine normals based on material dampening parameter
+    // ------------------------------------------------------------------------
+    // transform normalmap normals into world space
+    // normal vectors range is [-1..1] and mapped in texture to [0..1], so remap:
+    var overlayNormal = normalize(overlay.normal.rgb * 2.0 - 1.0);
+    var bkgrndNormal = normalize(bkgrnd.normal.rgb * 2.0 - 1.0);
+
+    // Note: according to presentation the derivates are based on the world
+    // normals. but combining them before the change it seems to look better in
+    // some cases. though, this may just be covering some other incorrect
+    // assumption/issue (e.g. normals from triplanar mapping?)
+    //
+    // normalCombination = CombineNormalsDerivates(
+    //          bkgrndNormal, overlayNormal, float3(1.0 - bkgrndNormalDampening, bkgrndNormalDampening, 1.0)
+
+    let overlayNormalDerivative: vec2<f32> = overlayNormal.xy / overlayNormal.z;
+    let bkgrndNormalDerivative: vec2<f32> = bkgrndNormal.xy / bkgrndNormal.z;
+    // mix based on bkgrnd material normal dampening
+    let dampenedOverlayNormal: vec2<f32> = mix(
+        overlayNormalDerivative.xy, bkgrndNormalDerivative.xy, bkgrndNormalDampening);
+
+    overlayNormal = normalize(vec3<f32>(dampenedOverlayNormal.x, dampenedOverlayNormal.y, 1.0));
+
+    // ------------------------------------------------------------------------
+    // TBN matrix for normals
+    // Note: because terrain is generated from heightmap a base tangent vector is
+    // assumed to be (1, 0, 0) (in the heightmap plane)
+    // renorthogonalize tangent with respect to normal
+    let fragmentTangent: vec3<f32> = normalize(vec3<f32>(1.0, 0.0, 0.0) - fragmentNormal * dot(vec3<f32>(1.0, 0.0, 0.0), fragmentNormal));
+    let biTangent: vec3<f32> = cross(fragmentNormal, fragmentTangent);
+    let TBN = mat3x3<f32>(fragmentTangent, biTangent, fragmentNormal);
+
+    bkgrndNormal = TBN * bkgrndNormal.xyz;
+    overlayNormal = TBN * overlayNormal.xyz;
+
+    // ------------------------------------------------------------------------
     // blending between background and overlay texture based on terrain slope
     // and controlmap slope threshold
     // ------------------------------------------------------------------------
@@ -518,10 +535,6 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
         slopeThreshold,
         overlayBlendSharpness,
     );
-
-    // TODO: normalCombination = CombineNormalsDerivates(
-    //          bkgrndNormal, overlayNormal, float3(1.0 - bkgrndNormalDampening, bkgrndNormalDampening, 1.0)
-    //
 
     # ifdef HIDE_OVERLAY_TEXTURE
         let surfaceSlopeBlend = 1.0;
@@ -648,9 +661,6 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     fragmentCol = mix(fragmentCol, clipmapCol, f32(clipmap_level) / 6.0);
     # endif
     // --------------------------------------------------------------------------------------------
-
-    // --- gamma correction
-    // fragmentCol = pow(fragmentCol, vec4<f32>(1.0 / gamma));
 
     return FragmentOutput(fragmentCol, in.world_position);
 }
