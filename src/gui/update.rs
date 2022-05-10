@@ -6,24 +6,36 @@ use bevy::prelude::*;
 
 use crate::atmosphere::AtmosphereMat;
 use crate::cmds;
-use crate::environment::SunSettings;
+use crate::environment::{DayNightCycle, SunPositionSettings};
 use crate::terrain_tiles::TerrainMeshSettings;
 
-use super::{AtmosphereSetting, MeshSetting, RenderSetting, SunSetting};
+use super::{AtmosphereSetting, DayNightCycleSetting, MeshSetting, RenderSetting, SunSetting};
 // ----------------------------------------------------------------------------
-pub(super) fn update_sun_settings(action: &SunSetting, sun: &mut Option<ResMut<SunSettings>>) {
+pub(super) fn update_daylight_cycle_settings(
+    action: &DayNightCycleSetting,
+    daylight_cycle: &mut ResMut<DayNightCycle>,
+) {
+    use DayNightCycleSetting::*;
+    match action {
+        SetTimeOfDay(v) => {
+            daylight_cycle.update_time_of_day(*v);
+            daylight_cycle.set_cycle_speed(0);
+        }
+        SetCycleSpeed(v) => {
+            daylight_cycle.set_cycle_speed(*v);
+            daylight_cycle.activate_cycle(*v > 0);
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+pub(super) fn update_sun_settings(
+    action: &SunSetting,
+    sun: &mut Option<ResMut<SunPositionSettings>>,
+) {
     use SunSetting::*;
 
     if let Some(sun) = sun {
         match action {
-            SetTimeOfDay(v) => {
-                sun.update_time_of_day(*v);
-                sun.set_daylight_cycle_speed(0);
-            }
-            SetCycleSpeed(v) => {
-                sun.set_daylight_cycle_speed(*v);
-                sun.activate_daylight_cycle(*v > 0);
-            }
             SetPlaneTilt(v) => sun.set_plane_tilt(*v),
             SetPlaneYaw(v) => sun.set_plane_yaw(*v),
             SetPlaneHeight(v) => sun.set_plane_height(*v),

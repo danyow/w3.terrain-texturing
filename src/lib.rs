@@ -282,7 +282,8 @@ impl EditorState {
             .add_system_set(TerrainClipmapPlugin::reset_data(NoTerrainData))
             .add_system_set(TerrainTilesGeneratorPlugin::reset_data(NoTerrainData))
             .add_system_set(MaterialSetPlugin::setup_default_materialset(NoTerrainData))
-            .add_system_set(EnvironmentPlugin::activate_dynamic_updates(NoTerrainData));
+            .add_system_set(EnvironmentPlugin::activate_dynamic_updates(NoTerrainData))
+            .add_system_set(EnvironmentPlugin::reset_data(NoTerrainData));
     }
     // ------------------------------------------------------------------------
     /// load project / terrain data state
@@ -307,7 +308,8 @@ impl EditorState {
         // plugins
         .add_system_set(MaterialSetPlugin::terrain_material_loading(TerrainLoading))
         .add_system_set(HeightmapPlugin::generate_heightmap_normals(TerrainLoading))
-        .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(TerrainLoading));
+        .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(TerrainLoading))
+        .add_system_set(EnvironmentPlugin::setup_environment_settings(TerrainLoading));
     }
     // ------------------------------------------------------------------------
     /// main editing state

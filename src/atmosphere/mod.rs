@@ -71,8 +71,8 @@ use std::ops::Deref;
 use bevy::{
     pbr::{MaterialMeshBundle, MaterialPlugin},
     prelude::{
-        shape, AddAsset, App, Assets, Camera, Commands, Handle, Mesh, Plugin, Query, Res, ResMut,
-        Transform, With, Without,
+        shape, AddAsset, App, Assets, Camera, Commands, Handle, Mesh,
+        ParallelSystemDescriptorCoercion, Plugin, Query, Res, ResMut, Transform, With, Without,
     },
 };
 // ----------------------------------------------------------------------------
@@ -85,7 +85,7 @@ impl Plugin for AtmospherePlugin {
             .add_startup_system(atmosphere_add_sky_sphere)
             .add_system(atmosphere_sky_follow);
         if self.dynamic {
-            app.add_system(atmosphere_dynamic_sky);
+            app.add_system(atmosphere_dynamic_sky.after("sun_position_update"));
         }
     }
 }

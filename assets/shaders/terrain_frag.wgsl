@@ -15,7 +15,6 @@ struct View {
 // lights
 struct DirectionalLight {
     color: vec3<f32>;
-    brightness: f32;
     direction: vec3<f32>;
 };
 // ----------------------------------------------------------------------------
@@ -589,7 +588,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     let viewDirection = normalize(view.world_position.xyz);
     let halfwayDirection = normalize(lightDirection + viewDirection);
 
-    let ambientStrength = 0.05;
+    let ambientStrength = 0.125;
     let diffuseStrength = max(dot(normal, lightDirection), 0.0);
     let specularStrength = 0.5;
     // shininess

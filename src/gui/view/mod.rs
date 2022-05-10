@@ -7,7 +7,8 @@ pub(super) fn show_ui(
     ui_images: Res<UiImages>,
     materialset: Res<TerrainMaterialSet>,
     mesh_settings: Option<Res<TerrainMeshSettings>>,
-    sun_settings: Option<Res<SunSettings>>,
+    daynight_cycle: Res<DayNightCycle>,
+    sun_settings: Option<Res<SunPositionSettings>>,
     atmosphere_settings: Option<Res<AtmosphereMat>>,
     mesh_stats: Res<TerrainStats>,
     mut render_settings: ResMut<TerrainRenderSettings>,
@@ -32,6 +33,9 @@ pub(super) fn show_ui(
                     if let Some(settings) = mesh_settings {
                         mesh::show_settings(ui, &settings, &mesh_stats, &mut gui_event);
                     }
+
+                    daynight::show_settings(ui, &daynight_cycle, &mut gui_event);
+
                     if let Some(settings) = sun_settings {
                         atmosphere::show_sun_settings(ui, &settings, &mut gui_event);
                     }
@@ -60,7 +64,7 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext};
 
 use crate::atmosphere::AtmosphereMat;
-use crate::environment::SunSettings;
+use crate::environment::{DayNightCycle, SunPositionSettings};
 use crate::terrain_material::TerrainMaterialSet;
 use crate::terrain_render::TerrainRenderSettings;
 use crate::terrain_tiles::{TerrainMeshSettings, TerrainStats};
@@ -68,6 +72,7 @@ use crate::terrain_tiles::{TerrainMeshSettings, TerrainStats};
 use super::{GuiAction, UiExtension, UiImages, UiState};
 // ----------------------------------------------------------------------------
 mod atmosphere;
+mod daynight;
 mod menu;
 mod mesh;
 mod rendersettings;

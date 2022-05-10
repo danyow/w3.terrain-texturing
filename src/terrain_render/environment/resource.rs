@@ -18,7 +18,6 @@ use super::EnvironmentData;
 #[derive(Clone)]
 pub struct DirectionalLight {
     pub color: Color,
-    pub brightness: f32,
     pub direction: Vec3,
 }
 // ----------------------------------------------------------------------------
@@ -42,7 +41,6 @@ pub struct Tonemapping {
 #[derive(AsStd140, Clone)]
 pub struct GpuDirectionalLight {
     color: Vec3,
-    brightness: f32,
     direction: Vec3,
 }
 // ----------------------------------------------------------------------------
@@ -75,8 +73,7 @@ impl RenderResource for EnvironmentData {
     ) -> Result<Self::PreparedResource, PrepareResourceError<Self::ExtractedResource>> {
         let sun = &environment.sun;
         let sun = GpuDirectionalLight {
-            color: Vec3::from_slice(&sun.color.as_linear_rgba_f32()),
-            brightness: sun.brightness,
+            color: Vec3::from_slice(&sun.color.as_rgba_f32()),
             direction: sun.direction,
         };
 
@@ -109,8 +106,7 @@ impl Default for DirectionalLight {
     fn default() -> Self {
         Self {
             color: Color::rgb(1.0, 1.0, 1.0),
-            brightness: 0.5,
-            direction: Vec3::new(0.0, 1.0, 0.0),
+            direction: Vec3::new(0.0, -1.0, 0.0),
         }
     }
 }

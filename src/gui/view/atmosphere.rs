@@ -3,7 +3,7 @@
 #[inline]
 pub(super) fn show_sun_settings(
     ui: &mut egui::Ui,
-    settings: &Res<SunSettings>,
+    settings: &Res<SunPositionSettings>,
     gui_event: &mut EventWriter<GuiAction>,
 ) {
     use GuiAction::*;
@@ -12,24 +12,14 @@ pub(super) fn show_sun_settings(
     egui::CollapsingHeader::new("Sun settings")
         .default_open(false)
         .show(ui, |ui| {
-            let mut s = SunGuiSettings {
-                time: settings.time_of_day().normalized(),
-                cycle_speed: settings.daylight_cycle_speed(),
+
+            let mut s = SunSettings {
                 yaw: settings.plane_yaw().value(),
                 tilt: settings.plane_tilt().value(),
                 height: settings.plane_height(),
                 show_debug_mesh: settings.show_debug_mesh(),
             };
 
-            if ui.add(Slider::new(&mut s.time, 0.0..=1.0)
-                .show_value(false).text(format!("{} Time [HH:mm]", settings.time_of_day().as_str())))
-                .changed() {
-                    gui_event.send(UpdateSunSetting(SetTimeOfDay(s.time)));
-            }
-            if ui.add(Slider::new(&mut s.cycle_speed, 0..=100).text("daylight cycle speed")).changed() {
-                gui_event.send(UpdateSunSetting(SetCycleSpeed(s.cycle_speed)));
-            }
-            ui.separator();
             if ui.add(Slider::new(&mut s.tilt, 0..=90).text("sun plane tilt [°]")).changed() {
                 gui_event.send(UpdateSunSetting(SetPlaneTilt(s.tilt)));
             }
@@ -140,7 +130,7 @@ use bevy::prelude::{EventWriter, Res};
 use bevy_egui::egui::{self, Slider};
 
 use crate::atmosphere::AtmosphereMat;
-use crate::environment::SunSettings;
+use crate::environment::SunPositionSettings;
 use crate::gui::{AtmosphereSetting, SunSetting};
 
 use super::GuiAction;
@@ -157,9 +147,7 @@ struct AtmosphereSettings {
     mie_scattering_direction: f32,
 }
 // ----------------------------------------------------------------------------
-struct SunGuiSettings {
-    time: f32,
-    cycle_speed: u16,
+struct SunSettings {
     yaw: u16,
     tilt: u16,
     height: u16,

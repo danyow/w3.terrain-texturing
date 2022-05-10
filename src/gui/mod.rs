@@ -5,7 +5,8 @@ use bevy_egui::EguiContext;
 use crate::atmosphere::AtmosphereMat;
 use crate::cmds;
 use crate::config;
-use crate::environment::SunSettings;
+use crate::environment::DayNightCycle;
+use crate::environment::SunPositionSettings;
 use crate::terrain_material::{TerrainMaterialSet, TextureType, TextureUpdatedEvent};
 use crate::terrain_tiles::{LodSlot, TerrainMeshSettings};
 use crate::texturearray::TextureArray;
@@ -38,6 +39,7 @@ pub struct UiState {
 /// Events triggered by user in the GUI (user actions)
 pub enum GuiAction {
     Toolbox(toolbox::ToolboxAction),
+    UpdateDayNightCycleSetting(DayNightCycleSetting),
     UpdateSunSetting(SunSetting),
     UpdateAtmosphereSetting(AtmosphereSetting),
     UpdateMeshSetting(MeshSetting),
@@ -49,12 +51,16 @@ pub enum GuiAction {
 }
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
-pub enum SunSetting {
+pub enum DayNightCycleSetting {
     SetTimeOfDay(f32),
+    SetCycleSpeed(u16),
+}
+// ----------------------------------------------------------------------------
+#[derive(Debug)]
+pub enum SunSetting {
     SetPlaneTilt(u16),
     SetPlaneYaw(u16),
     SetPlaneHeight(u16),
-    SetCycleSpeed(u16),
     ToggleDebugMesh,
 }
 // ----------------------------------------------------------------------------
@@ -222,7 +228,8 @@ fn handle_editor_events(
 #[allow(clippy::too_many_arguments)]
 fn handle_ui_actions(
     mut ui_action: EventReader<GuiAction>,
-    mut sun_settings: Option<ResMut<SunSettings>>,
+    mut daylight_cycle: ResMut<DayNightCycle>,
+    mut sun_settings: Option<ResMut<SunPositionSettings>>,
     mut atmosphere_settings: Option<ResMut<AtmosphereMat>>,
     mut mesh_settings: Option<ResMut<TerrainMeshSettings>>,
     mut task_manager: ResMut<cmds::AsyncCommandManager>,
@@ -235,6 +242,9 @@ fn handle_ui_actions(
             }
             GuiAction::QuitRequest => {
                 warn!("TODO quit request");
+            }
+            GuiAction::UpdateDayNightCycleSetting(setting) => {
+                update::update_daylight_cycle_settings(setting, &mut daylight_cycle)
             }
             GuiAction::UpdateSunSetting(setting) => {
                 update::update_sun_settings(setting, &mut sun_settings)

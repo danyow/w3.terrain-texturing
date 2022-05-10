@@ -5,39 +5,20 @@ use crate::atmosphere::AtmosphereMat;
 use crate::shapes::XZGrid;
 use crate::terrain_render::EnvironmentData;
 
-use super::{Angle, TimeOfDay};
+use super::{Angle, DayNightCycle};
 // ----------------------------------------------------------------------------
 // Marker for updating the position of the light, not needed unless we have multiple lights
 #[derive(Component)]
 pub struct Sun;
 // ----------------------------------------------------------------------------
-pub struct SunSettings {
-    time: TimeOfDay,
-    cycle_active: bool,
-    cycle_speed: u16,
-
+pub struct SunPositionSettings {
     yaw: Angle,  // base rotation
     tilt: Angle, // axial tilt
     height: u16,
     show_dbg_mesh: bool,
 }
 // ----------------------------------------------------------------------------
-impl SunSettings {
-    // ------------------------------------------------------------------------
-    #[inline(always)]
-    pub fn time_of_day(&self) -> &TimeOfDay {
-        &self.time
-    }
-    // ------------------------------------------------------------------------
-    #[inline(always)]
-    pub fn daylight_cycle_active(&self) -> bool {
-        self.cycle_active
-    }
-    // ------------------------------------------------------------------------
-    #[inline(always)]
-    pub fn daylight_cycle_speed(&self) -> u16 {
-        self.cycle_speed
-    }
+impl SunPositionSettings {
     // ------------------------------------------------------------------------
     #[inline(always)]
     pub fn plane_yaw(&self) -> Angle {
@@ -59,10 +40,6 @@ impl SunSettings {
         self.show_dbg_mesh
     }
     // ------------------------------------------------------------------------
-    pub fn update_time_of_day(&mut self, time: f32) {
-        self.time.update(time);
-    }
-    // ------------------------------------------------------------------------
     pub fn set_plane_tilt(&mut self, tilt: u16) {
         self.tilt = Angle::new(tilt);
     }
@@ -79,14 +56,6 @@ impl SunSettings {
         self.show_dbg_mesh = !self.show_dbg_mesh;
     }
     // ------------------------------------------------------------------------
-    pub fn activate_daylight_cycle(&mut self, activate: bool) {
-        self.cycle_active = activate;
-    }
-    // ------------------------------------------------------------------------
-    pub fn set_daylight_cycle_speed(&mut self, speed: u16) {
-        self.cycle_speed = speed.max(0).min(100);
-    }
-    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 // helper components
@@ -101,9 +70,9 @@ pub(super) struct SunDebugMesh;
 // systems
 // ----------------------------------------------------------------------------
 #[allow(clippy::type_complexity)]
-pub(super) fn daylight_cycle(
-    time: Res<Time>,
-    mut settings: ResMut<SunSettings>,
+pub(super) fn update_sun_position(
+    day_night_cycle: Res<DayNightCycle>,
+    settings: Res<SunPositionSettings>,
     mut sky_mat: ResMut<AtmosphereMat>,
     mut environment: ResMut<EnvironmentData>,
     mut query: QuerySet<(
@@ -113,17 +82,9 @@ pub(super) fn daylight_cycle(
     sun: Query<&mut GlobalTransform, With<Sun>>,
 ) {
     const PLANE_HEIGHT_SCALE: f32 = 50.0;
-    const DAYLIGHT_SPEED_SCALE: f32 = 1.0 / 100.0 / 4.0; // max speed approx 4sec per daylight
 
-    if settings.is_changed() || settings.daylight_cycle_active() {
-        if settings.daylight_cycle_active() {
-            let speed = DAYLIGHT_SPEED_SCALE * settings.daylight_cycle_speed() as f32;
-
-            let pos = settings.time_of_day().normalized() + time.delta_seconds() * speed;
-            settings.update_time_of_day(pos);
-        }
-
-        let sun_daytime = settings.time_of_day().to_radians();
+    if settings.is_changed() || day_night_cycle.is_changed() {
+        let sun_daytime = day_night_cycle.time_of_day().to_radians();
         let sun_plane_tilt = settings.plane_tilt().as_radians();
         let sun_plane_yaw = settings.plane_yaw().as_radians();
 
@@ -155,11 +116,12 @@ pub(super) fn setup_sun(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    settings: Res<SunSettings>,
+    daylight_cycle: Res<DayNightCycle>,
+    settings: Res<SunPositionSettings>,
 ) {
     info!("initialize sun setup");
 
-    let sun_daytime = settings.time_of_day().to_radians();
+    let sun_daytime = daylight_cycle.time_of_day().to_radians();
     let sun_plane_tilt = settings.plane_tilt().as_radians();
 
     let sun_size = 80.0;
@@ -259,13 +221,9 @@ pub(super) fn setup_sun(
 // ----------------------------------------------------------------------------
 // helper
 // ----------------------------------------------------------------------------
-impl Default for SunSettings {
+impl Default for SunPositionSettings {
     fn default() -> Self {
         Self {
-            time: TimeOfDay::new(12, 0, 0),
-            cycle_active: false,
-            cycle_speed: 0,
-
             yaw: Angle::new(0),
             tilt: Angle::new(23), // earth axial tilt ~23.437°
             height: 0,

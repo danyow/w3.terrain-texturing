@@ -45,6 +45,8 @@ pub struct TerrainConfig {
     clipmap_levels: u8,
     /// currently assigned materialset info
     materialset: MaterialSetConfig,
+    /// assigned environment definition
+    environment: Option<String>,
 }
 // ----------------------------------------------------------------------------
 use bevy::math::{uvec2, vec2, UVec2, Vec2};
@@ -123,6 +125,10 @@ impl TerrainConfig {
     // ------------------------------------------------------------------------
     pub fn materialset(&self) -> &MaterialSetConfig {
         &self.materialset
+    }
+    // ------------------------------------------------------------------------
+    pub fn environment_definition(&self) -> Option<&str> {
+        self.environment.as_deref()
     }
     // ------------------------------------------------------------------------
     #[inline(always)]
@@ -270,6 +276,7 @@ impl TerrainConfig {
             tintmap: format!("{}/test.tint.{}x{}.png", basepath, size, size),
             clipmap_levels: 3,
             materialset: MaterialSetConfig::prolog_village(),
+            environment: Some("environment/definitions/env_prologue/env_prolog_colors_v1_b_sunset.env".to_string()),
         }
     }
     // ------------------------------------------------------------------------
@@ -294,6 +301,7 @@ impl TerrainConfig {
             tintmap: format!("{}/test.tint.{}x{}.png", basepath, size, size),
             clipmap_levels: 5,
             materialset: MaterialSetConfig::kaer_morhen(),
+            environment: Some("environment/definitions/kaer_morhen/kaer_morhen_global/env_kaer_morhen_v09_tm.env".to_string()),
         }
     }
     // ------------------------------------------------------------------------

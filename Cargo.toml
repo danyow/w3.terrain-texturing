@@ -38,6 +38,9 @@ bitflags = "1.2"
 # randomized brush params
 rand = "0.8.0"
 
+# interpolation of environment settings
+splines = "4.1"
+
 [[bin]]
 name = "terrain-editor"
 path = "src/bin/terrain-editor.rs"

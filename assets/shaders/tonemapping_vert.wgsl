@@ -56,7 +56,7 @@ fn vertex([[builtin(vertex_index)]] in_vertex_index: u32) -> VertexOutput {
     let texture_coords = vec2<f32>(f32(tex_dim.x) * uv.x, f32(tex_dim.y) - f32(tex_dim.y) * uv.y);
 
     //TODO extract from data via compute shader
-    let avg_luminance = 0.0315;
+    let avg_luminance = 0.515;
 
     var exposure = adjust_exposure(
         avg_luminance,
