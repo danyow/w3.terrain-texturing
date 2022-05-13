@@ -73,8 +73,14 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     let texture_pos = vec2<i32>(i32(in.coord_2d.x), i32(in.coord_2d.y));
 
     let hdr_col = textureLoad(hdr_texture, texture_pos, 0);
-    let world_pos = textureLoad(world_pos_texture, texture_pos, 0);
 
+    # ifdef DISABLE_FOG
+
+    return vec4<f32>(hdr_col.rgb, 1.0);
+
+    # else
+
+    let world_pos = textureLoad(world_pos_texture, texture_pos, 0);
 
     let camToFragVector = world_pos.xyz - view.world_position.xyz;
     let distanceToFragment = length(camToFragVector.xyz);
@@ -162,5 +168,6 @@ fn fragment(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     color = mix(color.rgb, finalFogColor, finalFogAmount);
 
     return vec4<f32>(color, 1.0);
+    # endif
 }
 // ----------------------------------------------------------------------------

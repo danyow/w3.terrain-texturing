@@ -14,6 +14,8 @@ use bevy::{
     },
 };
 
+use crate::terrain_render::TerrainRenderSettings;
+
 use super::GpuFogSettings;
 // ----------------------------------------------------------------------------
 pub struct FogRenderPipeline {
@@ -117,10 +119,42 @@ impl FromWorld for FogRenderPipeline {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-impl SpecializedPipeline for FogRenderPipeline {
-    type Key = ();
+bitflags::bitflags! {
+    #[repr(transparent)]
+    pub struct FogRenderPipelineKey: u32 {
+        const NONE      = 0b0000;
+        const DISABLED  = 0b0001;
+    }
+}
+// ----------------------------------------------------------------------------
+impl FogRenderPipelineKey {
     // ------------------------------------------------------------------------
-    fn specialize(&self, _: Self::Key) -> RenderPipelineDescriptor {
+    pub fn from_settings(settings: &TerrainRenderSettings) -> Self {
+        let mut flags = FogRenderPipelineKey::NONE;
+
+        if settings.exclusive_view_active() || settings.disable_fog {
+            flags = FogRenderPipelineKey::DISABLED;
+        }
+
+        flags
+    }
+    // ------------------------------------------------------------------------
+    fn shader_defs(&self) -> Vec<String> {
+        if self.contains(Self::DISABLED) {
+            vec!["DISABLE_FOG".to_string()]
+        } else {
+            Vec::default()
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl SpecializedPipeline for FogRenderPipeline {
+    type Key = FogRenderPipelineKey;
+    // ------------------------------------------------------------------------
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let shader_defs = key.shader_defs();
+
         RenderPipelineDescriptor {
             label: Some("env_fog_pipeline".into()),
             layout: Some(vec![self.input_layout.clone(), self.info_layout.clone()]),
@@ -133,7 +167,7 @@ impl SpecializedPipeline for FogRenderPipeline {
             },
             fragment: Some(FragmentState {
                 shader: self.shader_frag.clone(),
-                shader_defs: vec![],
+                shader_defs,
                 entry_point: "fragment".into(),
                 targets: vec![
                     // hdr texture output

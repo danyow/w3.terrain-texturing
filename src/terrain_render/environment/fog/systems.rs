@@ -12,9 +12,9 @@ use bevy::{
 };
 
 use crate::resource::PreparedRenderResource;
-use crate::terrain_render::EnvironmentData;
+use crate::terrain_render::{EnvironmentData, TerrainRenderSettings};
 
-use super::pipeline::FogRenderPipeline;
+use super::pipeline::{FogRenderPipeline, FogRenderPipelineKey};
 // ----------------------------------------------------------------------------
 #[derive(Default)]
 pub(super) struct FogPipelineId(Option<CachedPipelineId>);
@@ -29,6 +29,7 @@ pub(super) fn queue_fog_info(
     render_device: Res<RenderDevice>,
     environment: Res<PreparedRenderResource<EnvironmentData>>,
     fog_pipeline: Res<FogRenderPipeline>,
+    settings: Res<TerrainRenderSettings>,
     view_uniforms: Res<ViewUniforms>,
     mut pipelines: ResMut<SpecializedPipelines<FogRenderPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
@@ -37,7 +38,9 @@ pub(super) fn queue_fog_info(
     if let (Some(view_bindung), Some(env)) =
         (view_uniforms.uniforms.binding(), environment.as_ref())
     {
-        pipeline_id.0 = Some(pipelines.specialize(&mut pipeline_cache, &fog_pipeline, ()));
+        let key = FogRenderPipelineKey::from_settings(&*settings);
+
+        pipeline_id.0 = Some(pipelines.specialize(&mut pipeline_cache, &fog_pipeline, key));
 
         let fog_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[

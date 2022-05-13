@@ -96,7 +96,7 @@ impl TonemappingPipelineKey {
     pub fn from_settings(settings: &TerrainRenderSettings) -> Self {
         let mut flags = TonemappingPipelineKey::NONE;
 
-        if settings.exclusive_view_active() || settings.disable_tonemapping {
+        if settings.exclusive_view_active() {
             flags = TonemappingPipelineKey::DISABLED;
         }
 

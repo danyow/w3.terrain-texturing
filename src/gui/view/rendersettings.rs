@@ -49,7 +49,7 @@ pub(super) fn show_settings(
                         ui.checkbox(&mut settings.ignore_bkgrnd_texture, "background texture");
                         ui.end_row_if(2 % columns == 0);
                         ui.checkbox(&mut settings.ignore_tint_map, "tint map");
-                        ui.checkbox(&mut settings.disable_tonemapping, "tonemapping");
+                        ui.checkbox(&mut settings.disable_fog, "environment fog");
                     });
                 ui.separator();
             });
