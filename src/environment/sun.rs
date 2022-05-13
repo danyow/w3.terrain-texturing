@@ -107,7 +107,7 @@ pub(super) fn update_sun_position(
 
         if let Ok(sun_transform) = sun.get_single() {
             sky_mat.set_sun_position(sun_transform.translation);
-            environment.sun.direction = -sun_transform.translation;
+            environment.sun.direction = -sun_transform.translation.normalize();
         }
     }
 }
