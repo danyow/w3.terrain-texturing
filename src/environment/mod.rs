@@ -7,6 +7,7 @@ use crate::terrain_render::EnvironmentData;
 
 use self::definition::EnvironmentConfig;
 use self::settings::EnvironmentSettings;
+use self::utils::{Angle, ColorCurveEntry, ScalarCurveEntry, TimeOfDay};
 // ----------------------------------------------------------------------------
 mod definition;
 mod interpolation;
@@ -15,7 +16,6 @@ mod sun;
 mod utils;
 // ----------------------------------------------------------------------------
 pub use self::sun::{Sun, SunPositionSettings};
-use self::utils::{Angle, ColorCurveEntry, ScalarCurveEntry, TimeOfDay};
 // ----------------------------------------------------------------------------
 pub struct EnvironmentPlugin;
 // ----------------------------------------------------------------------------
@@ -86,6 +86,8 @@ fn update_environment_values(
     if day_night_cycle.is_changed() {
         // sample new interpolated values and update current environment data
         env_data.sun.color = env_settings.sun.color.sample(day_night_cycle.time_of_day());
+        // fog
+        env_data.fog = env_settings.fog.sample(day_night_cycle.time_of_day());
     }
 }
 // ----------------------------------------------------------------------------

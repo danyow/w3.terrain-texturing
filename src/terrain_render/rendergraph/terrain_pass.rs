@@ -21,9 +21,12 @@ use bevy::{
 };
 // ----------------------------------------------------------------------------
 #[derive(Component)]
-struct TerrainPassRenderTargets {
+pub struct TerrainPassRenderTargets {
     pub world_pos_view: TextureView,
-    pub hdr_view: TextureView,
+    pub hdr_view_1: TextureView,
+    // Note: fog pass reads from hdr_view_1 and cannot use it as rendertarget
+    // at the same time -> use another target
+    pub hdr_view_2: TextureView,
 }
 // ----------------------------------------------------------------------------
 // systems
@@ -65,10 +68,10 @@ pub(super) fn prepare_rendertargets(
                 usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
             },
         );
-        let cached_hdr_target = texture_cache.get(
+        let cached_hdr_target_1 = texture_cache.get(
             &render_device,
             TextureDescriptor {
-                label: Some("terrain_hdr"),
+                label: Some("terrain_hdr_1"),
                 size: Extent3d {
                     depth_or_array_layers: 1,
                     width: view.width as u32,
@@ -78,12 +81,33 @@ pub(super) fn prepare_rendertargets(
                 sample_count,
                 dimension: TextureDimension::D2,
                 format: TextureFormat::Rgba16Float,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+                usage: TextureUsages::RENDER_ATTACHMENT
+                    | TextureUsages::TEXTURE_BINDING
+                    | TextureUsages::STORAGE_BINDING,
+            },
+        );
+        let cached_hdr_target_2 = texture_cache.get(
+            &render_device,
+            TextureDescriptor {
+                label: Some("terrain_hdr_2"),
+                size: Extent3d {
+                    depth_or_array_layers: 1,
+                    width: view.width as u32,
+                    height: view.height as u32,
+                },
+                mip_level_count: 1,
+                sample_count,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Rgba16Float,
+                usage: TextureUsages::RENDER_ATTACHMENT
+                    | TextureUsages::TEXTURE_BINDING
+                    | TextureUsages::STORAGE_BINDING,
             },
         );
         commands.entity(entity).insert(TerrainPassRenderTargets {
             world_pos_view: cached_world_pos.default_view,
-            hdr_view: cached_hdr_target.default_view,
+            hdr_view_1: cached_hdr_target_1.default_view,
+            hdr_view_2: cached_hdr_target_2.default_view,
         });
     }
 }
@@ -186,7 +210,7 @@ impl Node for TerrainPassNode {
             label: Some("terrain_pass_3d"),
             color_attachments: &[
                 RenderPassColorAttachment {
-                    view: &render_targets.hdr_view,
+                    view: &render_targets.hdr_view_1,
                     resolve_target: None,
                     // terrain meshes are not rendered full screen so clear target
                     ops: Operations {
@@ -235,7 +259,7 @@ impl Node for TerrainPassNode {
             .unwrap();
 
         graph
-            .set_output(Self::OUT_HDR_VIEW, render_targets.hdr_view.clone())
+            .set_output(Self::OUT_HDR_VIEW, render_targets.hdr_view_1.clone())
             .unwrap();
 
         Ok(())

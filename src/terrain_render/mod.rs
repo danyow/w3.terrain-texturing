@@ -10,7 +10,7 @@ pub struct TerrainRenderPlugin;
 // ----------------------------------------------------------------------------
 pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
-pub use environment::EnvironmentData;
+pub use environment::{DirectionalLight, EnvironmentData, FogState};
 
 pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
