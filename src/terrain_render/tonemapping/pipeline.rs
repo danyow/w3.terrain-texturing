@@ -14,6 +14,8 @@ use bevy::{
     },
 };
 
+use crate::terrain_render::TerrainRenderSettings;
+
 use super::GpuTonemappingInfo;
 // ----------------------------------------------------------------------------
 pub struct TonemappingRenderPipeline {
@@ -81,10 +83,42 @@ impl FromWorld for TonemappingRenderPipeline {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-impl SpecializedPipeline for TonemappingRenderPipeline {
-    type Key = ();
+bitflags::bitflags! {
+    #[repr(transparent)]
+    pub struct TonemappingPipelineKey: u32 {
+        const NONE      = 0b0000;
+        const DISABLED  = 0b0001;
+    }
+}
+// ----------------------------------------------------------------------------
+impl TonemappingPipelineKey {
     // ------------------------------------------------------------------------
-    fn specialize(&self, _: Self::Key) -> RenderPipelineDescriptor {
+    pub fn from_settings(settings: &TerrainRenderSettings) -> Self {
+        let mut flags = TonemappingPipelineKey::NONE;
+
+        if settings.exclusive_view_active() || settings.disable_tonemapping {
+            flags = TonemappingPipelineKey::DISABLED;
+        }
+
+        flags
+    }
+    // ------------------------------------------------------------------------
+    fn shader_defs(&self) -> Vec<String> {
+        if self.contains(Self::DISABLED) {
+            vec!["DISABLE_TONEMAPPING".to_string()]
+        } else {
+            Vec::default()
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl SpecializedPipeline for TonemappingRenderPipeline {
+    type Key = TonemappingPipelineKey;
+    // ------------------------------------------------------------------------
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let shader_defs = key.shader_defs();
+
         RenderPipelineDescriptor {
             label: Some("tonemapping_pipeline".into()),
             layout: Some(vec![self.input_layout.clone(), self.info_layout.clone()]),
@@ -97,7 +131,7 @@ impl SpecializedPipeline for TonemappingRenderPipeline {
             },
             fragment: Some(FragmentState {
                 shader: self.shader_frag.clone(),
-                shader_defs: vec![],
+                shader_defs,
                 entry_point: "fragment".into(),
                 targets: vec![ColorTargetState {
                     format: TextureFormat::bevy_default(),

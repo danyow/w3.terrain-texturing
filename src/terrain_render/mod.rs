@@ -23,6 +23,7 @@ pub struct TerrainRenderSettings {
     pub ignore_overlay_texture: bool,
     pub ignore_bkgrnd_texture: bool,
     pub ignore_tint_map: bool,
+    pub disable_tonemapping: bool,
 
     pub show_fragment_normals: bool,
     pub show_combined_normals: bool,

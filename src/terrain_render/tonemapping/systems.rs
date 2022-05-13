@@ -10,9 +10,10 @@ use bevy::{
     },
 };
 
-use crate::{resource::PreparedRenderResource, terrain_render::EnvironmentData};
+use crate::resource::PreparedRenderResource;
+use crate::terrain_render::{EnvironmentData, TerrainRenderSettings};
 
-use super::pipeline::TonemappingRenderPipeline;
+use super::pipeline::{TonemappingPipelineKey, TonemappingRenderPipeline};
 // ----------------------------------------------------------------------------
 #[derive(Default)]
 pub(super) struct TonemappingPipelineId(Option<CachedPipelineId>);
@@ -21,17 +22,21 @@ pub(super) struct TonemappingBindGroup(BindGroup);
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
+#[allow(clippy::too_many_arguments)]
 pub(super) fn queue_tonemapping_info(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
     environment: Res<PreparedRenderResource<EnvironmentData>>,
     tonemapping_pipeline: Res<TonemappingRenderPipeline>,
+    settings: Res<TerrainRenderSettings>,
     mut pipelines: ResMut<SpecializedPipelines<TonemappingRenderPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     mut pipeline_id: ResMut<TonemappingPipelineId>,
 ) {
     if let Some(env) = environment.as_ref() {
-        pipeline_id.0 = Some(pipelines.specialize(&mut pipeline_cache, &tonemapping_pipeline, ()));
+        let key = TonemappingPipelineKey::from_settings(&*settings);
+
+        pipeline_id.0 = Some(pipelines.specialize(&mut pipeline_cache, &tonemapping_pipeline, key));
 
         let tonemapping_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[BindGroupEntry {
