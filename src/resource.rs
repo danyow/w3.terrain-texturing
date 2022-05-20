@@ -1,5 +1,6 @@
 use bevy::ecs::system::{Resource, StaticSystemParam, SystemParam, SystemParamItem};
 use bevy::prelude::*;
+use bevy::render::render_asset::PrepareAssetLabel;
 use bevy::render::{RenderApp, RenderStage};
 use std::marker::PhantomData;
 // ----------------------------------------------------------------------------
@@ -64,7 +65,7 @@ impl<A: RenderResource> Plugin for RenderResourcePlugin<A> {
                 RenderStage::Prepare,
                 // this is important as renderresources may point to assets which
                 // have to be available when resources are prepared (e.g. images)!
-                prepare_resource::<A>.after("prepare_render_asset"),
+                prepare_resource::<A>.after(PrepareAssetLabel::PreAssetPrepare),
             );
     }
 }

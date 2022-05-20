@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::render::render_asset::PrepareAssetLabel;
 use bevy::render::render_resource::{SpecializedComputePipeline, SpecializedComputePipelines};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::{RenderApp, RenderStage};
@@ -49,7 +50,7 @@ impl<T: ComputeTask> Plugin for ComputeTaskPlugin<T> {
             )
             .add_system_to_stage(
                 RenderStage::Prepare,
-                prepare_compute_task::<T>.after("prepare_render_asset"),
+                prepare_compute_task::<T>.after(PrepareAssetLabel::PreAssetPrepare),
             );
     }
 }
