@@ -389,6 +389,7 @@ impl RenderAsset for TextureArray {
         Ok(GpuImage {
             texture,
             texture_view,
+            texture_format: texture_array.texture_descriptor.format,
             sampler,
             size,
         })

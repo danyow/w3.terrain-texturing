@@ -5,7 +5,7 @@ use bevy::{
     render::{
         render_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin},
         render_phase::{AddRenderCommand, DrawFunctions, RenderPhase, SetItemPipeline},
-        render_resource::{RenderPipelineCache, SpecializedPipelines},
+        render_resource::{PipelineCache, SpecializedRenderPipelines},
         view::ExtractedView,
         RenderApp, RenderStage,
     },
@@ -23,7 +23,7 @@ use self::terrain_mesh::TerrainMeshUniform;
 
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
-use super::environment::{GpuDirectionalLight, EnvironmentData};
+use super::environment::{EnvironmentData, GpuDirectionalLight};
 use super::rendergraph::Terrain3d;
 
 use super::{
@@ -54,7 +54,7 @@ impl Plugin for TerrainMeshRenderPlugin {
         app.sub_app_mut(RenderApp)
             .add_render_command::<Terrain3d, DrawCmdTerrain>()
             .init_resource::<TerrainMeshRenderPipeline>()
-            .init_resource::<SpecializedPipelines<TerrainMeshRenderPipeline>>()
+            .init_resource::<SpecializedRenderPipelines<TerrainMeshRenderPipeline>>()
             .add_system_to_stage(RenderStage::Extract, extract_terrain_render_settings)
             .add_system_to_stage(RenderStage::Extract, extract_terrain_meshes)
             .add_system_to_stage(RenderStage::Queue, queue_terrain_rendering)
@@ -75,8 +75,8 @@ fn queue_terrain_rendering(
     draw_functions: Res<DrawFunctions<Terrain3d>>,
     terrain_pipeline: Res<TerrainMeshRenderPipeline>,
     settings: Res<TerrainRenderSettings>,
-    mut pipelines: ResMut<SpecializedPipelines<TerrainMeshRenderPipeline>>,
-    mut pipeline_cache: ResMut<RenderPipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<TerrainMeshRenderPipeline>>,
+    mut pipeline_cache: ResMut<PipelineCache>,
     terrain_meshes: Res<MutRenderAssets<TerrainMesh>>,
     rendered_meshes: Query<
         (Entity, &TerrainMeshUniform, &Handle<TerrainMesh>),

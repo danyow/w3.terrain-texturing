@@ -6,7 +6,7 @@ use bevy::{
             std140::AsStd140, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
             BindingType, BufferBindingType, BufferSize, ColorTargetState, ColorWrites,
             FragmentState, MultisampleState, PrimitiveState, RenderPipelineDescriptor,
-            ShaderStages, SpecializedPipeline, TextureFormat, TextureSampleType,
+            ShaderStages, SpecializedRenderPipeline, TextureFormat, TextureSampleType,
             TextureViewDimension, VertexState,
         },
         renderer::RenderDevice,
@@ -113,7 +113,7 @@ impl TonemappingPipelineKey {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-impl SpecializedPipeline for TonemappingRenderPipeline {
+impl SpecializedRenderPipeline for TonemappingRenderPipeline {
     type Key = TonemappingPipelineKey;
     // ------------------------------------------------------------------------
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {

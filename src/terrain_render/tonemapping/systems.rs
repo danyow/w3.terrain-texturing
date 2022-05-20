@@ -3,8 +3,8 @@ use bevy::{
     prelude::*,
     render::{
         render_resource::{
-            BindGroup, BindGroupDescriptor, BindGroupEntry, CachedPipelineId, RenderPipelineCache,
-            SpecializedPipelines,
+            BindGroup, BindGroupDescriptor, BindGroupEntry, CachedRenderPipelineId, PipelineCache,
+            SpecializedRenderPipelines,
         },
         renderer::RenderDevice,
     },
@@ -16,7 +16,7 @@ use crate::terrain_render::{EnvironmentData, TerrainRenderSettings};
 use super::pipeline::{TonemappingPipelineKey, TonemappingRenderPipeline};
 // ----------------------------------------------------------------------------
 #[derive(Default)]
-pub(super) struct TonemappingPipelineId(Option<CachedPipelineId>);
+pub(super) struct TonemappingPipelineId(Option<CachedRenderPipelineId>);
 // ----------------------------------------------------------------------------
 pub(super) struct TonemappingBindGroup(BindGroup);
 // ----------------------------------------------------------------------------
@@ -29,8 +29,8 @@ pub(super) fn queue_tonemapping_info(
     environment: Res<PreparedRenderResource<EnvironmentData>>,
     tonemapping_pipeline: Res<TonemappingRenderPipeline>,
     settings: Res<TerrainRenderSettings>,
-    mut pipelines: ResMut<SpecializedPipelines<TonemappingRenderPipeline>>,
-    mut pipeline_cache: ResMut<RenderPipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<TonemappingRenderPipeline>>,
+    mut pipeline_cache: ResMut<PipelineCache>,
     mut pipeline_id: ResMut<TonemappingPipelineId>,
 ) {
     if let Some(env) = environment.as_ref() {
@@ -56,7 +56,7 @@ pub(super) fn queue_tonemapping_info(
 use std::ops::Deref;
 
 impl Deref for TonemappingPipelineId {
-    type Target = Option<CachedPipelineId>;
+    type Target = Option<CachedRenderPipelineId>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

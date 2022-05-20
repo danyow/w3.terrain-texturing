@@ -7,7 +7,7 @@ use bevy::{
             BindingType, BlendState, BufferBindingType, BufferSize, ColorTargetState, ColorWrites,
             Face, FragmentState, FrontFace, MultisampleState, PolygonMode, PrimitiveState,
             PrimitiveTopology, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
-            SpecializedPipeline, TextureFormat, TextureSampleType, TextureViewDimension,
+            SpecializedRenderPipeline, TextureFormat, TextureSampleType, TextureViewDimension,
             VertexState,
         },
         renderer::RenderDevice,
@@ -116,7 +116,7 @@ impl BrushPointerPipelineKey {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-impl SpecializedPipeline for BrushPointerRenderPipeline {
+impl SpecializedRenderPipeline for BrushPointerRenderPipeline {
     // ------------------------------------------------------------------------
     type Key = BrushPointerPipelineKey;
     // ------------------------------------------------------------------------

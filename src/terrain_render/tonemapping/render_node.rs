@@ -8,14 +8,17 @@ use bevy::{
         render_phase::TrackedRenderPass,
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, LoadOp, Operations,
-            RenderPassDescriptor, RenderPipelineCache, TextureViewId,
+            PipelineCache, RenderPassDescriptor, TextureViewId,
         },
         renderer::RenderContext,
         view::{ExtractedView, ViewTarget},
     },
 };
 
-use super::{pipeline::TonemappingRenderPipeline, systems::{TonemappingPipelineId, TonemappingBindGroup}};
+use super::{
+    pipeline::TonemappingRenderPipeline,
+    systems::{TonemappingBindGroup, TonemappingPipelineId},
+};
 // ----------------------------------------------------------------------------
 pub struct TonemappingNode {
     query: QueryState<&'static ViewTarget, With<ExtractedView>>,
@@ -62,7 +65,7 @@ impl Node for TonemappingNode {
         }
         let tonemapping_bind_group = tonemapping_bind_group.unwrap();
 
-        let render_pipeline_cache = world.get_resource::<RenderPipelineCache>().unwrap();
+        let render_pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
         let tonemapping_pipeline = world.get_resource::<TonemappingRenderPipeline>().unwrap();
         let pipelineid = world.get_resource::<TonemappingPipelineId>().unwrap();
 
@@ -70,11 +73,12 @@ impl Node for TonemappingNode {
             return Ok(());
         }
 
-        let pipeline =
-            match render_pipeline_cache.get(pipelineid.expect("cached tonemapping pipeline")) {
-                Some(pipeline) => pipeline,
-                None => return Ok(()),
-            };
+        let pipeline = match render_pipeline_cache
+            .get_render_pipeline(pipelineid.expect("cached tonemapping pipeline"))
+        {
+            Some(pipeline) => pipeline,
+            None => return Ok(()),
+        };
 
         let view_entity = graph.get_input_entity(Self::IN_VIEW)?;
         let hdr_view = graph.get_input_texture(Self::IN_HDR_VIEW)?;

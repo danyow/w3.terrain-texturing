@@ -3,8 +3,8 @@ use bevy::{
     prelude::*,
     render::{
         render_resource::{
-            BindGroup, BindGroupDescriptor, BindGroupEntry, CachedPipelineId, RenderPipelineCache,
-            SpecializedPipelines,
+            BindGroup, BindGroupDescriptor, BindGroupEntry, CachedRenderPipelineId, PipelineCache,
+            SpecializedRenderPipelines,
         },
         renderer::RenderDevice,
         view::ViewUniforms,
@@ -17,7 +17,7 @@ use crate::terrain_render::{EnvironmentData, TerrainRenderSettings};
 use super::pipeline::{FogRenderPipeline, FogRenderPipelineKey};
 // ----------------------------------------------------------------------------
 #[derive(Default)]
-pub(super) struct FogPipelineId(Option<CachedPipelineId>);
+pub(super) struct FogPipelineId(Option<CachedRenderPipelineId>);
 // ----------------------------------------------------------------------------
 pub(super) struct FogBindGroup(BindGroup);
 // ----------------------------------------------------------------------------
@@ -31,8 +31,8 @@ pub(super) fn queue_fog_info(
     fog_pipeline: Res<FogRenderPipeline>,
     settings: Res<TerrainRenderSettings>,
     view_uniforms: Res<ViewUniforms>,
-    mut pipelines: ResMut<SpecializedPipelines<FogRenderPipeline>>,
-    mut pipeline_cache: ResMut<RenderPipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<FogRenderPipeline>>,
+    mut pipeline_cache: ResMut<PipelineCache>,
     mut pipeline_id: ResMut<FogPipelineId>,
 ) {
     if let (Some(view_bindung), Some(env)) =
@@ -70,7 +70,7 @@ pub(super) fn queue_fog_info(
 use std::ops::Deref;
 
 impl Deref for FogPipelineId {
-    type Target = Option<CachedPipelineId>;
+    type Target = Option<CachedRenderPipelineId>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

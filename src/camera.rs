@@ -3,8 +3,8 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::*;
 
-use bevy::app::{Events, ManualEventReader};
 use bevy::core::Time;
+use bevy::ecs::event::{Events, ManualEventReader};
 use bevy::ecs::schedule::StateData;
 use bevy::input::mouse::MouseMotion;
 use bevy::input::Input;
@@ -13,7 +13,6 @@ use bevy::render::camera::{
     Camera, CameraProjection, PerspectiveCameraBundle, PerspectiveProjection,
 };
 use bevy::render::primitives::Frustum;
-use bevy::render::view::VisibleEntities;
 use bevy::window::Windows;
 // ----------------------------------------------------------------------------
 pub struct CameraPlugin;
@@ -89,16 +88,14 @@ fn setup_cam(mut commands: Commands, mut state: ResMut<CameraState>) {
 
     let perspective_cam = PerspectiveCameraBundle {
         camera: Camera {
-            name: Some(bevy::render::camera::CameraPlugin::CAMERA_3D.to_string()),
             near: perspective_projection.near,
             far: perspective_projection.far,
             ..Default::default()
         },
         perspective_projection,
-        visible_entities: VisibleEntities::default(),
         frustum,
         transform: camera_transform,
-        global_transform: Default::default(),
+        ..Default::default()
     };
 
     commands

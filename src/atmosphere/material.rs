@@ -40,13 +40,14 @@ use bevy::{
     prelude::{AssetServer, Handle, Shader},
     reflect::TypeUuid,
     render::{
+        mesh::MeshVertexBufferLayout,
         render_asset::{PrepareAssetError, RenderAsset},
         render_resource::{
             std140::{AsStd140, Std140},
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
             BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer,
             BufferBindingType, BufferInitDescriptor, BufferSize, BufferUsages,
-            RenderPipelineDescriptor, ShaderStages,
+            RenderPipelineDescriptor, ShaderStages, SpecializedMeshPipelineError,
         },
         renderer::RenderDevice,
     },
@@ -167,7 +168,12 @@ impl SpecializedMaterial for AtmosphereMat {
     // ------------------------------------------------------------------------
     fn key(_: &<AtmosphereMat as RenderAsset>::PreparedAsset) -> Self::Key {}
     // ------------------------------------------------------------------------
-    fn specialize(_: Self::Key, descriptor: &mut RenderPipelineDescriptor) {
+    fn specialize(
+        _pipeline: &MaterialPipeline<Self>,
+        descriptor: &mut RenderPipelineDescriptor,
+        _key: Self::Key,
+        _layout: &MeshVertexBufferLayout,
+    ) -> Result<(), SpecializedMeshPipelineError> {
         descriptor.vertex.entry_point = "main".into();
         descriptor.fragment.as_mut().unwrap().entry_point = "main".into();
 
@@ -176,6 +182,7 @@ impl SpecializedMaterial for AtmosphereMat {
         //     depth_stencil_state.depth_compare = CompareFunction::LessEqual;
         //     depth_stencil_state.depth_write_enabled = false;
         // }
+        Ok(())
     }
     // ------------------------------------------------------------------------
     fn vertex_shader(asset_server: &AssetServer) -> Option<Handle<Shader>> {

@@ -8,7 +8,7 @@ use bevy::{
         render_phase::TrackedRenderPass,
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, LoadOp, Operations,
-            RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineCache, TextureViewId,
+            PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, TextureViewId,
         },
         renderer::RenderContext,
         view::{ExtractedView, ViewUniformOffset},
@@ -80,7 +80,7 @@ impl Node for FogNode {
         }
         let fog_bind_group = fog_bind_group.unwrap();
 
-        let render_pipeline_cache = world.get_resource::<RenderPipelineCache>().unwrap();
+        let render_pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
         let fog_pipeline = world.get_resource::<FogRenderPipeline>().unwrap();
         let pipelineid = world.get_resource::<FogPipelineId>().unwrap();
 
@@ -88,7 +88,9 @@ impl Node for FogNode {
             return Ok(());
         }
 
-        let pipeline = match render_pipeline_cache.get(pipelineid.expect("cached fog pipeline")) {
+        let pipeline = match render_pipeline_cache
+            .get_render_pipeline(pipelineid.expect("cached fog pipeline"))
+        {
             Some(pipeline) => pipeline,
             None => return Ok(()),
         };

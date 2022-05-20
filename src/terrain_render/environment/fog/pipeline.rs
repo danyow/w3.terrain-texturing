@@ -6,7 +6,7 @@ use bevy::{
             std140::AsStd140, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
             BindingType, BufferBindingType, BufferSize, ColorTargetState, ColorWrites,
             FragmentState, MultisampleState, PrimitiveState, RenderPipelineDescriptor,
-            ShaderStages, SpecializedPipeline, TextureFormat, TextureSampleType,
+            ShaderStages, SpecializedRenderPipeline, TextureFormat, TextureSampleType,
             TextureViewDimension, VertexState,
         },
         renderer::RenderDevice,
@@ -149,7 +149,7 @@ impl FogRenderPipelineKey {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-impl SpecializedPipeline for FogRenderPipeline {
+impl SpecializedRenderPipeline for FogRenderPipeline {
     type Key = FogRenderPipelineKey;
     // ------------------------------------------------------------------------
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {

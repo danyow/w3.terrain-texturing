@@ -3,14 +3,14 @@ use bevy::{
     core::FloatOrd,
     prelude::*,
     render::{
-        camera::{ActiveCameras, CameraPlugin},
+        camera::{ActiveCamera, Camera3d},
         render_graph::{Node, NodeRunError, RenderGraphContext, SlotInfo, SlotType},
         render_phase::{
-            CachedPipelinePhaseItem, DrawFunctionId, DrawFunctions, EntityPhaseItem, PhaseItem,
-            RenderPhase, TrackedRenderPass,
+            CachedRenderPipelinePhaseItem, DrawFunctionId, DrawFunctions, EntityPhaseItem,
+            PhaseItem, RenderPhase, TrackedRenderPass,
         },
         render_resource::{
-            CachedPipelineId, Extent3d, LoadOp, Operations, RenderPassColorAttachment,
+            CachedRenderPipelineId, Extent3d, LoadOp, Operations, RenderPassColorAttachment,
             RenderPassDepthStencilAttachment, RenderPassDescriptor, TextureDescriptor,
             TextureDimension, TextureFormat, TextureUsages, TextureView,
         },
@@ -31,13 +31,14 @@ pub struct TerrainPassRenderTargets {
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
-pub(super) fn extract_camera_phases(mut commands: Commands, active_cameras: Res<ActiveCameras>) {
-    if let Some(camera_3d) = active_cameras.get(CameraPlugin::CAMERA_3D) {
-        if let Some(entity) = camera_3d.entity {
-            commands
-                .get_or_spawn(entity)
-                .insert(RenderPhase::<Terrain3d>::default());
-        }
+pub(super) fn extract_camera_phases(
+    mut commands: Commands,
+    camera_3d: Res<ActiveCamera<Camera3d>>,
+) {
+    if let Some(entity) = camera_3d.get() {
+        commands
+            .get_or_spawn(entity)
+            .insert(RenderPhase::<Terrain3d>::default());
     }
 }
 // ----------------------------------------------------------------------------
@@ -116,7 +117,7 @@ pub(super) fn prepare_rendertargets(
 // ----------------------------------------------------------------------------
 pub struct Terrain3d {
     pub distance: f32,
-    pub pipeline: CachedPipelineId,
+    pub pipeline: CachedRenderPipelineId,
     pub entity: Entity,
     pub draw_function: DrawFunctionId,
 }
@@ -142,9 +143,9 @@ impl EntityPhaseItem for Terrain3d {
     }
 }
 // ----------------------------------------------------------------------------
-impl CachedPipelinePhaseItem for Terrain3d {
+impl CachedRenderPipelinePhaseItem for Terrain3d {
     #[inline]
-    fn cached_pipeline(&self) -> CachedPipelineId {
+    fn cached_pipeline(&self) -> CachedRenderPipelineId {
         self.pipeline
     }
 }

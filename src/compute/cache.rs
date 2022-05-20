@@ -39,9 +39,9 @@ use bevy::{
     prelude::*,
     render::{
         render_resource::{
-            BindGroupLayout, BindGroupLayoutId, ComputePipeline,
-            ComputePipelineDescriptor as RawComputePipelineDescriptor, PipelineLayout,
-            PipelineLayoutDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource,
+            BindGroupLayout, BindGroupLayoutId, ComputePipeline, PipelineLayout,
+            PipelineLayoutDescriptor, RawComputePipelineDescriptor, ShaderModule,
+            ShaderModuleDescriptor, ShaderSource,
         },
         renderer::RenderDevice,
     },

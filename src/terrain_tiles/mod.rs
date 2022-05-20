@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use bevy::{
     ecs::schedule::StateData,
-    math::{vec3, Vec2, Vec3, Vec3Swizzles},
+    math::{vec3, vec3a, Vec2, Vec3, Vec3Swizzles},
     prelude::*,
     render::primitives::Aabb,
     tasks::{AsyncComputeTaskPool, ComputeTaskPool, TaskPool},
@@ -159,8 +159,8 @@ impl TerrainTileComponent {
         let half_height = 0.5 * (max_height - min_height);
         let half_size = (TILE_SIZE / 2) as f32 * terrain_resolution;
 
-        let center = vec3(0.0, min_height + half_height, 0.0);
-        let half_extents = vec3(half_size, half_height, half_size);
+        let center = vec3a(0.0, min_height + half_height, 0.0);
+        let half_extents = vec3a(half_size, half_height, half_size);
 
         Aabb {
             center,

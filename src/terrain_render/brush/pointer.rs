@@ -7,7 +7,7 @@ use bevy::{
             std140::{AsStd140, Std140},
             BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferAddress,
             BufferAsyncError, BufferDescriptor, BufferInitDescriptor, BufferUsages,
-            CachedPipelineId, Maintain, MapMode, RenderPipelineCache, SpecializedPipelines,
+            CachedRenderPipelineId, Maintain, MapMode, PipelineCache, SpecializedRenderPipelines,
         },
         renderer::RenderDevice,
         view::ExtractedView,
@@ -21,7 +21,7 @@ use super::{
 };
 // ----------------------------------------------------------------------------
 #[derive(Default)]
-pub(super) struct BrushPointerPipelineId(Option<CachedPipelineId>);
+pub(super) struct BrushPointerPipelineId(Option<CachedRenderPipelineId>);
 // ----------------------------------------------------------------------------
 // gpu representation of pointer
 // ----------------------------------------------------------------------------
@@ -106,8 +106,8 @@ pub(super) fn prepare_brush_pointer_info(
 // ----------------------------------------------------------------------------
 pub(super) fn queue_brush_pointer_info(
     brush_pointer_pipeline: Res<BrushPointerRenderPipeline>,
-    mut pipelines: ResMut<SpecializedPipelines<BrushPointerRenderPipeline>>,
-    mut pipeline_cache: ResMut<RenderPipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<BrushPointerRenderPipeline>>,
+    mut pipeline_cache: ResMut<PipelineCache>,
     gpu_brush: Res<Option<GpuBrushPointer>>,
     mut pipeline_id: ResMut<BrushPointerPipelineId>,
 ) {
@@ -244,7 +244,7 @@ fn to_mouse_button(button: u8) -> MouseButton {
 use std::ops::Deref;
 
 impl Deref for BrushPointerPipelineId {
-    type Target = Option<CachedPipelineId>;
+    type Target = Option<CachedRenderPipelineId>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

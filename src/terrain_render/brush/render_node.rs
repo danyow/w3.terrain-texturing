@@ -8,7 +8,7 @@ use bevy::{
         render_phase::TrackedRenderPass,
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, LoadOp, Operations,
-            RenderPassDescriptor, RenderPipelineCache, SamplerDescriptor, TextureViewId,
+            PipelineCache, RenderPassDescriptor, SamplerDescriptor, TextureViewId,
         },
         renderer::RenderContext,
         view::{ExtractedView, ViewTarget},
@@ -71,15 +71,16 @@ impl Node for BrushPointerNode {
         let brushpointer = brushpointer.as_ref().unwrap();
         let brushpointer_result = brushpointer_result.as_ref().unwrap();
 
-        let render_pipeline_cache = world.get_resource::<RenderPipelineCache>().unwrap();
+        let render_pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
         let brush_pointer_pipeline = world.get_resource::<BrushPointerRenderPipeline>().unwrap();
         let pipelineid = world.get_resource::<BrushPointerPipelineId>().unwrap();
 
-        let pipeline =
-            match render_pipeline_cache.get(pipelineid.expect("cached brush_pointer pipeline")) {
-                Some(pipeline) => pipeline,
-                None => return Ok(()),
-            };
+        let pipeline = match render_pipeline_cache
+            .get_render_pipeline(pipelineid.expect("cached brush_pointer pipeline"))
+        {
+            Some(pipeline) => pipeline,
+            None => return Ok(()),
+        };
 
         let view_entity = graph.get_input_entity(Self::IN_VIEW)?;
         let world_pos_view = graph.get_input_texture(Self::IN_WORLD_POS)?;

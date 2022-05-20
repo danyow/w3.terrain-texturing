@@ -1,5 +1,4 @@
-use bevy::ecs::system::lifetimeless::SResMut;
-use bevy::ecs::system::{Resource, RunSystem, SystemParam, SystemParamItem};
+use bevy::ecs::system::{Resource, StaticSystemParam, SystemParam, SystemParamItem};
 use bevy::prelude::*;
 use bevy::render::{RenderApp, RenderStage};
 use std::marker::PhantomData;
@@ -56,7 +55,6 @@ impl<A: RenderResource> Default for RenderResourcePlugin<A> {
 impl<A: RenderResource> Plugin for RenderResourcePlugin<A> {
     fn build(&self, app: &mut App) {
         let render_app = app.sub_app_mut(RenderApp);
-        let prepare_resource_system = PrepareResourceSystem::<A>::system(&mut render_app.world);
         render_app
             .init_resource::<UpdatedResource<A>>()
             .init_resource::<PreparedRenderResource<A>>()
@@ -66,7 +64,7 @@ impl<A: RenderResource> Plugin for RenderResourcePlugin<A> {
                 RenderStage::Prepare,
                 // this is important as renderresources may point to assets which
                 // have to be available when resources are prepared (e.g. images)!
-                prepare_resource_system.after("prepare_render_asset"),
+                prepare_resource::<A>.after("prepare_render_asset"),
             );
     }
 }
@@ -108,14 +106,6 @@ fn extract_render_resource<A: RenderResource>(mut commands: Commands, resource: 
     }
 }
 
-/// Specifies all ECS data required by [`PrepareResourceSystem`].
-pub type RenderResourceParams<R> = (
-    SResMut<UpdatedResource<R>>,
-    SResMut<PreparedRenderResource<R>>,
-    SResMut<PrepareNextFrameResource<R>>,
-    <R as RenderResource>::Param,
-);
-
 // TODO: consider storing inside system?
 /// All resources that should be prepared next frame.
 pub struct PrepareNextFrameResource<A: RenderResource> {
@@ -130,44 +120,42 @@ impl<A: RenderResource> Default for PrepareNextFrameResource<A> {
 
 /// This system prepares a resource of the corresponding [`RenderResource`] type
 /// which was extracted this frame for the GPU.
-pub struct PrepareResourceSystem<R: RenderResource>(PhantomData<R>);
-
-impl<R: RenderResource> RunSystem for PrepareResourceSystem<R> {
-    type Param = RenderResourceParams<R>;
-
-    fn run(
-        (updated, mut prepared, mut prepare_next_frame, mut param): SystemParamItem<Self::Param>,
-    ) {
-        match updated.into_inner() {
-            UpdatedResource::Unchanged => {
-                if let Some(queued_resource) = prepare_next_frame.resource.take() {
-                    match R::prepare_resource(queued_resource, &mut param) {
-                        Ok(prepared_resource) => {
-                            *prepared.as_mut() = Some(prepared_resource);
-                        }
-                        Err(PrepareResourceError::RetryNextUpdate(extracted_resource)) => {
-                            prepare_next_frame.resource = Some(extracted_resource);
-                        }
-                    }
-                }
-            }
-            UpdatedResource::Updated(extracted_resource) => {
-                prepare_next_frame.resource = None;
-                match R::prepare_resource(extracted_resource.take().unwrap(), &mut param) {
+fn prepare_resource<R: RenderResource>(
+    updated: ResMut<UpdatedResource<R>>,
+    mut prepared: ResMut<PreparedRenderResource<R>>,
+    mut prepare_next_frame: ResMut<PrepareNextFrameResource<R>>,
+    param: StaticSystemParam<<R as RenderResource>::Param>,
+) {
+    let mut param = param.into_inner();
+    match updated.into_inner() {
+        UpdatedResource::Unchanged => {
+            if let Some(queued_resource) = prepare_next_frame.resource.take() {
+                match R::prepare_resource(queued_resource, &mut param) {
                     Ok(prepared_resource) => {
-                        // warn!("renderresource.Updated: setting prepared_resource");
-                        *prepared.into_inner() = Some(prepared_resource);
+                        *prepared.as_mut() = Some(prepared_resource);
                     }
                     Err(PrepareResourceError::RetryNextUpdate(extracted_resource)) => {
-                        // warn!("renderresource.RetryNextUpdate");
                         prepare_next_frame.resource = Some(extracted_resource);
                     }
                 }
             }
-            UpdatedResource::Removed => {
-                prepare_next_frame.resource = None;
-                prepared.into_inner().take();
+        }
+        UpdatedResource::Updated(extracted_resource) => {
+            prepare_next_frame.resource = None;
+            match R::prepare_resource(extracted_resource.take().unwrap(), &mut param) {
+                Ok(prepared_resource) => {
+                    // warn!("renderresource.Updated: setting prepared_resource");
+                    *prepared.into_inner() = Some(prepared_resource);
+                }
+                Err(PrepareResourceError::RetryNextUpdate(extracted_resource)) => {
+                    // warn!("renderresource.RetryNextUpdate");
+                    prepare_next_frame.resource = Some(extracted_resource);
+                }
             }
+        }
+        UpdatedResource::Removed => {
+            prepare_next_frame.resource = None;
+            prepared.into_inner().take();
         }
     }
 }

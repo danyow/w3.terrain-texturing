@@ -2,7 +2,7 @@
 use bevy::{
     prelude::*,
     render::{
-        camera::{CameraPlugin, ExtractedCameraNames},
+        camera::{ActiveCamera, Camera3d},
         render_graph::{Node, NodeRunError, RenderGraphContext, SlotValue},
         renderer::RenderContext,
     },
@@ -19,9 +19,8 @@ impl Node for TerrainPassDriverNode {
         _render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        let extracted_cameras = world.get_resource::<ExtractedCameraNames>().unwrap();
-        if let Some(camera_3d) = extracted_cameras.entities.get(CameraPlugin::CAMERA_3D) {
-            graph.run_sub_graph(terrain_3d_graph::NAME, vec![SlotValue::Entity(*camera_3d)])?;
+        if let Some(camera_3d) = world.resource::<ActiveCamera<Camera3d>>().get() {
+            graph.run_sub_graph(terrain_3d_graph::NAME, vec![SlotValue::Entity(camera_3d)])?;
         }
 
         Ok(())

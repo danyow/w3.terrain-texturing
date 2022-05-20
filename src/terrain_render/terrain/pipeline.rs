@@ -6,7 +6,7 @@ use bevy::{
             BindGroupLayout, BindGroupLayoutDescriptor, BlendState, ColorTargetState, ColorWrites,
             CompareFunction, DepthBiasState, DepthStencilState, Face, FragmentState, FrontFace,
             MultisampleState, PolygonMode, PrimitiveState, PrimitiveTopology,
-            RenderPipelineDescriptor, SpecializedPipeline, StencilFaceState, StencilState,
+            RenderPipelineDescriptor, SpecializedRenderPipeline, StencilFaceState, StencilState,
             TextureFormat, VertexState,
         },
         renderer::RenderDevice,
@@ -15,7 +15,9 @@ use bevy::{
 
 use super::terrain_clipmap::clipmap_bind_group_layout;
 use super::terrain_material::materialset_bind_group_layout;
-use super::terrain_mesh::{mesh_bind_group_layout, mesh_vertex_buffer_layout, mesh_view_bind_group_layout};
+use super::terrain_mesh::{
+    mesh_bind_group_layout, mesh_vertex_buffer_layout, mesh_view_bind_group_layout,
+};
 
 use super::TerrainRenderSettings;
 // ----------------------------------------------------------------------------
@@ -186,7 +188,7 @@ impl TerrainMeshPipelineKey {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-impl SpecializedPipeline for TerrainMeshRenderPipeline {
+impl SpecializedRenderPipeline for TerrainMeshRenderPipeline {
     // ------------------------------------------------------------------------
     type Key = TerrainMeshPipelineKey;
     // ------------------------------------------------------------------------

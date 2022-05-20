@@ -75,9 +75,9 @@ pub(super) fn update_sun_position(
     settings: Res<SunPositionSettings>,
     mut sky_mat: ResMut<AtmosphereMat>,
     mut environment: ResMut<EnvironmentData>,
-    mut query: QuerySet<(
-        QueryState<(&mut Transform, &mut SunPlane)>,
-        QueryState<&mut Visibility, With<SunDebugMesh>>,
+    mut query: ParamSet<(
+        Query<(&mut Transform, &mut SunPlane)>,
+        Query<&mut Visibility, With<SunDebugMesh>>,
     )>,
     sun: Query<&mut GlobalTransform, With<Sun>>,
 ) {
@@ -88,7 +88,7 @@ pub(super) fn update_sun_position(
         let sun_plane_tilt = settings.plane_tilt().as_radians();
         let sun_plane_yaw = settings.plane_yaw().as_radians();
 
-        if let Ok((mut transform, mut sunplane)) = query.q0().get_single_mut() {
+        if let Ok((mut transform, mut sunplane)) = query.p0().get_single_mut() {
             let height_adjustment = PLANE_HEIGHT_SCALE * settings.plane_height() as f32;
 
             transform.rotation =
@@ -99,7 +99,7 @@ pub(super) fn update_sun_position(
             if sunplane.visualize != settings.show_debug_mesh() {
                 sunplane.visualize = settings.show_debug_mesh();
 
-                for mut dbg_mesh_visibility in query.q1().iter_mut() {
+                for mut dbg_mesh_visibility in query.p1().iter_mut() {
                     dbg_mesh_visibility.is_visible = settings.show_debug_mesh();
                 }
             }

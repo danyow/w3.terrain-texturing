@@ -1,12 +1,15 @@
 // ----------------------------------------------------------------------------
 use bevy::{
     prelude::*,
-    render::{render_resource::SpecializedPipelines, RenderApp, RenderStage},
+    render::{render_resource::SpecializedRenderPipelines, RenderApp, RenderStage},
 };
 
 use super::environment::GpuTonemappingInfo;
 
-use self::{pipeline::TonemappingRenderPipeline, systems::{TonemappingPipelineId, TonemappingBindGroup}};
+use self::{
+    pipeline::TonemappingRenderPipeline,
+    systems::{TonemappingBindGroup, TonemappingPipelineId},
+};
 // ----------------------------------------------------------------------------
 mod pipeline;
 mod render_node;
@@ -27,7 +30,7 @@ impl Plugin for TonemappingPlugin {
             .init_resource::<Option<TonemappingBindGroup>>()
             .init_resource::<TonemappingPipelineId>()
             .init_resource::<TonemappingRenderPipeline>()
-            .init_resource::<SpecializedPipelines<TonemappingRenderPipeline>>()
+            .init_resource::<SpecializedRenderPipelines<TonemappingRenderPipeline>>()
             .add_system_to_stage(RenderStage::Queue, systems::queue_tonemapping_info);
     }
     // ------------------------------------------------------------------------

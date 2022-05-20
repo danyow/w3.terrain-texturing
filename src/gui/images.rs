@@ -7,12 +7,12 @@ use bevy::{
     },
     utils::HashMap,
 };
+use bevy_egui::egui::TextureId;
 use bevy_egui::EguiContext;
 // ----------------------------------------------------------------------------
 #[derive(Default)]
 pub struct UiImages {
-    id: u64,
-    images: HashMap<String, u64>,
+    images: HashMap<String, TextureId>,
     handles: HashMap<String, Handle<Image>>,
 }
 // ----------------------------------------------------------------------------
@@ -25,16 +25,12 @@ impl UiImages {
         handle: Handle<Image>,
     ) {
         let id = id.into();
-        let egui_id = if let Some(egui_id) = self.images.get(&id) {
+        if let Some(prev_handle) = self.handles.remove(&id) {
             // remove prev texture from egui
-            egui_ctx.remove_egui_texture(*egui_id);
-            *egui_id
-        } else {
-            self.id += 1;
-            self.images.insert(id, self.id);
-            self.id
-        };
-        egui_ctx.set_egui_texture(egui_id, handle);
+            egui_ctx.remove_image(&prev_handle);
+        }
+        let egui_id = egui_ctx.add_image(handle);
+        self.images.insert(id, egui_id);
     }
     // ------------------------------------------------------------------------
     pub fn add_image(
@@ -85,16 +81,14 @@ impl UiImages {
     // ------------------------------------------------------------------------
     #[allow(dead_code)]
     pub fn remove(&mut self, egui_ctx: &mut EguiContext, id: &str) {
-        if let Some(imageid) = self.images.remove(id) {
-            egui_ctx.remove_egui_texture(imageid);
+        if let Some(imageid) = self.handles.remove(id) {
+            egui_ctx.remove_image(&imageid);
         }
-        self.handles.remove(id);
+        self.images.remove(id);
     }
     // ------------------------------------------------------------------------
     pub fn get_imageid(&self, id: &str) -> bevy_egui::egui::TextureId {
-        use bevy_egui::egui::TextureId;
-
-        TextureId::User(self.images.get(id).cloned().unwrap_or_default())
+        self.images.get(id).cloned().unwrap_or_default()
     }
     // ------------------------------------------------------------------------
 }

@@ -8,8 +8,7 @@
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 use bevy::asset::Asset;
-use bevy::ecs::system::lifetimeless::SResMut;
-use bevy::ecs::system::{RunSystem, SystemParam, SystemParamItem};
+use bevy::ecs::system::{StaticSystemParam, SystemParam, SystemParamItem};
 use bevy::prelude::*;
 use bevy::render::render_asset::PrepareAssetError;
 use bevy::render::{RenderApp, RenderStage};
@@ -61,7 +60,6 @@ impl<A: MutRenderAsset> Default for MutRenderAssetPlugin<A> {
 impl<A: MutRenderAsset> Plugin for MutRenderAssetPlugin<A> {
     fn build(&self, app: &mut App) {
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
-            let prepare_asset_system = PrepareAssetSystem::<A>::system(&mut render_app.world);
             render_app
                 .init_resource::<ExtractedMutAssets<A>>()
                 .init_resource::<MutRenderAssets<A>>()
@@ -72,7 +70,7 @@ impl<A: MutRenderAsset> Plugin for MutRenderAssetPlugin<A> {
                 )
                 .add_system_to_stage(
                     RenderStage::Prepare,
-                    prepare_asset_system.label("prepare_mut_render_asset"),
+                    prepare_assets::<A>.label("prepare_mut_render_asset"),
                 );
         }
     }
@@ -125,7 +123,11 @@ fn extract_render_asset<A: MutRenderAsset>(
     for handle in changed_assets.drain() {
         // non mutable access to query if any update is pending to prevent
         // mut-access -> modified event
-        if assets.get(handle).map(|a| a.pending_update()).unwrap_or(false) {
+        if assets
+            .get(handle)
+            .map(|a| a.pending_update())
+            .unwrap_or(false)
+        {
             // thiw will retrigger a modified event put pedning_update is supposed
             // to catch this
             if let Some(asset) = assets.get_mut(handle) {
@@ -139,14 +141,6 @@ fn extract_render_asset<A: MutRenderAsset>(
         removed,
     });
 }
-
-/// Specifies all ECS data required by [`PrepareAssetSystem`].
-pub type MutRenderAssetParams<R> = (
-    SResMut<ExtractedMutAssets<R>>,
-    SResMut<MutRenderAssets<R>>,
-    SResMut<PrepareNextFrameAssets<R>>,
-    <R as MutRenderAsset>::Param,
-);
 
 // TODO: consider storing inside system?
 /// All assets that should be prepared next frame.
@@ -164,38 +158,36 @@ impl<A: MutRenderAsset> Default for PrepareNextFrameAssets<A> {
 
 /// This system prepares all assets of the corresponding [`MutRenderAsset`] type
 /// which where extracted this frame for the GPU.
-pub struct PrepareAssetSystem<R: MutRenderAsset>(PhantomData<R>);
-
-impl<R: MutRenderAsset> RunSystem for PrepareAssetSystem<R> {
-    type Param = MutRenderAssetParams<R>;
-
-    fn run(
-        (mut extracted_assets, mut render_assets, mut prepare_next_frame, mut param): SystemParamItem<Self::Param>,
-    ) {
-        let mut queued_assets = std::mem::take(&mut prepare_next_frame.assets);
-        for (handle, extracted_asset) in queued_assets.drain(..) {
-            match R::prepare_asset(extracted_asset, &mut param) {
-                Ok(prepared_asset) => {
-                    render_assets.insert(handle, prepared_asset);
-                }
-                Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
-                    prepare_next_frame.assets.push((handle, extracted_asset));
-                }
+fn prepare_assets<R: MutRenderAsset>(
+    mut extracted_assets: ResMut<ExtractedMutAssets<R>>,
+    mut render_assets: ResMut<MutRenderAssets<R>>,
+    mut prepare_next_frame: ResMut<PrepareNextFrameAssets<R>>,
+    param: StaticSystemParam<<R as MutRenderAsset>::Param>,
+) {
+    let mut param = param.into_inner();
+    let mut queued_assets = std::mem::take(&mut prepare_next_frame.assets);
+    for (handle, extracted_asset) in queued_assets.drain(..) {
+        match R::prepare_asset(extracted_asset, &mut param) {
+            Ok(prepared_asset) => {
+                render_assets.insert(handle, prepared_asset);
+            }
+            Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
+                prepare_next_frame.assets.push((handle, extracted_asset));
             }
         }
+    }
 
-        for removed in std::mem::take(&mut extracted_assets.removed) {
-            render_assets.remove(&removed);
-        }
+    for removed in std::mem::take(&mut extracted_assets.removed) {
+        render_assets.remove(&removed);
+    }
 
-        for (handle, extracted_asset) in std::mem::take(&mut extracted_assets.extracted) {
-            match R::prepare_asset(extracted_asset, &mut param) {
-                Ok(prepared_asset) => {
-                    render_assets.insert(handle, prepared_asset);
-                }
-                Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
-                    prepare_next_frame.assets.push((handle, extracted_asset));
-                }
+    for (handle, extracted_asset) in std::mem::take(&mut extracted_assets.extracted) {
+        match R::prepare_asset(extracted_asset, &mut param) {
+            Ok(prepared_asset) => {
+                render_assets.insert(handle, prepared_asset);
+            }
+            Err(PrepareAssetError::RetryNextUpdate(extracted_asset)) => {
+                prepare_next_frame.assets.push((handle, extracted_asset));
             }
         }
     }

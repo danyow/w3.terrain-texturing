@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 use bevy::{
     prelude::*,
-    render::{render_resource::SpecializedPipelines, RenderApp, RenderStage},
+    render::{render_resource::SpecializedRenderPipelines, RenderApp, RenderStage},
 };
 
 use self::pipeline::{BrushPointerPipelineKey, BrushPointerRenderPipeline};
@@ -9,9 +9,9 @@ use self::pointer::{
     BrushPointerPipelineId, GpuBrushPointer, GpuBrushPointerInfo, GpuBrushPointerResult,
 };
 // ----------------------------------------------------------------------------
-mod render_node;
 mod pipeline;
 mod pointer;
+mod render_node;
 // ----------------------------------------------------------------------------
 use async_channel::{Receiver, Sender};
 // ----------------------------------------------------------------------------
@@ -58,7 +58,7 @@ impl Plugin for BrushPointerRenderPlugin {
             .init_resource::<Option<GpuBrushPointerResult>>()
             .init_resource::<BrushPointerPipelineId>()
             .init_resource::<BrushPointerRenderPipeline>()
-            .init_resource::<SpecializedPipelines<BrushPointerRenderPipeline>>()
+            .init_resource::<SpecializedRenderPipelines<BrushPointerRenderPipeline>>()
             .insert_resource(BrushPointerResultDispatcher(result_sender))
             .add_system_to_stage(RenderStage::Extract, pointer::extract_brush_pointer_info)
             .add_system_to_stage(RenderStage::Prepare, pointer::prepare_brush_pointer_info)

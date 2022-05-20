@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 use bevy::{
     prelude::*,
-    render::{render_resource::SpecializedPipelines, RenderApp, RenderStage},
+    render::{render_resource::SpecializedRenderPipelines, RenderApp, RenderStage},
 };
 
 use super::GpuFogSettings;
@@ -28,7 +28,7 @@ impl Plugin for EnvironmentFogPlugin {
             .init_resource::<Option<FogBindGroup>>()
             .init_resource::<FogPipelineId>()
             .init_resource::<FogRenderPipeline>()
-            .init_resource::<SpecializedPipelines<FogRenderPipeline>>()
+            .init_resource::<SpecializedRenderPipelines<FogRenderPipeline>>()
             .add_system_to_stage(RenderStage::Queue, systems::queue_fog_info);
     }
     // ------------------------------------------------------------------------
