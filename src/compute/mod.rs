@@ -1,5 +1,4 @@
 // ----------------------------------------------------------------------------
-mod cache;
 mod computetask;
 mod normals;
 // ----------------------------------------------------------------------------
@@ -9,7 +8,8 @@ use bevy::{
     render::{
         render_graph::{self, RenderGraph},
         render_resource::{
-            BufferAsyncError, BufferSlice, CommandEncoder, ComputePipeline, Maintain,
+            BufferAsyncError, BufferSlice, CachedComputePipelineId, CommandEncoder,
+            ComputePipeline, Maintain, PipelineCache,
         },
         renderer::{RenderContext, RenderDevice},
         RenderApp, RenderStage,
@@ -20,7 +20,6 @@ use futures_lite::Future;
 
 use self::normals::{ComputeNormalsResult, GpuComputeNormals};
 // ----------------------------------------------------------------------------
-pub use cache::*;
 pub use normals::AppComputeNormalsTask;
 // ----------------------------------------------------------------------------
 #[derive(Component)]
@@ -58,25 +57,15 @@ impl Plugin for GpuComputeTaskPlugin {
             receiver: taskresult_receiver,
         });
 
-        let render_device = app.world.get_resource_mut::<RenderDevice>().unwrap();
-        let compute_pipeline_cache = ComputePipelineCache::new(render_device.clone());
-
         let render_app = app.sub_app_mut(RenderApp);
         render_app
-            .insert_resource(compute_pipeline_cache)
             .init_resource::<PreparedGpuTasks>()
             .init_resource::<ComputeTaskQueue>()
             .insert_resource(PendingComputeResults {
                 task_result_dispatcher: taskresult_sender,
                 task_started_listener: task_dispatch_receiver,
             })
-            // FIXME shader assets not supported due to duplication with "normal" RenderPipelineCache
-            // .add_system_to_stage(RenderStage::Extract, ComputePipelineCache::extract_shaders)
             .add_system_to_stage(RenderStage::Queue, queue_tasks)
-            .add_system_to_stage(
-                RenderStage::Render,
-                ComputePipelineCache::process_pipeline_queue_system,
-            )
             // tasks can only be checked *after* the command queue was submitted!
             // so this has to be *after* the render phase
             .add_system_to_stage(RenderStage::Cleanup, check_task_results);
@@ -86,7 +75,6 @@ impl Plugin for GpuComputeTaskPlugin {
         let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
         render_graph.add_node("compute_task_pass", compute_node);
 
-        // depends on ComputePipelineCache
         app.add_plugin(normals::ComputeNormalsPlugin);
     }
     // ------------------------------------------------------------------------
@@ -129,7 +117,7 @@ impl GpuComputeTask {
 /// Processed by ComputeTaskNode to retrieve GpuComputeTask data entity from
 /// render world and pipeline from pipeline cache
 struct ComputeTaskQueue {
-    tasks: HashMap<Entity, CachedPipelineId>,
+    tasks: HashMap<Entity, CachedComputePipelineId>,
 }
 // ----------------------------------------------------------------------------
 impl ComputeTaskQueue {
@@ -138,7 +126,7 @@ impl ComputeTaskQueue {
         self.tasks.clear();
     }
     // ------------------------------------------------------------------------
-    fn add_task(&mut self, taskid: Entity, pipelineid: CachedPipelineId) {
+    fn add_task(&mut self, taskid: Entity, pipelineid: CachedComputePipelineId) {
         self.tasks.insert(taskid, pipelineid);
     }
     // ------------------------------------------------------------------------
@@ -149,11 +137,11 @@ impl ComputeTaskQueue {
 }
 // ----------------------------------------------------------------------------
 #[derive(Default)]
-struct PreparedGpuTasks(Vec<(Entity, GpuComputeTask, CachedPipelineId)>);
+struct PreparedGpuTasks(Vec<(Entity, GpuComputeTask, CachedComputePipelineId)>);
 // ----------------------------------------------------------------------------
 impl PreparedGpuTasks {
     // ------------------------------------------------------------------------
-    pub fn add(&mut self, taskid: Entity, task: GpuComputeTask, pipeline: CachedPipelineId) {
+    pub fn add(&mut self, taskid: Entity, task: GpuComputeTask, pipeline: CachedComputePipelineId) {
         self.0.push((taskid, task, pipeline));
     }
     // ------------------------------------------------------------------------
@@ -272,14 +260,14 @@ impl render_graph::Node for ComputePassNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let pipeline_cache = world.get_resource::<ComputePipelineCache>().unwrap();
+        let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
         let queue = world.get_resource::<ComputeTaskQueue>().unwrap();
 
         if !queue.tasks.is_empty() {
             for (taskid, pipelineid) in queue.tasks.iter() {
                 let task = self.tasks_query.get_manual(world, *taskid).unwrap();
 
-                let pipeline = pipeline_cache.get(*pipelineid).unwrap();
+                let pipeline = pipeline_cache.get_compute_pipeline(*pipelineid).unwrap();
 
                 task.record_commands(pipeline, &mut render_context.command_encoder);
 

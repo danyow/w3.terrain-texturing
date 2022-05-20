@@ -8,8 +8,9 @@ use bevy::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
             BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferAddress,
             BufferAsyncError, BufferBindingType, BufferDescriptor, BufferInitDescriptor,
-            BufferSize, BufferSlice, BufferUsages, CommandEncoder, ComputePassDescriptor, MapMode,
-            ShaderStages,
+            BufferSize, BufferSlice, BufferUsages, CommandEncoder, ComputePassDescriptor,
+            ComputePipelineDescriptor, MapMode, ShaderStages, SpecializedComputePipeline,
+            SpecializedComputePipelines,
         },
         renderer::{RenderDevice, RenderQueue},
         RenderApp,
@@ -19,8 +20,7 @@ use futures_lite::Future;
 
 use super::{
     computetask::{ComputeTask, ComputeTaskPlugin},
-    CachedShaderId, ComputePipelineCache, ComputePipelineDescriptor, GpuComputeTask,
-    SpecializedComputePipeline, SpecializedComputePipelines,
+    GpuComputeTask,
 };
 // ----------------------------------------------------------------------------
 const WORKGROUP_SIZE_X: u32 = 8;
@@ -70,19 +70,14 @@ pub struct ComputeNormalsPipelineKey;
 // ----------------------------------------------------------------------------
 pub struct ComputeNormalsPipeline {
     data_layout: BindGroupLayout,
-
-    test_shader: CachedShaderId,
+    shader: Handle<Shader>,
 }
 // ----------------------------------------------------------------------------
 impl FromWorld for ComputeNormalsPipeline {
     fn from_world(world: &mut World) -> Self {
-        // hack to add shader
-        let mut pipeline_cache = world.get_resource_mut::<ComputePipelineCache>().unwrap();
-
-        let shaderid = pipeline_cache.set_shader(
-            Some("compute_normals_shader"),
-            include_str!("../../assets/shaders/compute/normals.wgsl"),
-        );
+        let shader = world
+            .resource::<AssetServer>()
+            .load("shaders/compute/normals.wgsl");
 
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
@@ -129,7 +124,7 @@ impl FromWorld for ComputeNormalsPipeline {
 
         Self {
             data_layout,
-            test_shader: shaderid,
+            shader,
         }
     }
 }
@@ -143,8 +138,9 @@ impl SpecializedComputePipeline for ComputeNormalsPipeline {
         ComputePipelineDescriptor {
             label: None,
             layout: Some(vec![self.data_layout.clone()]),
-            shader: self.test_shader,
+            shader: self.shader.clone(),
             entry_point: "main".into(),
+            shader_defs: vec![],
         }
     }
     // ------------------------------------------------------------------------

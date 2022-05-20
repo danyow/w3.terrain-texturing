@@ -1,12 +1,10 @@
 use bevy::prelude::*;
+use bevy::render::render_resource::{SpecializedComputePipeline, SpecializedComputePipelines};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::{RenderApp, RenderStage};
 use std::marker::PhantomData;
 
-use super::{
-    ComputePipelineCache, GpuComputeTask, PreparedGpuTasks, SpecializedComputePipeline,
-    SpecializedComputePipelines,
-};
+use super::{GpuComputeTask, PipelineCache, PreparedGpuTasks};
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 // simplified compute task transformation into renderworld.
@@ -91,7 +89,7 @@ fn prepare_compute_task<T: ComputeTask>(
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
     mut pipelines: ResMut<SpecializedComputePipelines<T::ComputePipeline>>,
-    mut pipeline_cache: ResMut<ComputePipelineCache>,
+    mut pipeline_cache: ResMut<PipelineCache>,
 ) {
     for (taskid, task) in extracted.tasks.drain(..) {
         let pipeline_key = T::specialization_key(&task);
@@ -100,3 +98,14 @@ fn prepare_compute_task<T: ComputeTask>(
         prepared.add(taskid, prepared_task, pipeline_id);
     }
 }
+
+// Hack/Workaround for error:
+//
+//  computetask.rs:91:
+//      `<<T as ComputeTask>::ComputePipeline as SpecializedComputePipeline>::Key` cannot be sent between threads safely
+//
+// in bevy_render/src/render_resource/pipeline_specializer.rs
+// pub trait SpecializedComputePipeline {
+//     type Key: Clone + Hash + PartialEq + Eq + Send + Sync;       // Send + Sync added
+//     [...]
+// }
