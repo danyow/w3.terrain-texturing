@@ -7,6 +7,7 @@ pub(super) fn show_window(
     clipmap_tracker: &Res<crate::terrain_clipmap::ClipmapTracker>,
     texture_clipmap: &Res<TextureControlClipmap>,
     tint_clipmap: &Res<TintClipmap>,
+    heightmap_clipmap: &Res<crate::terrain_clipmap::HeightmapClipmap>,
     gui_event: &mut EventWriter<GuiAction>,
 ) {
     let mut opened = ui_state.debug.show_clipmaps;
@@ -25,7 +26,11 @@ pub(super) fn show_window(
                 clipmap_tracker.datasource_size(),
             ));
 
-            for label in [texture_clipmap.label(), tint_clipmap.label()] {
+            for label in [
+                texture_clipmap.label(),
+                tint_clipmap.label(),
+                heightmap_clipmap.label(),
+            ] {
                 egui::CollapsingHeader::new(label)
                     .default_open(true)
                     .show(ui, |ui| {

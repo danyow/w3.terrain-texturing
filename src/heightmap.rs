@@ -32,7 +32,7 @@ impl Plugin for HeightmapPlugin {
     }
 }
 // ----------------------------------------------------------------------------
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TerrainHeightMap {
     size: u32,
     data: Vec<u16>,
@@ -417,6 +417,87 @@ impl<const TILE_SIZE: u32> TerrainTileId<TILE_SIZE> {
     // ------------------------------------------------------------------------
     const fn tile_size(&self) -> u32 {
         TILE_SIZE
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+// heightmap clipmap (required for terrain shadows)
+// ----------------------------------------------------------------------------
+use crate::clipmap::ClipmapData;
+use bevy::render::render_resource::TextureFormat;
+
+// TODO access to Heightmap data (for tile generation should use the high res
+// layer of the clipmap)
+// ----------------------------------------------------------------------------
+impl ClipmapData for TerrainHeightMap {
+    // ------------------------------------------------------------------------
+    type DataType = u16;
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn datapoint_size(&self) -> u32 {
+        // 16bit
+        1
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn texture_format(&self) -> TextureFormat {
+        TextureFormat::R16Uint
+    }
+    // ------------------------------------------------------------------------
+    fn wrap_as_image(&self, size: u32, data: Vec<Self::DataType>) -> image::DynamicImage {
+        use image::{DynamicImage::ImageLuma16, ImageBuffer};
+
+        ImageLuma16(ImageBuffer::from_raw(size, size, data).unwrap())
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn size(&self) -> u32 {
+        self.size
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn as_slice(&self) -> &[Self::DataType] {
+        &self.data
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn as_slice_mut(&mut self) -> &mut [Self::DataType] {
+        &mut self.data
+    }
+    // ------------------------------------------------------------------------
+    fn downscale(
+        &self,
+        src: &[Self::DataType],
+        src_size: usize,
+        src_x: usize,
+        src_y: usize,
+        src_roi_size: usize,
+        target_size: usize,
+    ) -> Vec<Self::DataType> {
+        assert!(src_size * src_size == src.len());
+        assert!(src_size - src_x >= target_size);
+        assert!(src_size - src_y >= target_size);
+
+        // since texture control must not change pixel values only no filtering
+        // is allowed to apply -> calculate stride
+
+        let mut result = Vec::with_capacity(target_size * target_size);
+
+        let stride = src_roi_size / target_size;
+        // do not use the same position for all clipmap level: offset with half
+        // of stride. seems to make the clipmap changes *slightly* more stable
+        let start_offset = (src_y + stride / 2) * src_size + src_x + stride / 2;
+
+        let mut offset = start_offset;
+        for sy in 0..target_size {
+            for _sx in 0..target_size {
+                result.push(src[offset]);
+                offset += stride;
+            }
+            offset = start_offset + sy * src_size * stride;
+        }
+
+        result
     }
     // ------------------------------------------------------------------------
 }

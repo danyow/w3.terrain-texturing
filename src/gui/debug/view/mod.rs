@@ -7,7 +7,7 @@ pub(super) fn show_ui(
     clipmap_tracker: Res<crate::terrain_clipmap::ClipmapTracker>,
     texture_clipmap: Res<TextureControlClipmap>,
     tint_clipmap: Res<TintClipmap>,
-
+    heightmap_clipmap: Res<HeightmapClipmap>,
     mut gui_event: EventWriter<GuiAction>,
 ) {
     if ui_state.fullscreen {
@@ -20,6 +20,7 @@ pub(super) fn show_ui(
         &clipmap_tracker,
         &texture_clipmap,
         &tint_clipmap,
+        &heightmap_clipmap,
         &mut gui_event,
     );
 }
@@ -32,7 +33,7 @@ mod menu;
 use bevy::prelude::*;
 use bevy_egui::EguiContext;
 
-use crate::terrain_clipmap::{TextureControlClipmap, TintClipmap};
+use crate::terrain_clipmap::{HeightmapClipmap, TextureControlClipmap, TintClipmap};
 
 use super::{GuiAction, UiImages, UiState};
 // ----------------------------------------------------------------------------

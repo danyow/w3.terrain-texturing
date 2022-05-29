@@ -10,6 +10,7 @@ use crate::config::{TerrainConfig, CLIPMAP_GRANULARITY, CLIPMAP_SIZE};
 use crate::clipmap::{Clipmap, Rectangle};
 use crate::texturearray::TextureArray;
 
+use crate::heightmap::TerrainHeightMap;
 use crate::texturecontrol::TextureControl;
 use crate::tintmap::TintMap;
 
@@ -61,6 +62,9 @@ pub struct TextureControlClipmap(Clipmap<CLIPMAP_SIZE, TextureControl>);
 /// required by different clipmap levels.
 #[derive(Default)]
 pub struct TintClipmap(Clipmap<CLIPMAP_SIZE, TintMap>);
+
+#[derive(Default)]
+pub struct HeightmapClipmap(Clipmap<CLIPMAP_SIZE, TerrainHeightMap>);
 // ----------------------------------------------------------------------------
 /// Plugin for generating a clipmap with multiple resolution views of different
 /// terrain data (e.g. texturing and tint coloring) for specific positions based
@@ -88,6 +92,7 @@ impl Plugin for TerrainClipmapPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TextureControlClipmap>()
             .init_resource::<TintClipmap>()
+            .init_resource::<HeightmapClipmap>()
             .insert_resource(ClipmapTracker::new(CLIPMAP_SIZE, 1));
     }
     // ------------------------------------------------------------------------
@@ -121,6 +126,7 @@ fn update_clipmaps(
     anchor_query: Query<(&Transform, &ClipmapAnchor)>,
     mut assignment_query: Query<&mut ClipmapAssignment>,
     texture_clipmap: Res<TextureControlClipmap>,
+    heightmap_clipmap: Res<HeightmapClipmap>,
     tint_clipmap: Res<TintClipmap>,
     mut terrain_clipmap: ResMut<TerrainClipmap>,
     // dbg
@@ -139,12 +145,14 @@ fn update_clipmaps(
 
             texture_clipmap.update_layer(level, layer.rectangle(), texture_arrays.deref_mut());
             tint_clipmap.update_layer(level, layer.rectangle(), texture_arrays.deref_mut());
+            heightmap_clipmap.update_layer(level, layer.rectangle(), texture_arrays.deref_mut());
 
             // update debug ui
             // TODO hide behind a cfg/feature?
             for (label, handle) in [
                 (texture_clipmap.label(), texture_clipmap.array()),
                 (tint_clipmap.label(), tint_clipmap.array()),
+                (heightmap_clipmap.label(), heightmap_clipmap.array()),
             ] {
                 editor_events.send(crate::EditorEvent::Debug(crate::DebugEvent::ClipmapUpdate(
                     label.to_string(),
@@ -182,6 +190,7 @@ fn init_clipmap_tracker(
 fn remove_clipmaps(mut commands: Commands) {
     commands.insert_resource(TintClipmap::default());
     commands.insert_resource(TextureControlClipmap::default());
+    commands.insert_resource(HeightmapClipmap::default());
 
     commands.insert_resource(TerrainClipmap::default());
     commands.insert_resource(ClipmapTracker::new(CLIPMAP_SIZE, 1));
@@ -190,7 +199,15 @@ fn remove_clipmaps(mut commands: Commands) {
 // utils
 // ----------------------------------------------------------------------------
 use std::ops::{Deref, DerefMut};
+// ----------------------------------------------------------------------------
+impl Deref for HeightmapClipmap {
+    type Target = Clipmap<CLIPMAP_SIZE, TerrainHeightMap>;
 
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+// ----------------------------------------------------------------------------
 impl Deref for TextureControlClipmap {
     type Target = Clipmap<CLIPMAP_SIZE, TextureControl>;
 
@@ -207,6 +224,12 @@ impl Deref for TintClipmap {
     }
 }
 // ----------------------------------------------------------------------------
+impl DerefMut for HeightmapClipmap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+// ----------------------------------------------------------------------------
 impl DerefMut for TextureControlClipmap {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
@@ -216,6 +239,12 @@ impl DerefMut for TextureControlClipmap {
 impl DerefMut for TintClipmap {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+// ----------------------------------------------------------------------------
+impl From<Clipmap<CLIPMAP_SIZE, TerrainHeightMap>> for HeightmapClipmap {
+    fn from(c: Clipmap<CLIPMAP_SIZE, TerrainHeightMap>) -> Self {
+        HeightmapClipmap(c)
     }
 }
 // ----------------------------------------------------------------------------

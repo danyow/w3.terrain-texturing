@@ -1,6 +1,6 @@
+// ----------------------------------------------------------------------------
 use std::ops::DerefMut;
 
-// ----------------------------------------------------------------------------
 use enum_dispatch::enum_dispatch;
 
 use bevy::{prelude::*, tasks::IoTaskPool, utils::HashSet};
@@ -11,7 +11,9 @@ use crate::config::CLIPMAP_SIZE;
 use crate::clipmap::ClipmapBuilder;
 use crate::heightmap::TerrainHeightMap;
 use crate::loader::LoaderPlugin;
-use crate::terrain_clipmap::{ClipmapTracker, TerrainClipmap, TextureControlClipmap, TintClipmap};
+use crate::terrain_clipmap::{
+    ClipmapTracker, HeightmapClipmap, TerrainClipmap, TextureControlClipmap, TintClipmap,
+};
 use crate::texturearray::TextureArray;
 use crate::texturecontrol::TextureControl;
 use crate::tintmap::TintMap;
@@ -109,6 +111,7 @@ pub(crate) fn start_async_operations(
     mut editor_events: EventWriter<EditorEvent>,
     texture_clipmap: Res<TextureControlClipmap>,
     tint_clipmap: Res<TintClipmap>,
+    heightmap_clipmap: Res<HeightmapClipmap>,
     thread_pool: Res<IoTaskPool>,
     terrain_config: Res<config::TerrainConfig>,
 ) {
@@ -148,6 +151,7 @@ pub(crate) fn start_async_operations(
                     // renderworld
                     terrain_clipmap.set_texture_clipmap(&texture_clipmap);
                     terrain_clipmap.set_tint_clipmap(&tint_clipmap);
+                    terrain_clipmap.set_heightmap_clipmap(&heightmap_clipmap);
 
                     // -> regenerate for the current position
                     clipmap_tracker.force_update();
@@ -179,6 +183,7 @@ pub(crate) fn poll_async_task_state(
     mut task_ready: EventReader<AsyncTaskStartEvent>,
     mut terrain_heightmap: ResMut<TerrainHeightMap>,
     mut texture_clipmap: ResMut<TextureControlClipmap>,
+    mut heightmap_clipmap: ResMut<HeightmapClipmap>,
     mut tint_clipmap: ResMut<TintClipmap>,
     mut texture_arrays: ResMut<Assets<TextureArray>>,
 
@@ -195,6 +200,19 @@ pub(crate) fn poll_async_task_state(
                 Ok(result) => match result {
                     TaskResultData::HeightmapData(new_heightmap) => {
                         info!("loading heightmap...finished");
+                        // inplace update required (cmds.insert_resource is queued)
+                        *heightmap_clipmap = ClipmapBuilder::<CLIPMAP_SIZE, TerrainHeightMap>::new(
+                            "heightmap clipmap",
+                            //FIXME this is a waste of memory -> make a special case clipmap to be
+                            // also useable as terrain_heightmap?
+                            new_heightmap.clone(),
+                            terrain_config.map_size(),
+                            clipmap_tracker.data_view_sizes(),
+                        )
+                        .enable_cache(true)
+                        .build(clipmap_tracker.rectangles(), texture_arrays.deref_mut())
+                        .into();
+
                         // must be updated in place as commands.insert_resource is queued but
                         // event may trigger next step earlier
                         // commands.insert_resource(new_heightmap);

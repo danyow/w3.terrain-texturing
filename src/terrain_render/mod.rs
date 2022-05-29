@@ -5,13 +5,13 @@ use crate::clipmap::Rectangle;
 use crate::resource::RenderResourcePlugin;
 use crate::texturearray::TextureArray;
 
-use crate::terrain_clipmap::{TextureControlClipmap, TintClipmap};
+use crate::terrain_clipmap::{HeightmapClipmap, TextureControlClipmap, TintClipmap};
 // ----------------------------------------------------------------------------
 pub struct TerrainRenderPlugin;
 // ----------------------------------------------------------------------------
 pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
-pub use environment::{DirectionalLight, EnvironmentData, FogState};
+pub use environment::{DirectionalLight, EnvironmentData, FogState, TimeOfDay};
 
 pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 // ----------------------------------------------------------------------------
@@ -73,6 +73,8 @@ pub struct ClipmapAssignment {
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
 pub struct TerrainClipmap {
+    heightmap: Handle<TextureArray>,
+    shadowmap: Handle<TextureArray>,
     texture: Handle<TextureArray>,
     tint: Handle<TextureArray>,
     clipmap: ClipmapInfo,
@@ -128,6 +130,10 @@ impl TerrainClipmap {
         let last_info = self.clipmap.info.clone();
         self.clipmap = new_info;
         self.clipmap.info_last = last_info;
+    }
+    // ------------------------------------------------------------------------
+    pub fn set_heightmap_clipmap(&mut self, clipmap: &HeightmapClipmap) {
+        self.heightmap = clipmap.array().clone();
     }
     // ------------------------------------------------------------------------
     pub fn set_texture_clipmap(&mut self, clipmap: &TextureControlClipmap) {

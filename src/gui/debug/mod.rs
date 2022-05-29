@@ -74,6 +74,7 @@ fn handle_ui_debug_actions(
     mut textures: ResMut<Assets<Image>>,
     texture_clipmap: Res<TextureControlClipmap>,
     tint_clipmap: Res<TintClipmap>,
+    heightmap_clipmap: Res<crate::terrain_clipmap::HeightmapClipmap>,
     mut texture_arrays: ResMut<Assets<TextureArray>>,
 ) {
     for action in ui_action.iter() {
@@ -87,6 +88,7 @@ fn handle_ui_debug_actions(
                 for (label, handle) in [
                     (texture_clipmap.label(), texture_clipmap.array()),
                     (tint_clipmap.label(), tint_clipmap.array()),
+                    (heightmap_clipmap.label(), heightmap_clipmap.array()),
                 ] {
                     if let Some(array) = texture_arrays.get(handle) {
                         for i in 0..array.texture_count() {
@@ -112,6 +114,7 @@ fn handle_ui_debug_actions(
                     &mut egui_image_registry,
                     &texture_clipmap,
                     &tint_clipmap,
+                    &heightmap_clipmap,
                     &mut texture_arrays,
                 );
             }
@@ -122,6 +125,7 @@ fn handle_ui_debug_actions(
                     &mut egui_image_registry,
                     &texture_clipmap,
                     &tint_clipmap,
+                    &heightmap_clipmap,
                     &mut texture_arrays,
                 );
                 app_state.overwrite_set(EditorState::NoTerrainData).ok();
@@ -133,18 +137,21 @@ fn handle_ui_debug_actions(
 // ----------------------------------------------------------------------------
 // helper
 // ----------------------------------------------------------------------------
+// #[allow(clippy::too_many_arguments)]
 fn close_clipmap_window(
     ui_state: &mut UiState,
     egui_ctx: &mut EguiContext,
     egui_image_registry: &mut UiImages,
     texture_clipmap: &TextureControlClipmap,
     tint_clipmap: &TintClipmap,
+    heightmap_clipmap: &crate::terrain_clipmap::HeightmapClipmap,
     texture_arrays: &mut Assets<TextureArray>,
 ) {
     ui_state.debug.show_clipmaps = false;
     for (label, handle) in [
         (texture_clipmap.label(), texture_clipmap.array()),
         (tint_clipmap.label(), tint_clipmap.array()),
+        (heightmap_clipmap.label(), heightmap_clipmap.array()),
     ] {
         if let Some(array) = texture_arrays.get(handle) {
             for i in 0..array.texture_count() {

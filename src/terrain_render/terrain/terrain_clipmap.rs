@@ -51,7 +51,7 @@ pub struct GpuClipmapLayerInfo {
     size: f32,
 }
 // ----------------------------------------------------------------------------
-pub(super) fn clipmap_bind_group_layout() -> [BindGroupLayoutEntry; 4] {
+pub(super) fn clipmap_bind_group_layout() -> [BindGroupLayoutEntry; 5] {
     [
         // texturing controlmap
         BindGroupLayoutEntry {
@@ -93,6 +93,17 @@ pub(super) fn clipmap_bind_group_layout() -> [BindGroupLayoutEntry; 4] {
             },
             count: None,
         },
+        // heightmap clipmap
+        BindGroupLayoutEntry {
+            binding: 4,
+            visibility: ShaderStages::FRAGMENT | ShaderStages::VERTEX | ShaderStages::COMPUTE,
+            ty: BindingType::StorageTexture {
+                view_dimension: TextureViewDimension::D2Array,
+                access: StorageTextureAccess::ReadOnly,
+                format: TextureFormat::R16Uint,
+            },
+            count: None,
+        },
     ]
 }
 // ----------------------------------------------------------------------------
@@ -120,6 +131,12 @@ impl RenderResource for TerrainClipmap {
         terrain_clipmap: Self::ExtractedResource,
         (render_device, terrain_pipeline, gpu_arrays): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedResource, PrepareResourceError<Self::ExtractedResource>> {
+        let heightmap_view = if let Some(gpu_array) = gpu_arrays.get(&terrain_clipmap.heightmap) {
+            &gpu_array.texture_view
+        } else {
+            return Err(PrepareResourceError::RetryNextUpdate(terrain_clipmap));
+        };
+
         let texture_view = if let Some(gpu_array) = gpu_arrays.get(&terrain_clipmap.texture) {
             &gpu_array.texture_view
         } else {
@@ -158,6 +175,10 @@ impl RenderResource for TerrainClipmap {
                 BindGroupEntry {
                     binding: 3,
                     resource: buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: BindingResource::TextureView(heightmap_view),
                 },
             ],
             label: Some("clipmap_bind_group"),
