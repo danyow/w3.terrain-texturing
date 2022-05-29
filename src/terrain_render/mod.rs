@@ -2,6 +2,7 @@
 use bevy::prelude::*;
 
 use crate::clipmap::Rectangle;
+use crate::resource::RenderResourcePlugin;
 use crate::texturearray::TextureArray;
 
 use crate::terrain_clipmap::{TextureControlClipmap, TintClipmap};
@@ -13,6 +14,15 @@ pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 pub use environment::{DirectionalLight, EnvironmentData, FogState};
 
 pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
+// ----------------------------------------------------------------------------
+#[derive(Default, Clone)]
+pub struct TerrainMapInfo {
+    pub map_size: u32,
+    pub resolution: f32,
+    pub height_min: f32,
+    pub height_max: f32,
+    pub clipmap_level_count: u8,
+}
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
 pub struct TerrainRenderSettings {
@@ -88,6 +98,7 @@ mod brush;
 mod environment;
 mod rendergraph;
 mod terrain;
+mod terrain_info;
 mod tonemapping;
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainRenderPlugin {
@@ -95,6 +106,8 @@ impl Plugin for TerrainRenderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainRenderSettings>()
             .init_resource::<TerrainMaterialSet>()
+            .init_resource::<TerrainMapInfo>()
+            .add_plugin(RenderResourcePlugin::<TerrainMapInfo>::default())
             .add_plugin(environment::EnvironmentDataPlugin)
             .add_plugin(rendergraph::TerrainRenderGraphPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin)

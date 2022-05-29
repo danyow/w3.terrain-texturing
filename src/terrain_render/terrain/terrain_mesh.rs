@@ -26,11 +26,13 @@ use bevy::{
 
 use crate::mut_renderasset::{MutRenderAsset, MutRenderAssets};
 use crate::resource::PreparedRenderResource;
+use crate::terrain_render::terrain_info::GpuTerrainMapInfoSettings;
+use crate::terrain_render::TerrainMapInfo;
 
 use crate::terrain_tiles::TerrainTileComponent;
 
 use super::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
-use super::{ClipmapAssignment, GpuDirectionalLight, EnvironmentData};
+use super::{ClipmapAssignment, EnvironmentData, GpuDirectionalLight};
 // ----------------------------------------------------------------------------
 // mesh
 // ----------------------------------------------------------------------------
@@ -171,7 +173,7 @@ pub struct TerrainMeshViewBindGroup {
     value: BindGroup,
 }
 // ----------------------------------------------------------------------------
-pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 2] {
+pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 3] {
     [
         // View
         BindGroupLayoutEntry {
@@ -192,6 +194,19 @@ pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 2] {
                 ty: BufferBindingType::Uniform,
                 has_dynamic_offset: false,
                 min_binding_size: BufferSize::new(GpuDirectionalLight::std140_size_static() as u64),
+            },
+            count: None,
+        },
+        // Sun
+        BindGroupLayoutEntry {
+            binding: 2,
+            visibility: ShaderStages::FRAGMENT | ShaderStages::VERTEX,
+            ty: BindingType::Buffer {
+                ty: BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: BufferSize::new(
+                    GpuTerrainMapInfoSettings::std140_size_static() as u64
+                ),
             },
             count: None,
         },
@@ -246,10 +261,13 @@ pub(super) fn queue_mesh_view_bind_group(
     mesh_pipeline: Res<TerrainMeshRenderPipeline>,
     view_uniforms: Res<ViewUniforms>,
     environment: Res<PreparedRenderResource<EnvironmentData>>,
+    map_info: Res<PreparedRenderResource<TerrainMapInfo>>,
 ) {
-    if let (Some(view_binding), Some(env)) =
-        (view_uniforms.uniforms.binding(), environment.as_ref())
-    {
+    if let (Some(view_binding), Some(env), Some(map_info)) = (
+        view_uniforms.uniforms.binding(),
+        environment.as_ref(),
+        map_info.as_ref(),
+    ) {
         let view_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[
                 BindGroupEntry {
@@ -259,6 +277,10 @@ pub(super) fn queue_mesh_view_bind_group(
                 BindGroupEntry {
                     binding: 1,
                     resource: env.sun_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: map_info.as_entire_binding(),
                 },
             ],
             label: Some("terrain_mesh_view_bind_group"),

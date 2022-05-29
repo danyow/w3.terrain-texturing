@@ -18,6 +18,16 @@ struct DirectionalLight {
     direction: vec3<f32>;
 };
 // ----------------------------------------------------------------------------
+// map static info
+struct TerrainMapInfo {
+    // high u16 map size, low u16 clipmap level count
+    size_and_clipmap_level_count: u32;
+    resolution: f32;
+    height_min: f32;
+    height_max: f32;
+    height_scaling: f32;
+};
+// ----------------------------------------------------------------------------
 // mesh
 struct Mesh {
     model: mat4x4<f32>;
@@ -58,6 +68,7 @@ struct ClipmapInfo {
 // view
 [[group(0), binding(0)]] var<uniform> view: View;
 [[group(0), binding(1)]] var<uniform> sunlight: DirectionalLight;
+[[group(0), binding(2)]] var<uniform> mapInfo: TerrainMapInfo;
 // ----------------------------------------------------------------------------
 [[group(1), binding(0)]] var<uniform> mesh: Mesh;
 // ----------------------------------------------------------------------------

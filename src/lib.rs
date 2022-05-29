@@ -167,9 +167,13 @@ fn setup_terrain_loading(
     mut mesh_settings: ResMut<terrain_tiles::TerrainMeshSettings>,
     mut editor_events: EventWriter<EditorEvent>,
     mut task_manager: ResMut<cmds::AsyncCommandManager>,
+    mut terrain_render_info: ResMut<terrain_render::TerrainMapInfo>,
 ) {
     // auto setup some default lod count and error levels based on terrain size
     mesh_settings.setup_defaults_from_size(terrain_config.map_size());
+
+    // transfer settings required for rendering to dedicated render resource
+    *terrain_render_info = terrain_render::TerrainMapInfo::from(terrain_config.as_ref());
 
     // queue loading tasks
     task_manager.add_new(cmds::WaitForTerrainLoaded::default().into());
@@ -309,7 +313,9 @@ impl EditorState {
         .add_system_set(MaterialSetPlugin::terrain_material_loading(TerrainLoading))
         .add_system_set(HeightmapPlugin::generate_heightmap_normals(TerrainLoading))
         .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(TerrainLoading))
-        .add_system_set(EnvironmentPlugin::setup_environment_settings(TerrainLoading));
+        .add_system_set(EnvironmentPlugin::setup_environment_settings(
+            TerrainLoading,
+        ));
     }
     // ------------------------------------------------------------------------
     /// main editing state
@@ -387,5 +393,21 @@ fn global_hotkeys(
             Initialization => {}
         }
     }
+}
+// ----------------------------------------------------------------------------
+// helper
+// ----------------------------------------------------------------------------
+impl<'a> From<&'a config::TerrainConfig> for terrain_render::TerrainMapInfo {
+    // ------------------------------------------------------------------------
+    fn from(config: &'a config::TerrainConfig) -> Self {
+        Self {
+            map_size: config.map_size(),
+            resolution: config.resolution(),
+            height_min: config.min_height(),
+            height_max: config.max_height(),
+            clipmap_level_count: config.clipmap_levels(),
+        }
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
