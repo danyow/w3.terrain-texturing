@@ -62,7 +62,11 @@ pub struct TextureControlClipmap(Clipmap<CLIPMAP_SIZE, TextureControl>);
 /// required by different clipmap levels.
 #[derive(Default)]
 pub struct TintClipmap(Clipmap<CLIPMAP_SIZE, TintMap>);
-
+// ----------------------------------------------------------------------------
+/// [Resource] Clipmap for terrain height information (required for lightheight
+/// calculation for terrain shadows). Stores full resolution data and can
+/// generate rectangle views of downscaled versions as required by different
+/// clipmap levels.
 #[derive(Default)]
 pub struct HeightmapClipmap(Clipmap<CLIPMAP_SIZE, TerrainHeightMap>);
 // ----------------------------------------------------------------------------
