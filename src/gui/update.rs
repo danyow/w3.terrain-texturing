@@ -11,19 +11,20 @@ use crate::terrain_tiles::TerrainMeshSettings;
 
 use super::{AtmosphereSetting, DayNightCycleSetting, MeshSetting, RenderSetting, SunSetting};
 // ----------------------------------------------------------------------------
-pub(super) fn update_daylight_cycle_settings(
+pub(super) fn update_daynight_cycle_settings(
     action: &DayNightCycleSetting,
-    daylight_cycle: &mut ResMut<DayNightCycle>,
+    daynight_cycle: &mut ResMut<DayNightCycle>,
 ) {
     use DayNightCycleSetting::*;
     match action {
         SetTimeOfDay(v) => {
-            daylight_cycle.update_time_of_day(*v);
-            daylight_cycle.set_cycle_speed(0);
+            daynight_cycle.update_time_of_day(*v);
+            daynight_cycle.set_cycle_speed(0);
+            daynight_cycle.activate_cycle(false);
         }
         SetCycleSpeed(v) => {
-            daylight_cycle.set_cycle_speed(*v);
-            daylight_cycle.activate_cycle(*v > 0);
+            daynight_cycle.set_cycle_speed(*v);
+            daynight_cycle.activate_cycle(*v > 0);
         }
     }
 }

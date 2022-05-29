@@ -244,7 +244,7 @@ fn handle_ui_actions(
                 warn!("TODO quit request");
             }
             GuiAction::UpdateDayNightCycleSetting(setting) => {
-                update::update_daylight_cycle_settings(setting, &mut daylight_cycle)
+                update::update_daynight_cycle_settings(setting, &mut daylight_cycle)
             }
             GuiAction::UpdateSunSetting(setting) => {
                 update::update_sun_settings(setting, &mut sun_settings)

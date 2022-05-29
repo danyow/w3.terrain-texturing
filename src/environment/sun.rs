@@ -119,12 +119,12 @@ pub(super) fn setup_sun(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    daylight_cycle: Res<DayNightCycle>,
+    daynight_cycle: Res<DayNightCycle>,
     settings: Res<SunPositionSettings>,
 ) {
     info!("initialize sun setup");
 
-    let sun_daytime = daylight_cycle.time_of_day().to_radians();
+    let sun_daytime = daynight_cycle.time_of_day().to_radians();
     let sun_plane_tilt = settings.plane_tilt().as_radians();
 
     let sun_size = 80.0;
