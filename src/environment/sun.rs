@@ -73,13 +73,10 @@ pub(super) struct SunDebugMesh;
 pub(super) fn update_sun_position(
     day_night_cycle: Res<DayNightCycle>,
     settings: Res<SunPositionSettings>,
-    mut sky_mat: ResMut<AtmosphereMat>,
-    mut environment: ResMut<EnvironmentData>,
     mut query: ParamSet<(
         Query<(&mut Transform, &mut SunPlane)>,
         Query<&mut Visibility, With<SunDebugMesh>>,
     )>,
-    sun: Query<&mut GlobalTransform, With<Sun>>,
 ) {
     const PLANE_HEIGHT_SCALE: f32 = 50.0;
 
@@ -104,11 +101,17 @@ pub(super) fn update_sun_position(
                 }
             }
         }
-
-        if let Ok(sun_transform) = sun.get_single() {
-            sky_mat.set_sun_position(sun_transform.translation);
-            environment.sun.direction = -sun_transform.translation.normalize();
-        }
+    }
+}
+// ----------------------------------------------------------------------------
+pub(super) fn update_skybox(
+    mut sky_mat: ResMut<AtmosphereMat>,
+    mut environment: ResMut<EnvironmentData>,
+    sun: Query<&GlobalTransform, (With<Sun>, Changed<GlobalTransform>)>,
+) {
+    if let Ok(sun_transform) = sun.get_single() {
+        sky_mat.set_sun_position(sun_transform.translation);
+        environment.sun.direction = -sun_transform.translation.normalize();
     }
 }
 // ----------------------------------------------------------------------------

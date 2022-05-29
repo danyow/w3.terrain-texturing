@@ -47,6 +47,16 @@ impl EnvironmentPlugin {
                     .label("sun_position_update")
                     .after("daynight_cycle"),
             )
+            // Note: update skybox and env.sun direction is in a dedicated system
+            // as it is using GlobalTransform. Since sun_position_update is changing
+            // Transform only if any settings are changed the GlobalTransfomr
+            // does *NOT* reflect that change *yet* (changes to Globaltransform
+            // are propagated in bevy in post-update change). This would result
+            // in an out of sync sun position / skybox / light direction until
+            // settings are changed again.
+            // In a dedicated this will be always updated automatically but will
+            // have one frame lag (which is ok).
+            .with_system(sun::update_skybox)
             .with_system(update_environment_values.after("daynight_cycle"))
     }
     // ------------------------------------------------------------------------
