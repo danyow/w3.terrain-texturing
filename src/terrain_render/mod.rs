@@ -101,6 +101,11 @@ mod terrain;
 mod terrain_info;
 mod tonemapping;
 // ----------------------------------------------------------------------------
+mod gpu {
+    pub(super) use super::environment::{GpuDirectionalLight, GpuTonemappingInfo};
+    pub(super) use super::terrain_info::GpuTerrainMapInfoSettings;
+}
+// ----------------------------------------------------------------------------
 impl Plugin for TerrainRenderPlugin {
     // ------------------------------------------------------------------------
     fn build(&self, app: &mut App) {

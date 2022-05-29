@@ -26,13 +26,12 @@ use bevy::{
 
 use crate::mut_renderasset::{MutRenderAsset, MutRenderAssets};
 use crate::resource::PreparedRenderResource;
-use crate::terrain_render::terrain_info::GpuTerrainMapInfoSettings;
-use crate::terrain_render::TerrainMapInfo;
 
+use crate::terrain_render::TerrainMapInfo;
 use crate::terrain_tiles::TerrainTileComponent;
 
 use super::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
-use super::{ClipmapAssignment, EnvironmentData, GpuDirectionalLight};
+use super::{ClipmapAssignment, EnvironmentData, GpuDirectionalLight, GpuTerrainMapInfoSettings};
 // ----------------------------------------------------------------------------
 // mesh
 // ----------------------------------------------------------------------------

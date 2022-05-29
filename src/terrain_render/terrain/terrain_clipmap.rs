@@ -21,8 +21,8 @@ use bevy::{
 use crate::resource::{PrepareResourceError, PreparedRenderResource, RenderResource};
 use crate::texturearray::TextureArray;
 
-use super::pipeline::TerrainMeshRenderPipeline;
-use super::TerrainClipmap;
+use super::gpu::TerrainMeshRenderPipeline;
+use super::{ClipmapInfo, TerrainClipmap};
 // ----------------------------------------------------------------------------
 // render cmds
 // ----------------------------------------------------------------------------
@@ -37,7 +37,7 @@ pub struct GpuTerrainClipmap {
 }
 // ----------------------------------------------------------------------------
 #[derive(AsStd140)]
-struct GpuClipmapInfo {
+pub struct GpuClipmapInfo {
     world_offset: Vec2,
     world_res: f32,
     size: f32,
@@ -45,7 +45,7 @@ struct GpuClipmapInfo {
 }
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone, Copy, Debug, AsStd140)]
-struct GpuClipmapLayerInfo {
+pub struct GpuClipmapLayerInfo {
     map_offset: UVec2,
     resolution: f32,
     size: f32,
@@ -133,27 +133,12 @@ impl RenderResource for TerrainClipmap {
                 return Err(PrepareResourceError::RetryNextUpdate(terrain_clipmap));
             };
 
-        let clipmap_layers = &terrain_clipmap.clipmap.info;
-
-        let mut layer_infos =
-            [GpuClipmapLayerInfo::default(); MAX_SUPPORTED_CLIPMAP_LEVEL as usize];
-        for (i, layer) in clipmap_layers.iter().enumerate() {
-            layer_infos[i].map_offset = layer.map_offset;
-            layer_infos[i].resolution = layer.resolution;
-            layer_infos[i].size = layer.size;
-        }
-
-        let info_buffer = GpuClipmapInfo {
-            world_offset: terrain_clipmap.clipmap.world_offset,
-            world_res: terrain_clipmap.clipmap.world_res,
-            size: terrain_clipmap.clipmap.size as f32,
-            info: layer_infos,
-        };
+        let clipmap_info = &terrain_clipmap.clipmap;
 
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("clipmap_info_buffer"),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            contents: info_buffer.as_std140().as_bytes(),
+            contents: GpuClipmapInfo::from(clipmap_info).as_std140().as_bytes(),
         });
 
         let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
@@ -207,6 +192,30 @@ impl<const I: usize> EntityRenderCommand for SetTerrainClipmapBindGroup<I> {
             RenderCommandResult::Success
         } else {
             RenderCommandResult::Failure
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+// converter
+// ----------------------------------------------------------------------------
+impl<'a> From<&'a ClipmapInfo> for GpuClipmapInfo {
+    // ------------------------------------------------------------------------
+    fn from(clipmap_info: &'a ClipmapInfo) -> Self {
+        let mut layer_infos =
+            [GpuClipmapLayerInfo::default(); MAX_SUPPORTED_CLIPMAP_LEVEL as usize];
+
+        for (i, layer) in clipmap_info.info.iter().enumerate() {
+            layer_infos[i].map_offset = layer.map_offset;
+            layer_infos[i].resolution = layer.resolution;
+            layer_infos[i].size = layer.size;
+        }
+
+        GpuClipmapInfo {
+            world_offset: clipmap_info.world_offset,
+            world_res: clipmap_info.world_res,
+            size: clipmap_info.size as f32,
+            info: layer_infos,
         }
     }
     // ------------------------------------------------------------------------

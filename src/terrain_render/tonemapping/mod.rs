@@ -4,12 +4,10 @@ use bevy::{
     render::{render_resource::SpecializedRenderPipelines, RenderApp, RenderStage},
 };
 
-use super::environment::GpuTonemappingInfo;
+use super::gpu::GpuTonemappingInfo;
 
-use self::{
-    pipeline::TonemappingRenderPipeline,
-    systems::{TonemappingBindGroup, TonemappingPipelineId},
-};
+use self::pipeline::TonemappingRenderPipeline;
+use self::systems::{TonemappingBindGroup, TonemappingPipelineId};
 // ----------------------------------------------------------------------------
 mod pipeline;
 mod render_node;

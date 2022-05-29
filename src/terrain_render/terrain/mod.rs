@@ -23,11 +23,12 @@ use self::terrain_mesh::TerrainMeshUniform;
 
 use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 
-use super::environment::{EnvironmentData, GpuDirectionalLight};
+use super::environment::EnvironmentData;
 use super::rendergraph::Terrain3d;
 
+use super::gpu::{GpuDirectionalLight, GpuTerrainMapInfoSettings};
 use super::{
-    ClipmapAssignment, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet,
+    ClipmapAssignment, ClipmapInfo, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet,
     TerrainRenderSettings,
 };
 // ----------------------------------------------------------------------------
@@ -37,6 +38,11 @@ mod terrain_material;
 mod terrain_mesh;
 // ----------------------------------------------------------------------------
 pub use self::terrain_mesh::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
+// ----------------------------------------------------------------------------
+pub(super) mod gpu {
+    pub use super::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
+    pub use super::terrain_clipmap::{GpuClipmapInfo, GpuClipmapLayerInfo};
+}
 // ----------------------------------------------------------------------------
 pub struct TerrainMeshRenderPlugin;
 // ----------------------------------------------------------------------------
