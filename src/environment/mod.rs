@@ -104,11 +104,11 @@ fn update_environment_values(
 #[allow(clippy::type_complexity)]
 fn daynight_cycle(time: Res<Time>, mut daynight_cycle: ResMut<DayNightCycle>) {
     // max speed approx 4sec per daylight
-    const DAYLIGHT_SPEED_SCALE: f32 = 1.0 / 100.0 / 4.0;
+    const DAYNIGHT_SPEED_SCALE: f32 = 1.0 / 100.0 / 4.0;
 
     // Note: as_ref required to prevent setting "changed" flag
     if daynight_cycle.as_ref().cycle_active() {
-        let speed = DAYLIGHT_SPEED_SCALE * daynight_cycle.cycle_speed() as f32;
+        let speed = DAYNIGHT_SPEED_SCALE * daynight_cycle.cycle_speed() as f32;
 
         let pos = daynight_cycle.time_of_day().normalized() + time.delta_seconds() * speed;
         daynight_cycle.update_time_of_day(pos);
