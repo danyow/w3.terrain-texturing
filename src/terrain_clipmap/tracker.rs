@@ -109,7 +109,7 @@ impl ClipmapTracker {
         ((pos - self.world_offset) / self.world_resolution)
             .as_uvec2()
             // clamp to data size
-            .min(uvec2(self.data_size-1, self.data_size-1))
+            .min(uvec2(self.data_size - 1, self.data_size - 1))
     }
     // ------------------------------------------------------------------------
     pub fn force_update(&mut self) {
@@ -198,15 +198,30 @@ impl ClipmapTracker {
     }
     // ------------------------------------------------------------------------
     pub fn info(&self) -> ClipmapInfo {
-        ClipmapInfo::new(
-            self.world_offset,
-            self.world_resolution,
-            CLIPMAP_SIZE,
-            self.layer_rectangles
-                .iter()
-                .map(|l| ClipmapLayerInfo::new(l.rectangle(), CLIPMAP_SIZE))
-                .collect(),
-        )
+        // workaround for 1 level edge case: texture arrays require at least 2
+        // levels so one layer is cloned. here the correct layer count is returned
+        if self.data_size == CLIPMAP_SIZE && self.layer_rectangles.len() == 2 {
+            ClipmapInfo::new(
+                self.world_offset,
+                self.world_resolution,
+                CLIPMAP_SIZE,
+                self.layer_rectangles
+                    .iter()
+                    .take(1)
+                    .map(|l| ClipmapLayerInfo::new(l.rectangle(), CLIPMAP_SIZE))
+                    .collect(),
+            )
+        } else {
+            ClipmapInfo::new(
+                self.world_offset,
+                self.world_resolution,
+                CLIPMAP_SIZE,
+                self.layer_rectangles
+                    .iter()
+                    .map(|l| ClipmapLayerInfo::new(l.rectangle(), CLIPMAP_SIZE))
+                    .collect(),
+            )
+        }
     }
     // ------------------------------------------------------------------------
 }
