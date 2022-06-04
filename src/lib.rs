@@ -14,6 +14,7 @@ use crate::heightmap::HeightmapPlugin;
 use crate::terrain_clipmap::TerrainClipmapPlugin;
 use crate::terrain_material::MaterialSetPlugin;
 use crate::terrain_painting::TerrainPaintingPlugin;
+use crate::terrain_render::TerrainShadowsComputePlugin;
 use crate::terrain_tiles::TerrainTilesGeneratorPlugin;
 // ----------------------------------------------------------------------------
 mod atmosphere;
@@ -284,6 +285,7 @@ impl EditorState {
 
         app // plugins
             .add_system_set(TerrainClipmapPlugin::reset_data(NoTerrainData))
+            .add_system_set(TerrainShadowsComputePlugin::reset_data(NoTerrainData))
             .add_system_set(TerrainTilesGeneratorPlugin::reset_data(NoTerrainData))
             .add_system_set(MaterialSetPlugin::setup_default_materialset(NoTerrainData))
             .add_system_set(EnvironmentPlugin::activate_dynamic_updates(NoTerrainData))
@@ -299,9 +301,13 @@ impl EditorState {
                 .with_system(signal_editor_state_change)
                 .with_system(setup_terrain_loading),
         )
-        // clipmap tracker must be intialized with new config data
+        // clipmap tracker must be initialized with new config data
         // before loading starts
-        .add_system_set(TerrainClipmapPlugin::init_tracker(TerrainLoading));
+        .add_system_set(TerrainClipmapPlugin::init_tracker(TerrainLoading))
+        // shadows compute must be inititialized with new config data
+        // before loading starts (because lightheight clipmap must be initialized
+        // before terrain clipmap is setup)
+        .add_system_set(TerrainShadowsComputePlugin::init(TerrainLoading));
 
         app.add_system_set(
             SystemSet::on_update(TerrainLoading)

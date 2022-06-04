@@ -14,7 +14,10 @@ use crate::heightmap::TerrainHeightMap;
 use crate::texturecontrol::TextureControl;
 use crate::tintmap::TintMap;
 
-pub use crate::terrain_render::{ClipmapAssignment, TerrainClipmap};
+pub use crate::terrain_render::{
+    ClipmapAssignment, TerrainClipmap, TerrainLightheightClipmap,
+    TerrainShadowsComputeInput as TerrainShadowsClipmap,
+};
 // ----------------------------------------------------------------------------
 /// Marker component for entity to be used for tracking position. Based on this
 /// position clipmap layer rectangles will be calculated.
@@ -82,7 +85,7 @@ impl TerrainClipmapPlugin {
     }
     // ------------------------------------------------------------------------
     pub fn update_tracker<T: StateData>(state: T) -> SystemSet {
-        SystemSet::on_update(state).with_system(update_clipmaps)
+        SystemSet::on_update(state).with_system(update_clipmaps.label("update_clipmaps"))
     }
     // ------------------------------------------------------------------------
     pub fn reset_data<T: StateData>(state: T) -> SystemSet {
@@ -133,6 +136,7 @@ fn update_clipmaps(
     heightmap_clipmap: Res<HeightmapClipmap>,
     tint_clipmap: Res<TintClipmap>,
     mut terrain_clipmap: ResMut<TerrainClipmap>,
+    mut terrain_shadows: ResMut<TerrainShadowsClipmap>,
     // dbg
     mut editor_events: EventWriter<crate::EditorEvent>,
 ) {
@@ -167,7 +171,9 @@ fn update_clipmaps(
         }
 
         // at least one clipmap level changed -> update clipmap rendering info...
-        terrain_clipmap.update_clipmapinfo(tracker.info());
+        let clipmap_info = tracker.info();
+        terrain_clipmap.update_clipmapinfo(clipmap_info.clone());
+        terrain_shadows.update_clipmapinfo(clipmap_info);
 
         // ... and all assignments
         for mut assignment in assignment_query.iter_mut() {

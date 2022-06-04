@@ -51,7 +51,7 @@ pub struct GpuClipmapLayerInfo {
     size: f32,
 }
 // ----------------------------------------------------------------------------
-pub(super) fn clipmap_bind_group_layout() -> [BindGroupLayoutEntry; 5] {
+pub(super) fn clipmap_bind_group_layout() -> [BindGroupLayoutEntry; 6] {
     [
         // texturing controlmap
         BindGroupLayoutEntry {
@@ -104,6 +104,17 @@ pub(super) fn clipmap_bind_group_layout() -> [BindGroupLayoutEntry; 5] {
             },
             count: None,
         },
+        // lightheight clipmap
+        BindGroupLayoutEntry {
+            binding: 5,
+            visibility: ShaderStages::FRAGMENT | ShaderStages::VERTEX | ShaderStages::COMPUTE,
+            ty: BindingType::StorageTexture {
+                view_dimension: TextureViewDimension::D2Array,
+                access: StorageTextureAccess::ReadOnly,
+                format: TextureFormat::R16Uint,
+            },
+            count: None,
+        },
     ]
 }
 // ----------------------------------------------------------------------------
@@ -136,6 +147,13 @@ impl RenderResource for TerrainClipmap {
         } else {
             return Err(PrepareResourceError::RetryNextUpdate(terrain_clipmap));
         };
+
+        let lightheightmap_view =
+            if let Some(gpu_array) = gpu_arrays.get(&terrain_clipmap.lightheightmap) {
+                &gpu_array.texture_view
+            } else {
+                return Err(PrepareResourceError::RetryNextUpdate(terrain_clipmap));
+            };
 
         let texture_view = if let Some(gpu_array) = gpu_arrays.get(&terrain_clipmap.texture) {
             &gpu_array.texture_view
@@ -179,6 +197,10 @@ impl RenderResource for TerrainClipmap {
                 BindGroupEntry {
                     binding: 4,
                     resource: BindingResource::TextureView(heightmap_view),
+                },
+                BindGroupEntry {
+                    binding: 5,
+                    resource: BindingResource::TextureView(lightheightmap_view),
                 },
             ],
             label: Some("clipmap_bind_group"),

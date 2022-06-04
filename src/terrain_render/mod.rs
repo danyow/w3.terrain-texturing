@@ -5,15 +5,22 @@ use crate::clipmap::Rectangle;
 use crate::resource::RenderResourcePlugin;
 use crate::texturearray::TextureArray;
 
-use crate::terrain_clipmap::{HeightmapClipmap, TextureControlClipmap, TintClipmap};
+use crate::terrain_clipmap::{
+    HeightmapClipmap,
+    TextureControlClipmap, TintClipmap,
+};
 // ----------------------------------------------------------------------------
 pub struct TerrainRenderPlugin;
 // ----------------------------------------------------------------------------
 pub use brush::{BrushPointer, BrushPointerEventData, BrushPointerEventReceiver};
 
-pub use environment::{DirectionalLight, EnvironmentData, FogState, TimeOfDay};
+pub use environment::{DirectionalLight, EnvironmentData, FogState};
 
 pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
+
+pub use terrain_shadows::{TerrainLightheightClipmap, TerrainShadowsComputeInput};
+
+pub use self::terrain_shadows::TerrainShadowsComputePlugin;
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
 pub struct TerrainMapInfo {
@@ -34,6 +41,7 @@ pub struct TerrainRenderSettings {
     pub ignore_bkgrnd_texture: bool,
     pub ignore_tint_map: bool,
     pub disable_fog: bool,
+    pub disable_shadows: bool,
 
     pub show_fragment_normals: bool,
     pub show_combined_normals: bool,
@@ -74,13 +82,13 @@ pub struct ClipmapAssignment {
 #[derive(Default, Clone)]
 pub struct TerrainClipmap {
     heightmap: Handle<TextureArray>,
-    shadowmap: Handle<TextureArray>,
+    lightheightmap: Handle<TextureArray>,
     texture: Handle<TextureArray>,
     tint: Handle<TextureArray>,
     clipmap: ClipmapInfo,
 }
 // ----------------------------------------------------------------------------
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct ClipmapInfo {
     world_offset: Vec2,
     world_res: f32,
@@ -89,7 +97,7 @@ pub struct ClipmapInfo {
     info_last: Vec<ClipmapLayerInfo>,
 }
 // ----------------------------------------------------------------------------
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct ClipmapLayerInfo {
     map_offset: UVec2,
     resolution: f32,
@@ -101,11 +109,14 @@ mod environment;
 mod rendergraph;
 mod terrain;
 mod terrain_info;
+mod terrain_shadows;
 mod tonemapping;
 // ----------------------------------------------------------------------------
 mod gpu {
     pub(super) use super::environment::{GpuDirectionalLight, GpuTonemappingInfo};
     pub(super) use super::terrain_info::GpuTerrainMapInfoSettings;
+
+    pub(super) use super::terrain::gpu::GpuClipmapInfo;
 }
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainRenderPlugin {
@@ -118,6 +129,7 @@ impl Plugin for TerrainRenderPlugin {
             .add_plugin(environment::EnvironmentDataPlugin)
             .add_plugin(rendergraph::TerrainRenderGraphPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin)
+            .add_plugin(terrain_shadows::TerrainShadowsComputePlugin)
             .add_plugin(tonemapping::TonemappingPlugin)
             .add_plugin(brush::BrushPointerRenderPlugin);
     }
@@ -134,6 +146,10 @@ impl TerrainClipmap {
     // ------------------------------------------------------------------------
     pub fn set_heightmap_clipmap(&mut self, clipmap: &HeightmapClipmap) {
         self.heightmap = clipmap.array().clone();
+    }
+    // ------------------------------------------------------------------------
+    pub fn set_lightheight_clipmap(&mut self, clipmap: &TerrainLightheightClipmap) {
+        self.lightheightmap = clipmap.array().clone();
     }
     // ------------------------------------------------------------------------
     pub fn set_texture_clipmap(&mut self, clipmap: &TextureControlClipmap) {

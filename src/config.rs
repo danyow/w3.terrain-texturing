@@ -5,6 +5,7 @@ pub const TILE_SIZE: u32 = 256;
 // clipmap level the clipmap size should be at least 4 * TILE_SIZE to make sure
 // that at least 3 tiles (>= 1.5 tiles in all directions from camera) are
 // highest res. Good value is 1024.
+// Note: atm MAX is 1024 since this amount of rays are used to compute shadows
 pub const CLIPMAP_SIZE: u32 = TILE_SIZE * 4;
 // Granularity of clipmap view positions in full data. Since clipmap levels are
 // assigned to tiles this should be the same size (lower granularity will update
@@ -310,7 +311,7 @@ impl TerrainConfig {
 impl MaterialSetConfig {
     // ------------------------------------------------------------------------
     fn prolog_village() -> Self {
-        let max_textures = 0;
+        let max_textures = 30;
         let base = "_test-data_/w3.textures/levels/prolog_village/prolog_village";
         let diffuse = (0..=max_textures.min(30))
             .map(|i| format!("{}.texarray.texture_{}.png", base, i))

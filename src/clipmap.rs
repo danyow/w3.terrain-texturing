@@ -64,6 +64,10 @@ impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
         &self.label
     }
     // ------------------------------------------------------------------------
+    pub fn data_size(&self) -> u32 {
+        self.data_size
+    }
+    // ------------------------------------------------------------------------
     pub fn array(&self) -> &Handle<TextureArray> {
         &self.array
     }
@@ -81,6 +85,7 @@ impl<const CLIPMAP_SIZE: u32, D: ClipmapData> Clipmap<CLIPMAP_SIZE, D> {
             .update_slot(level, new_data);
     }
     // ------------------------------------------------------------------------
+    #[allow(dead_code)]
     pub fn fullres_data_slice(&self) -> &[D::DataType] {
         self.data.as_slice()
     }

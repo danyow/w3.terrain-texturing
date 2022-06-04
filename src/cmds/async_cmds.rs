@@ -12,7 +12,8 @@ use crate::clipmap::ClipmapBuilder;
 use crate::heightmap::TerrainHeightMap;
 use crate::loader::LoaderPlugin;
 use crate::terrain_clipmap::{
-    ClipmapTracker, HeightmapClipmap, TerrainClipmap, TextureControlClipmap, TintClipmap,
+    ClipmapTracker, HeightmapClipmap, TerrainClipmap, TerrainLightheightClipmap,
+    TerrainShadowsClipmap, TextureControlClipmap, TintClipmap,
 };
 use crate::texturearray::TextureArray;
 use crate::texturecontrol::TextureControl;
@@ -109,6 +110,7 @@ pub(crate) fn start_async_operations(
     mut clipmap_tracker: ResMut<ClipmapTracker>,
     mut terrain_clipmap: ResMut<TerrainClipmap>,
     mut editor_events: EventWriter<EditorEvent>,
+    lightheight_clipmap: Res<TerrainLightheightClipmap>,
     texture_clipmap: Res<TextureControlClipmap>,
     tint_clipmap: Res<TintClipmap>,
     heightmap_clipmap: Res<HeightmapClipmap>,
@@ -152,6 +154,7 @@ pub(crate) fn start_async_operations(
                     terrain_clipmap.set_texture_clipmap(&texture_clipmap);
                     terrain_clipmap.set_tint_clipmap(&tint_clipmap);
                     terrain_clipmap.set_heightmap_clipmap(&heightmap_clipmap);
+                    terrain_clipmap.set_lightheight_clipmap(&lightheight_clipmap);
 
                     // -> regenerate for the current position
                     clipmap_tracker.force_update();
@@ -182,6 +185,7 @@ pub(crate) fn poll_async_task_state(
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
     mut task_ready: EventReader<AsyncTaskStartEvent>,
     mut terrain_heightmap: ResMut<TerrainHeightMap>,
+    mut terrain_shadows: ResMut<TerrainShadowsClipmap>,
     mut texture_clipmap: ResMut<TextureControlClipmap>,
     mut heightmap_clipmap: ResMut<HeightmapClipmap>,
     mut tint_clipmap: ResMut<TintClipmap>,
@@ -212,6 +216,10 @@ pub(crate) fn poll_async_task_state(
                         .enable_cache(true)
                         .build(clipmap_tracker.rectangles(), texture_arrays.deref_mut())
                         .into();
+
+                        // terrain shadows are defined by calculating the lightheight depending
+                        // on lightray direction and terrain height from heightmap
+                        terrain_shadows.set_heightmap_clipmap(&heightmap_clipmap);
 
                         // must be updated in place as commands.insert_resource is queued but
                         // event may trigger next step earlier
@@ -309,7 +317,8 @@ impl AsyncTaskNode for LoadTintMap {
 impl AsyncTaskNode for GenerateClipmap {
     fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[
         AsyncTaskFinishedEvent::TextureMapLoaded,
-        AsyncTaskFinishedEvent::TintMapLoaded
+        AsyncTaskFinishedEvent::TintMapLoaded,
+        AsyncTaskFinishedEvent::HeightmapLoaded,
     ]}
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::GenerateClipmap }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::ClipmapGenerated }

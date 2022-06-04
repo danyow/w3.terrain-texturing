@@ -31,6 +31,7 @@ pub mod terrain_3d_graph {
         pub const MAIN_PASS: &str = "terrain_pass";
         pub const ENV_FOG_PASS: &str = "env_fog_pass";
         pub const TONEMAPPING_PASS: &str = "tonemapping_pass";
+        pub const COMPUTE_TERRAIN_SHADOWS_PASS: &str = "compute_terrain_shadows_pass";
         pub const BRUSH_POINTER_PASS: &str = "brush_pointer_pass";
     }
 }
@@ -86,6 +87,8 @@ impl Plugin for TerrainRenderGraphPlugin {
             )
             .unwrap();
 
+        add_compute_terrain_shadows_node(render_app);
+
         add_environment_fog_node(render_app);
 
         add_tonemapping_node(render_app);
@@ -93,6 +96,27 @@ impl Plugin for TerrainRenderGraphPlugin {
         add_brushpointer_overlay_node(render_app);
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+fn add_compute_terrain_shadows_node(render_app: &mut App) {
+    use super::terrain_shadows::ComputeTerrainShadowsNode;
+
+    use self::terrain_3d_graph::node;
+
+    let shadow_node = ComputeTerrainShadowsNode::new(&mut render_app.world);
+
+    let mut render_graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
+    let terrain_3d_graph = render_graph
+        .get_sub_graph_mut(terrain_3d_graph::NAME)
+        .unwrap();
+
+    terrain_3d_graph.add_node(node::COMPUTE_TERRAIN_SHADOWS_PASS, shadow_node);
+    terrain_3d_graph
+        .add_node_edge(
+            node::COMPUTE_TERRAIN_SHADOWS_PASS,
+            terrain_3d_graph::node::MAIN_PASS,
+        )
+        .unwrap();
 }
 // ----------------------------------------------------------------------------
 fn add_environment_fog_node(render_app: &mut App) {
@@ -112,7 +136,7 @@ fn add_environment_fog_node(render_app: &mut App) {
 
     terrain_3d_graph.add_node(node::ENV_FOG_PASS, fog_node);
     terrain_3d_graph
-        .add_node_edge(terrain_3d_graph::node::MAIN_PASS, node::ENV_FOG_PASS)
+        .add_node_edge(node::MAIN_PASS, node::ENV_FOG_PASS)
         .unwrap();
 
     terrain_3d_graph
@@ -161,7 +185,7 @@ fn add_tonemapping_node(render_app: &mut App) {
 
     terrain_3d_graph.add_node(node::TONEMAPPING_PASS, tonemapping_node);
     terrain_3d_graph
-        .add_node_edge(terrain_3d_graph::node::ENV_FOG_PASS, node::TONEMAPPING_PASS)
+        .add_node_edge(node::ENV_FOG_PASS, node::TONEMAPPING_PASS)
         .unwrap();
 
     terrain_3d_graph
