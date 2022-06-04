@@ -49,6 +49,9 @@ pub(super) fn show_settings(
                         ui.checkbox(&mut settings.ignore_bkgrnd_texture, "background texture");
                         ui.end_row_if(2 % columns == 0);
                         ui.checkbox(&mut settings.ignore_tint_map, "tint map");
+                        ui.end_row_if(3 % columns == 0);
+                        ui.checkbox(&mut settings.disable_shadows, "terrain shadows");
+                        ui.end_row_if(4 % columns == 0);
                         ui.checkbox(&mut settings.disable_fog, "environment fog");
                     });
                 ui.separator();

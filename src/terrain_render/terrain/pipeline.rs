@@ -83,24 +83,25 @@ impl FromWorld for TerrainMeshRenderPipeline {
 bitflags::bitflags! {
     #[repr(transparent)]
     pub struct TerrainMeshPipelineKey: u32 {
-        const NONE                  = 0b0000_0000_0000_0000;
-        const FLAT_SHADING          = 0b0000_0000_0000_0001;
-        const SHOW_WIREFRAME        = 0b0000_0000_0000_0010;
-        const SHOW_CLIPMAP_LEVEL    = 0b0000_0000_0000_0100;
+        const NONE                      = 0b0000_0000_0000_0000;
+        const FLAT_SHADING              = 0b0000_0000_0000_0001;
+        const SHOW_WIREFRAME            = 0b0000_0000_0000_0010;
+        const SHOW_CLIPMAP_LEVEL        = 0b0000_0000_0000_0100;
 
-        const HIDE_OVERLAY_TEXTURE  = 0b0000_0000_0001_0000;
-        const HIDE_BKGRND_TEXTURE   = 0b0000_0000_0010_0000;
-        const IGNORE_TINT_MAP       = 0b0000_0000_0100_0000;
+        const HIDE_OVERLAY_TEXTURE      = 0b0000_0000_0001_0000;
+        const HIDE_BKGRND_TEXTURE       = 0b0000_0000_0010_0000;
+        const IGNORE_TINT_MAP           = 0b0000_0000_0100_0000;
+        const DISABLE_TERRAIN_SHADOWS   = 0b0000_0000_1000_0000;
 
         // exclusive: will always override
-        const EXCLUSIVE_OVERRIDE    = 0b1000_0000_0000_0000;
+        const EXCLUSIVE_OVERRIDE        = 0b1000_0000_0000_0000;
 
         // Note: order is important (see shader_defs check)
-        const SHOW_FRAGMENT_NORMAL  = 0b1000_0000_0001_0000;
-        const SHOW_COMBINED_NORMAL  = 0b1000_0000_0010_0000;
-        const SHOW_BLEND_VALUE      = 0b1000_0000_0011_0000;
-        const SHOW_UV_SCALING       = 0b1000_0000_0100_0000;
-        const SHOW_TINT_MAP         = 0b1000_0000_0101_0000;
+        const SHOW_FRAGMENT_NORMAL      = 0b1000_0000_0001_0000;
+        const SHOW_COMBINED_NORMAL      = 0b1000_0000_0010_0000;
+        const SHOW_BLEND_VALUE          = 0b1000_0000_0011_0000;
+        const SHOW_UV_SCALING           = 0b1000_0000_0100_0000;
+        const SHOW_TINT_MAP             = 0b1000_0000_0101_0000;
     }
 }
 // ----------------------------------------------------------------------------
@@ -136,6 +137,9 @@ impl TerrainMeshPipelineKey {
             }
             if settings.ignore_tint_map {
                 flags |= TerrainMeshPipelineKey::IGNORE_TINT_MAP;
+            }
+            if settings.disable_shadows {
+                flags |= TerrainMeshPipelineKey::DISABLE_TERRAIN_SHADOWS;
             }
         }
 
@@ -180,6 +184,9 @@ impl TerrainMeshPipelineKey {
             }
             if self.contains(Self::IGNORE_TINT_MAP) {
                 flags.push("IGNORE_TINT_MAP".to_string());
+            }
+            if self.contains(Self::DISABLE_TERRAIN_SHADOWS) {
+                flags.push("DISABLE_TERRAIN_SHADOWS".to_string());
             }
         }
 
