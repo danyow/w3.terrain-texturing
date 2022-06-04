@@ -61,7 +61,6 @@ impl Plugin for TerrainMeshRenderPlugin {
             .add_render_command::<Terrain3d, DrawCmdTerrain>()
             .init_resource::<TerrainMeshRenderPipeline>()
             .init_resource::<SpecializedRenderPipelines<TerrainMeshRenderPipeline>>()
-            .add_system_to_stage(RenderStage::Extract, extract_terrain_render_settings)
             .add_system_to_stage(RenderStage::Extract, extract_terrain_meshes)
             .add_system_to_stage(RenderStage::Queue, queue_terrain_rendering)
             .add_system_to_stage(RenderStage::Queue, queue_terrain_mesh_bind_group)
@@ -71,10 +70,6 @@ impl Plugin for TerrainMeshRenderPlugin {
 }
 // ----------------------------------------------------------------------------
 // systems
-// ----------------------------------------------------------------------------
-fn extract_terrain_render_settings(mut commands: Commands, settings: Res<TerrainRenderSettings>) {
-    commands.insert_resource(settings.clone())
-}
 // ----------------------------------------------------------------------------
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn queue_terrain_rendering(

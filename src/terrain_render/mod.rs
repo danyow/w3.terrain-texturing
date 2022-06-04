@@ -1,14 +1,12 @@
 // ----------------------------------------------------------------------------
 use bevy::prelude::*;
+use bevy::render::{RenderApp, RenderStage};
 
 use crate::clipmap::Rectangle;
 use crate::resource::RenderResourcePlugin;
 use crate::texturearray::TextureArray;
 
-use crate::terrain_clipmap::{
-    HeightmapClipmap,
-    TextureControlClipmap, TintClipmap,
-};
+use crate::terrain_clipmap::{HeightmapClipmap, TextureControlClipmap, TintClipmap};
 // ----------------------------------------------------------------------------
 pub struct TerrainRenderPlugin;
 // ----------------------------------------------------------------------------
@@ -132,6 +130,9 @@ impl Plugin for TerrainRenderPlugin {
             .add_plugin(terrain_shadows::TerrainShadowsComputePlugin)
             .add_plugin(tonemapping::TonemappingPlugin)
             .add_plugin(brush::BrushPointerRenderPlugin);
+
+        app.sub_app_mut(RenderApp)
+            .add_system_to_stage(RenderStage::Extract, extract_terrain_render_settings);
     }
     // ------------------------------------------------------------------------
 }
@@ -226,5 +227,11 @@ impl TerrainRenderSettings {
         self.show_tint_map = false;
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+// systems
+// ----------------------------------------------------------------------------
+fn extract_terrain_render_settings(mut commands: Commands, settings: Res<TerrainRenderSettings>) {
+    commands.insert_resource(settings.clone())
 }
 // ----------------------------------------------------------------------------
