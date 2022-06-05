@@ -92,6 +92,7 @@ bitflags::bitflags! {
         const HIDE_BKGRND_TEXTURE       = 0b0000_0000_0010_0000;
         const IGNORE_TINT_MAP           = 0b0000_0000_0100_0000;
         const DISABLE_TERRAIN_SHADOWS   = 0b0000_0000_1000_0000;
+        const FAST_TERRAIN_SHADOWS      = 0b0000_0001_0000_0000;
 
         // exclusive: will always override
         const EXCLUSIVE_OVERRIDE        = 0b1000_0000_0000_0000;
@@ -102,6 +103,7 @@ bitflags::bitflags! {
         const SHOW_BLEND_VALUE          = 0b1000_0000_0011_0000;
         const SHOW_UV_SCALING           = 0b1000_0000_0100_0000;
         const SHOW_TINT_MAP             = 0b1000_0000_0101_0000;
+        const SHOW_LIGHTHEIGHT_MAP      = 0b1000_0000_0110_0000;
     }
 }
 // ----------------------------------------------------------------------------
@@ -121,6 +123,8 @@ impl TerrainMeshPipelineKey {
             flags = TerrainMeshPipelineKey::SHOW_UV_SCALING;
         } else if settings.show_tint_map {
             flags = TerrainMeshPipelineKey::SHOW_TINT_MAP;
+        } else if settings.show_lightheight_map {
+            flags = TerrainMeshPipelineKey::SHOW_LIGHTHEIGHT_MAP;
         } else {
             // combined
             if settings.use_flat_shading {
@@ -141,6 +145,9 @@ impl TerrainMeshPipelineKey {
             if settings.disable_shadows {
                 flags |= TerrainMeshPipelineKey::DISABLE_TERRAIN_SHADOWS;
             }
+            if settings.fast_shadows {
+                flags |= TerrainMeshPipelineKey::FAST_TERRAIN_SHADOWS;
+            }
         }
 
         flags
@@ -151,6 +158,9 @@ impl TerrainMeshPipelineKey {
 
         if self.contains(Self::EXCLUSIVE_OVERRIDE) {
             // note: order is backwards!
+            if self.contains(Self::SHOW_LIGHTHEIGHT_MAP) {
+                return vec!["SHOW_LIGHTHEIGHT_MAP".to_string()];
+            }
             if self.contains(Self::SHOW_TINT_MAP) {
                 return vec!["SHOW_TINT_MAP".to_string()];
             }
@@ -187,6 +197,9 @@ impl TerrainMeshPipelineKey {
             }
             if self.contains(Self::DISABLE_TERRAIN_SHADOWS) {
                 flags.push("DISABLE_TERRAIN_SHADOWS".to_string());
+            }
+            if self.contains(Self::FAST_TERRAIN_SHADOWS) {
+                flags.push("FAST_TERRAIN_SHADOWS".to_string());
             }
         }
 

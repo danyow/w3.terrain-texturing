@@ -82,15 +82,70 @@ pub(super) fn show_settings(
                     if ui.checkbox(&mut settings.show_tint_map, "tint map").clicked() {
                         select_exclusive_view(settings, TintMap, settings.show_tint_map);
                     }
+                    if ui.checkbox(&mut settings.show_lightheight_map, "lightheight map").clicked() {
+                        select_exclusive_view(settings, LightheightMap, settings.show_lightheight_map);
+                    }
                 });
             ui.separator();
         });
 }
 // ----------------------------------------------------------------------------
-use bevy::prelude::*;
-use bevy_egui::egui;
+#[rustfmt::skip]
+#[inline]
+pub(super) fn show_terrain_shadows_settings(
+    ui: &mut egui::Ui,
+    settings: &mut TerrainRenderSettings,
+    shadow_settings: &mut TerrainShadowsRenderSettings,
+) {
+    egui::CollapsingHeader::new("Terrain Shadows settings")
+        .default_open(false)
+        .show(ui, |ui| {
 
-use crate::{gui::RenderSetting, terrain_render::TerrainRenderSettings};
+            ui.add_enabled_ui(!settings.exclusive_view_active(), |ui| {
+                ui.checkbox(&mut settings.disable_shadows, "disable terrain shadows");
+                ui.add_enabled_ui(!settings.disable_shadows, |ui| {
+                    ui.add(Slider::new(&mut shadow_settings.intensity, 0.5..=1.0).text("shadow intensity"));
+
+                    ui.add(Slider::new(&mut shadow_settings.recompute_frequency, 1..=10).text("refresh [frames]"))
+                        .on_hover_text("recomputes shadows only every n'th frame if daynight cycle is active.");
+                    ui.separator();
+
+                    ui.small("Shadow Smoothiness:");
+                    ui.add_enabled_ui(!settings.fast_shadows, |ui| {
+                        ui.add(Slider::new(&mut shadow_settings.falloff_smoothness, 1.0..=75.0).text("max"));
+                        ui.add(Slider::new(&mut shadow_settings.falloff_scale, 100.0..=4000.0).text("scale distance"));
+                        ui.add(Slider::new(&mut shadow_settings.falloff_bias, 1.0..=100.0).text("scale bias"));
+
+                        ui.add(Slider::new(&mut shadow_settings.interpolation_range, 100.0..=2000.0)
+                            .text("interpol. range [m]"))
+                            .on_hover_text("max distance from camera for active interpolation of shadows.");
+                    });
+                });
+                ui.separator();
+                let column_min_width = ui.checkbox_width("background texture");
+
+                egui::Grid::new("render.settings.ignored")
+                    .min_col_width(column_min_width)
+                    .show(ui, |ui| {
+                        if ui.checkbox(&mut settings.fast_shadows, "fast shadows").clicked() && settings.fast_shadows {
+                            shadow_settings.recompute_frequency = 10;
+                        }
+
+                        if ui.button("reset").clicked() {
+                            *shadow_settings = TerrainShadowsRenderSettings::default();
+                            settings.fast_shadows = false;
+                        }
+                    });
+            });
+            ui.separator();
+        });
+}
+// ----------------------------------------------------------------------------
+use bevy::prelude::*;
+use bevy_egui::egui::{self, Slider};
+
+use crate::gui::RenderSetting;
+use crate::terrain_render::{TerrainRenderSettings, TerrainShadowsRenderSettings};
 
 use super::{GuiAction, UiExtension};
 // ----------------------------------------------------------------------------
@@ -100,6 +155,7 @@ enum ExclusiveViewSelection {
     BlendThreshold,
     UvScaling,
     TintMap,
+    LightheightMap,
 }
 // ----------------------------------------------------------------------------
 fn select_exclusive_view(
@@ -118,6 +174,7 @@ fn select_exclusive_view(
         BlendThreshold => settings.show_blend_threshold = value,
         UvScaling => settings.show_bkgrnd_scaling = value,
         TintMap => settings.show_tint_map = value,
+        LightheightMap => settings.show_lightheight_map = value,
     }
 }
 // ----------------------------------------------------------------------------
