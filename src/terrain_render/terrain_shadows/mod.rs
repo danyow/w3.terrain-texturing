@@ -236,7 +236,7 @@ impl Default for TerrainShadowsUpdateTracker {
     fn default() -> Self {
         Self {
             tick: 0,
-            recompute_frequency: 2,
+            recompute_frequency: 3,
             recompute: false,
         }
     }
