@@ -31,7 +31,10 @@ use crate::terrain_render::TerrainMapInfo;
 use crate::terrain_tiles::TerrainTileComponent;
 
 use super::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
-use super::{ClipmapAssignment, EnvironmentData, GpuDirectionalLight, GpuTerrainMapInfoSettings};
+use super::{
+    ClipmapAssignment, EnvironmentData, GpuDirectionalLight, GpuTerrainMapInfoSettings,
+    GpuTerrainShadowsRenderSettings, TerrainShadowsRenderSettings,
+};
 // ----------------------------------------------------------------------------
 // mesh
 // ----------------------------------------------------------------------------
@@ -172,7 +175,7 @@ pub struct TerrainMeshViewBindGroup {
     value: BindGroup,
 }
 // ----------------------------------------------------------------------------
-pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 3] {
+pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 4] {
     [
         // View
         BindGroupLayoutEntry {
@@ -196,7 +199,7 @@ pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 3] {
             },
             count: None,
         },
-        // Sun
+        // Map Info
         BindGroupLayoutEntry {
             binding: 2,
             visibility: ShaderStages::FRAGMENT | ShaderStages::VERTEX,
@@ -205,6 +208,19 @@ pub(super) fn mesh_view_bind_group_layout() -> [BindGroupLayoutEntry; 3] {
                 has_dynamic_offset: false,
                 min_binding_size: BufferSize::new(
                     GpuTerrainMapInfoSettings::std140_size_static() as u64
+                ),
+            },
+            count: None,
+        },
+        // Terrain Shadow settings
+        BindGroupLayoutEntry {
+            binding: 3,
+            visibility: ShaderStages::FRAGMENT,
+            ty: BindingType::Buffer {
+                ty: BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: BufferSize::new(
+                    GpuTerrainShadowsRenderSettings::std140_size_static() as u64,
                 ),
             },
             count: None,
@@ -261,11 +277,13 @@ pub(super) fn queue_mesh_view_bind_group(
     view_uniforms: Res<ViewUniforms>,
     environment: Res<PreparedRenderResource<EnvironmentData>>,
     map_info: Res<PreparedRenderResource<TerrainMapInfo>>,
+    shadow_settings: Res<PreparedRenderResource<TerrainShadowsRenderSettings>>,
 ) {
-    if let (Some(view_binding), Some(env), Some(map_info)) = (
+    if let (Some(view_binding), Some(env), Some(map_info), Some(shadow_settings)) = (
         view_uniforms.uniforms.binding(),
         environment.as_ref(),
         map_info.as_ref(),
+        shadow_settings.as_ref(),
     ) {
         let view_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[
@@ -280,6 +298,10 @@ pub(super) fn queue_mesh_view_bind_group(
                 BindGroupEntry {
                     binding: 2,
                     resource: map_info.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: shadow_settings.buffer.as_entire_binding(),
                 },
             ],
             label: Some("terrain_mesh_view_bind_group"),

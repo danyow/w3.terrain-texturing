@@ -12,7 +12,7 @@ use super::pipeline::{ComputeShadowsPipeline, ComputeShadowsPipelineKey};
 use super::{
     EnvironmentData, LightrayDirection, TerrainConfig, TerrainRenderSettings,
     TerrainShadowsComputeInput, TerrainShadowsComputeTrigger, TerrainShadowsLightrayInfo,
-    TerrainShadowsSettings,
+    TerrainShadowsRenderSettings, TerrainShadowsUpdateTracker,
 };
 // ----------------------------------------------------------------------------
 #[derive(Default)]
@@ -26,7 +26,8 @@ pub(super) fn update_compute_terrain_shadows(
     render_settings: Res<TerrainRenderSettings>,
     mut compute_input: ResMut<TerrainShadowsComputeInput>,
     mut lightray_info: ResMut<TerrainShadowsLightrayInfo>,
-    mut shadow_settings: ResMut<TerrainShadowsSettings>,
+    mut shadow_update_tracker: ResMut<TerrainShadowsUpdateTracker>,
+    shadow_settings: Res<TerrainShadowsRenderSettings>,
 
     env: Res<EnvironmentData>,
     config: Res<TerrainConfig>,
@@ -39,9 +40,11 @@ pub(super) fn update_compute_terrain_shadows(
         return;
     }
 
+    shadow_update_tracker.recompute_frequency = shadow_settings.recompute_frequency as u32;
+
     // increasing ticks per frame/system run in order to be able to skip
     // lightheightmap recalculation based on recalculation delay shadow setting
-    shadow_settings.tick += 1;
+    shadow_update_tracker.tick += 1;
 
     let mut ray_trace_direction_changed = false;
 
@@ -113,23 +116,23 @@ pub(super) fn update_compute_terrain_shadows(
         lightray_info.direction = ray_direction;
 
         // TODO force recompute if !daynight cycle inactive
-        shadow_settings.recompute = true;
+        shadow_update_tracker.recompute = true;
     }
 
     if compute_input.is_changed() || ray_trace_direction_changed {
-        shadow_settings.force_recompute();
+        shadow_update_tracker.force_recompute();
         compute_input.recalculate_schedule(lightray_info.as_ref());
     }
 }
 // ----------------------------------------------------------------------------
 pub(super) fn extract_compute_shadows_trigger(
     mut commands: Commands,
-    mut shadow_settings: ResMut<TerrainShadowsSettings>,
+    mut shadow_update_tracker: ResMut<TerrainShadowsUpdateTracker>,
     lightray_info: Res<TerrainShadowsLightrayInfo>,
     render_settings: Res<TerrainRenderSettings>,
 ) {
-    if !render_settings.disable_shadows && shadow_settings.require_recompute() {
-        shadow_settings.reset_recompute_trigger();
+    if !render_settings.disable_shadows && shadow_update_tracker.require_recompute() {
+        shadow_update_tracker.reset_recompute_trigger();
         commands.insert_resource(TerrainShadowsComputeTrigger {
             recompute: true,
             trace_direction: lightray_info.direction,
@@ -160,7 +163,7 @@ pub(super) fn queue_terrain_shadows_info(
 // ----------------------------------------------------------------------------
 // helper
 // ----------------------------------------------------------------------------
-impl TerrainShadowsSettings {
+impl TerrainShadowsUpdateTracker {
     // ------------------------------------------------------------------------
     fn force_recompute(&mut self) {
         self.recompute = true;
@@ -168,7 +171,7 @@ impl TerrainShadowsSettings {
     }
     // ------------------------------------------------------------------------
     fn require_recompute(&self) -> bool {
-        self.recompute && self.tick > self.recompute_frequency
+        self.recompute && self.tick >= self.recompute_frequency
     }
     // ------------------------------------------------------------------------
     fn reset_recompute_trigger(&mut self) {

@@ -65,10 +65,19 @@ struct ClipmapInfo {
     layers: array<ClipmapLayerInfo, 10u>;
 };
 // ----------------------------------------------------------------------------
+struct TerrainShadowSettings {
+    intensity: f32;
+    falloff_smoothiness: f32;
+    falloff_scale: f32;
+    falloff_bias: f32;
+    interpolation_distance: f32;
+};
+// ----------------------------------------------------------------------------
 // view
 [[group(0), binding(0)]] var<uniform> view: View;
 [[group(0), binding(1)]] var<uniform> sunlight: DirectionalLight;
 [[group(0), binding(2)]] var<uniform> mapInfo: TerrainMapInfo;
+[[group(0), binding(3)]] var<uniform> shadows: TerrainShadowSettings;
 // ----------------------------------------------------------------------------
 [[group(1), binding(0)]] var<uniform> mesh: Mesh;
 // ----------------------------------------------------------------------------
@@ -84,6 +93,8 @@ struct ClipmapInfo {
 [[group(3), binding(1)]] var tintmapArray: texture_2d_array<f32>;
 [[group(3), binding(2)]] var tintmapSampler: sampler;
 [[group(3), binding(3)]] var<uniform> clipmap: ClipmapInfo;
+[[group(3), binding(4)]] var heightmap: texture_storage_2d_array<r16uint, read>;
+[[group(3), binding(5)]] var lightmap: texture_storage_2d_array<r16uint, read>;
 // ----------------------------------------------------------------------------
 struct TextureMapping {
     diffuse: vec3<f32>;
@@ -338,7 +349,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
 
     // color mesh depending on current lod level
     let lod = mesh.clipmap_and_lod >> 16u;
-    let clipmap_level = mesh.clipmap_and_lod & 15u;
+    var clipmap_level = mesh.clipmap_and_lod & 15u;
 
     let fragmentPos = in.world_position.xyz;
     let fragmentNormal = normalize(in.normal.xyz);
@@ -351,7 +362,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     var clipmapPos = (fragmentPos.xz - clipmap.world_offset) / clipmap.world_res;
     clipmapPos = (clipmapPos - mapOffset) / mapScaling;
 
-    let clipmapPosCoord = clamp(vec2<i32>(clipmapPos), vec2<i32>(0), vec2<i32>(i32(mapSize)));
+    var clipmapPosCoord = clamp(vec2<i32>(clipmapPos), vec2<i32>(0), vec2<i32>(i32(mapSize)));
 
     //  clipmap weighting of neighboring pixels
     let clipmapPosFrac = fract(clipmapPos);
@@ -601,7 +612,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
 
     let ambientStrength = 0.125;
     let diffuseStrength = max(dot(normal, lightDirection), 0.0);
-    let specularStrength = 0.5;
+    let specularStrength = 0.125;
     // shininess
     let specularExp = 32.0;
     // let reflectDirection = reflect(-lightDirection, fragmentNormal);
@@ -619,8 +630,81 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
 
     var col = ambientCol + (diffuseCol + specularCol) * intensity;
 
+    # ifdef DISABLE_TERRAIN_SHADOWS
+
     var fragmentCol = vec4<f32>(col * diffuse.rgb, 1.0);
 
+    # else
+    // --------------------------------------------------------------------------------------------
+    // Terrain shadows
+    // --------------------------------------------------------------------------------------------
+    let light_height1: vec4<u32> = textureLoad(lightmap, clipmapPosCoord, i32(clipmap_level));
+    let height_texel: vec4<u32> = textureLoad(heightmap, clipmapPosCoord, i32(clipmap_level));
+
+    // reduced light_height - height_error:
+    //       mapInfo.height_min + f32(light_height.x) * height_scaling
+    //    - (mapInfo.height_min + f32(height_texel.x) * height_scaling - fragmentPos.y)
+    //
+    // Note: use i32 to prevent overflow!
+    var light_height = f32(i32(light_height1.x) - i32(height_texel.x)) * mapInfo.height_scaling + fragmentPos.y;
+
+    # ifdef FAST_TERRAIN_SHADOWS
+
+    let falloff = 1.0;
+    let in_the_shadow = 1.0 - min(clamp(light_height - fragmentPos.y, 0.0, falloff) / falloff, shadows.intensity);
+    var fragmentCol = vec4<f32>(col * diffuse.rgb * in_the_shadow, 1.0);
+
+    # else // not FAST_TERRAIN_SHADOWS
+    let fragment_distance = length(view.world_position.xyz - fragmentPos.xyz);
+
+    // interpolate between neighboring samples based on fractional weights
+    if (fragment_distance <= shadows.interpolation_distance) {
+        let light_height2: vec4<u32> = textureLoad(lightmap, clipmapPosCoord + vec2<i32>(1, 0), i32(clipmap_level));
+        let light_height3: vec4<u32> = textureLoad(lightmap, clipmapPosCoord + vec2<i32>(0, 1), i32(clipmap_level));
+        let light_height4: vec4<u32> = textureLoad(lightmap, clipmapPosCoord + vec2<i32>(1, 1), i32(clipmap_level));
+
+        let height_texel2: vec4<u32> = textureLoad(heightmap, clipmapPosCoord + vec2<i32>(1, 0), i32(clipmap_level));
+        let height_texel3: vec4<u32> = textureLoad(heightmap, clipmapPosCoord + vec2<i32>(0, 1), i32(clipmap_level));
+        let height_texel4: vec4<u32> = textureLoad(heightmap, clipmapPosCoord + vec2<i32>(1, 1), i32(clipmap_level));
+
+        // reduced light_height - height_error:
+        // Note: use i32 to prevent overflow!
+        let light_height2 = f32(i32(light_height2.x) - i32(height_texel2.x)) * mapInfo.height_scaling + fragmentPos.y;
+        let light_height3 = f32(i32(light_height3.x) - i32(height_texel3.x)) * mapInfo.height_scaling + fragmentPos.y;
+        let light_height4 = f32(i32(light_height4.x) - i32(height_texel4.x)) * mapInfo.height_scaling + fragmentPos.y;
+
+        light_height = fractionalWeights.x * light_height
+            + fractionalWeights.y * light_height2
+            + fractionalWeights.z * light_height3
+            + fractionalWeights.w * light_height4;
+    }
+
+    // if the normal points along the light direction the fragment is pointing
+    // away from the light (not a "direct" shadow "receiver" but a potential
+    // shadow caster, e.g. backside of terrain). in this case the edge smoothiness
+    // should be small(er). if it's oppositte direction the fragment is a
+    // potential shadow receiver (aligment -> 1.0) and the edge smoothiness should
+    // have a greater influence.
+    // some base smootheness is used
+    let light_alignment = 0.1 + clamp(dot(fragmentNormal, lightDirection), 0.0, 0.90);
+
+    // parameters to control the amount of smoothing based on fragment distance:
+    // shadow edges in the distance should be smoothed more (especially since very
+    // long shadows have low/blocky resolution)
+    let falloff = 0.1 + shadows.falloff_smoothiness
+        * clamp(fragment_distance, shadows.falloff_bias, shadows.falloff_scale) / shadows.falloff_scale * light_alignment;
+
+    // difference in calculated lightheight and terrain height implies that terrain
+    // is either above lightray height (== no shadow) or below (== in the shadow)
+    // falloff adds some room for height difference which will be normalized and
+    // defines a how-much-in-the-shadow scale. the effect is a smoother shadow
+    // edge (though it's also moving the shadow edge!). final intensity value
+    // defines the base darkness of the shadow.
+    let in_the_shadow = 1.0 - min(clamp(light_height - fragmentPos.y, 0.0, falloff) / falloff, shadows.intensity);
+
+    var fragmentCol = vec4<f32>(col * diffuse.rgb * in_the_shadow, 1.0);
+    # endif // FAST_TERRAIN_SHADOWS
+    # endif // DISABLE_TERRAIN_SHADOWS
     // --------------------------------------------------------------------------------------------
     // debug visualization for texture control
     # ifdef SHOW_BLEND_VALUE
@@ -644,6 +728,12 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     // debug visualization for *direct* tint map values (not applied as above!)
     # ifdef SHOW_TINT_MAP
     fragmentCol = vec4<f32>(tintmapColor.rgb, 1.0);
+    # endif
+    // --------------------------------------------------------------------------------------------
+    // debug visualization for *direct* tint map values (not applied as above!)
+    # ifdef SHOW_LIGHTHEIGHT_MAP
+    let light_height1: vec4<u32> = textureLoad(lightmap, clipmapPosCoord, i32(clipmap_level));
+    fragmentCol = vec4<f32>(f32(light_height1.x) / 65535.0);
     # endif
     // --------------------------------------------------------------------------------------------
     // debug visualization for wireframes

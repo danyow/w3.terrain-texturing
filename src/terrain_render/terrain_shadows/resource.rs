@@ -21,10 +21,24 @@ use super::gpu::{GpuClipmapInfo, GpuTerrainMapInfoSettings};
 use super::pipeline::ComputeShadowsPipeline;
 use super::{
     ComputeSliceInfo, ComputeThreadJob, DirectionalClipmapLayerInfo, TerrainLightheightClipmap,
-    TerrainMapInfo, TerrainShadowsComputeInput, TerrainShadowsLightrayInfo, CLIPMAP_SIZE,
+    TerrainMapInfo, TerrainShadowsComputeInput, TerrainShadowsLightrayInfo,
+    TerrainShadowsRenderSettings, CLIPMAP_SIZE,
 };
 // ----------------------------------------------------------------------------
 // gpu representation of data required for shadow/lightheight computation
+// ----------------------------------------------------------------------------
+pub struct GpuTerrainShadowsRenderSettings {
+    pub buffer: Buffer,
+}
+// ----------------------------------------------------------------------------
+#[derive(AsStd140)]
+pub struct ExtractedTerrainShadowsRenderSettings {
+    intensity: f32,
+    falloff_smoothness: f32,
+    falloff_scale: f32,
+    falloff_bias: f32,
+    interpolation_range: f32,
+}
 // ----------------------------------------------------------------------------
 pub struct GpuTerrainLightheightClipmap {
     pub bind_group: BindGroup,
@@ -409,6 +423,41 @@ impl RenderResource for TerrainShadowsLightrayInfo {
             bind_group,
             _buffer: buffer,
         })
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl RenderResource for TerrainShadowsRenderSettings {
+    // In RenderStage::Extract step the resource is extracted from "app world" to
+    // "render world" into an "ExtractedResource".
+    type ExtractedResource = ExtractedTerrainShadowsRenderSettings;
+    // in RenderStage::Prepare step the extracted resource is transformed into its
+    // GPU representation "PreparedResource"
+    type PreparedResource = GpuTerrainShadowsRenderSettings;
+    // defines query for ecs data in the prepare resource step
+    type Param = SRes<RenderDevice>;
+    // ------------------------------------------------------------------------
+    fn extract_resource(&self) -> Self::ExtractedResource {
+        ExtractedTerrainShadowsRenderSettings {
+            intensity: self.intensity,
+            falloff_smoothness: self.falloff_smoothness,
+            falloff_scale: self.falloff_scale,
+            falloff_bias: self.falloff_bias,
+            interpolation_range: self.interpolation_range,
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn prepare_resource(
+        settings: Self::ExtractedResource,
+        render_device: &mut SystemParamItem<Self::Param>,
+    ) -> Result<Self::PreparedResource, PrepareResourceError<Self::ExtractedResource>> {
+        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("terrain_shadows_settings_buffer"),
+            usage: BufferUsages::UNIFORM,
+            contents: settings.as_std140().as_bytes(),
+        });
+
+        Ok(GpuTerrainShadowsRenderSettings { buffer })
     }
     // ------------------------------------------------------------------------
 }

@@ -16,7 +16,9 @@ pub use environment::{DirectionalLight, EnvironmentData, FogState};
 
 pub use terrain::{TerrainMesh, TerrainMeshStats, TerrainMeshVertexData};
 
-pub use terrain_shadows::{TerrainLightheightClipmap, TerrainShadowsComputeInput};
+pub use terrain_shadows::{
+    TerrainLightheightClipmap, TerrainShadowsComputeInput, TerrainShadowsRenderSettings,
+};
 
 pub use self::terrain_shadows::TerrainShadowsComputePlugin;
 // ----------------------------------------------------------------------------
@@ -40,12 +42,14 @@ pub struct TerrainRenderSettings {
     pub ignore_tint_map: bool,
     pub disable_fog: bool,
     pub disable_shadows: bool,
+    pub fast_shadows: bool,
 
     pub show_fragment_normals: bool,
     pub show_combined_normals: bool,
     pub show_blend_threshold: bool,
     pub show_bkgrnd_scaling: bool,
     pub show_tint_map: bool,
+    pub show_lightheight_map: bool,
 }
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
@@ -112,9 +116,9 @@ mod tonemapping;
 // ----------------------------------------------------------------------------
 mod gpu {
     pub(super) use super::environment::{GpuDirectionalLight, GpuTonemappingInfo};
-    pub(super) use super::terrain_info::GpuTerrainMapInfoSettings;
-
     pub(super) use super::terrain::gpu::GpuClipmapInfo;
+    pub(super) use super::terrain_info::GpuTerrainMapInfoSettings;
+    pub(super) use super::terrain_shadows::ExtractedTerrainShadowsRenderSettings as GpuTerrainShadowsRenderSettings;
 }
 // ----------------------------------------------------------------------------
 impl Plugin for TerrainRenderPlugin {
@@ -217,6 +221,7 @@ impl TerrainRenderSettings {
             || self.show_blend_threshold
             || self.show_bkgrnd_scaling
             || self.show_tint_map
+            || self.show_lightheight_map
     }
     // ------------------------------------------------------------------------
     pub fn reset_exclusive_view(&mut self) {
@@ -225,6 +230,7 @@ impl TerrainRenderSettings {
         self.show_blend_threshold = false;
         self.show_bkgrnd_scaling = false;
         self.show_tint_map = false;
+        self.show_lightheight_map = false;
     }
     // ------------------------------------------------------------------------
 }

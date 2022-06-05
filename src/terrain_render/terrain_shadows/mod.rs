@@ -30,11 +30,15 @@ mod precomputed;
 mod resource;
 mod systems;
 // ----------------------------------------------------------------------------
-#[derive(Default, Clone)]
-pub struct TerrainShadowsSettings {
-    tick: u32,
-    recompute_frequency: u32,
-    recompute: bool,
+pub struct TerrainShadowsRenderSettings {
+    pub intensity: f32,
+    pub falloff_smoothness: f32,
+    pub falloff_scale: f32,
+    pub falloff_bias: f32,
+    pub interpolation_range: f32,
+
+    pub fast_shadows: bool,
+    pub recompute_frequency: u8,
 }
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
@@ -53,6 +57,8 @@ pub struct TerrainShadowsComputeInput {
 }
 // ----------------------------------------------------------------------------
 pub use self::compute_node::ComputeTerrainShadowsNode;
+
+pub(super) use self::resource::ExtractedTerrainShadowsRenderSettings;
 // ----------------------------------------------------------------------------
 #[derive(Default)]
 pub struct TerrainShadowsComputePlugin;
@@ -75,12 +81,9 @@ impl Plugin for TerrainShadowsComputePlugin {
         app.init_resource::<TerrainLightheightClipmap>()
             .init_resource::<TerrainShadowsComputeInput>()
             .init_resource::<TerrainShadowsLightrayInfo>()
-            // .init_resource::<TerrainShadowsSettings>()
-            .insert_resource(TerrainShadowsSettings {
-                tick: 0,
-                recompute_frequency: 0,
-                recompute: false,
-            })
+            .init_resource::<TerrainShadowsUpdateTracker>()
+            .init_resource::<TerrainShadowsRenderSettings>()
+            .add_plugin(RenderResourcePlugin::<TerrainShadowsRenderSettings>::default())
             .add_plugin(RenderResourcePlugin::<TerrainLightheightClipmap>::default())
             .add_plugin(RenderResourcePlugin::<TerrainShadowsComputeInput>::default())
             .add_plugin(RenderResourcePlugin::<TerrainShadowsLightrayInfo>::default())
@@ -173,6 +176,13 @@ impl TerrainShadowsComputeInput {
 // ----------------------------------------------------------------------------
 // plugin internal
 // ----------------------------------------------------------------------------
+// #[derive(Clone)]
+struct TerrainShadowsUpdateTracker {
+    tick: u32,
+    recompute_frequency: u32,
+    recompute: bool,
+}
+// ----------------------------------------------------------------------------
 struct TerrainShadowsComputeTrigger {
     recompute: bool,
     trace_direction: LightrayDirection,
@@ -218,5 +228,31 @@ struct DirectionalClipmapLayerInfo {
     step_after: u16,
     ray_1: u16,
     ray_after: u16,
+}
+// ----------------------------------------------------------------------------
+// defaults
+// ----------------------------------------------------------------------------
+impl Default for TerrainShadowsUpdateTracker {
+    fn default() -> Self {
+        Self {
+            tick: 0,
+            recompute_frequency: 2,
+            recompute: false,
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+impl Default for TerrainShadowsRenderSettings {
+    fn default() -> Self {
+        Self {
+            intensity: 0.8,
+            falloff_smoothness: 50.0,
+            falloff_scale: 2000.0,
+            falloff_bias: 50.0,
+            interpolation_range: 250.0,
+            fast_shadows: false,
+            recompute_frequency: 3,
+        }
+    }
 }
 // ----------------------------------------------------------------------------

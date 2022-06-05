@@ -26,10 +26,10 @@ use self::pipeline::{TerrainMeshPipelineKey, TerrainMeshRenderPipeline};
 use super::environment::EnvironmentData;
 use super::rendergraph::Terrain3d;
 
-use super::gpu::{GpuDirectionalLight, GpuTerrainMapInfoSettings};
+use super::gpu::{GpuDirectionalLight, GpuTerrainMapInfoSettings, GpuTerrainShadowsRenderSettings};
 use super::{
     ClipmapAssignment, ClipmapInfo, TerrainClipmap, TerrainMaterialParam, TerrainMaterialSet,
-    TerrainRenderSettings,
+    TerrainRenderSettings, TerrainShadowsRenderSettings,
 };
 // ----------------------------------------------------------------------------
 mod pipeline;
