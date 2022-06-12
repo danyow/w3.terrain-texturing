@@ -107,11 +107,20 @@ fn setup_cam(mut commands: Commands, mut state: ResMut<CameraState>) {
 // ----------------------------------------------------------------------------
 // systems
 // ----------------------------------------------------------------------------
-fn start_free_camera(mut windows: ResMut<Windows>) {
+fn start_free_camera(
+    mut windows: ResMut<Windows>,
+    mut state: ResMut<CameraState>,
+    query: Query<&Transform, With<FreeCam>>,
+) {
     let window = windows.get_primary_mut().unwrap();
     // grab und hide mouse cursor
     window.set_cursor_lock_mode(true);
     window.set_cursor_visibility(false);
+
+    let camera_transform = query.get_single().unwrap();
+    let (yaw, pitch) = get_yaw_pitch(&camera_transform.rotation);
+    state.pitch = pitch.to_radians();
+    state.yaw = yaw.to_radians();
 }
 // ----------------------------------------------------------------------------
 fn stop_free_camera(mut windows: ResMut<Windows>) {
@@ -146,14 +155,14 @@ fn camera_movement(
                     KeyCode::D => velocity += right,
                     KeyCode::Q => velocity -= Vec3::Y,
                     KeyCode::E => velocity += Vec3::Y,
-                    KeyCode::LAlt => modifier = 1.0 / settings.speed_modifier,
+                    KeyCode::LAlt => modifier = 0.5 / settings.speed_modifier,
                     KeyCode::LShift => modifier = settings.speed_modifier,
                     _ => (),
                 }
             }
             velocity = velocity.normalize_or_zero();
             transform.translation +=
-                velocity * time.delta_seconds() * settings.movement_speed * modifier
+                velocity * time.delta_seconds() * settings.movement_speed * modifier;
         }
     }
 }
