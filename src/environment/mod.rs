@@ -153,7 +153,7 @@ impl DayNightCycle {
 impl Default for DayNightCycle {
     fn default() -> Self {
         Self {
-            time: TimeOfDay::new(12, 0, 0),
+            time: TimeOfDay::new(14, 30, 0),
             cycle_active: false,
             cycle_speed: 0,
         }
