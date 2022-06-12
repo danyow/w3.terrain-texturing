@@ -294,6 +294,10 @@ impl UiState {
                 self.enabled = false;
                 self.toolbox.enabled = false;
             }
+            EditorState::AutoFlyCamera => {
+                self.enabled = true;
+                self.toolbox.enabled = false;
+            }
         }
     }
     // ------------------------------------------------------------------------
