@@ -50,7 +50,9 @@ impl<T: ComputeTask> Plugin for ComputeTaskPlugin<T> {
             )
             .add_system_to_stage(
                 RenderStage::Prepare,
-                prepare_compute_task::<T>.after(PrepareAssetLabel::PreAssetPrepare),
+                prepare_compute_task::<T>
+                    .after(PrepareAssetLabel::PreAssetPrepare)
+                    .after("prepare_assets"),
             );
     }
 }

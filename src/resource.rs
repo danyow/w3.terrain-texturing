@@ -65,7 +65,9 @@ impl<A: RenderResource> Plugin for RenderResourcePlugin<A> {
                 RenderStage::Prepare,
                 // this is important as renderresources may point to assets which
                 // have to be available when resources are prepared (e.g. images)!
-                prepare_resource::<A>.after(PrepareAssetLabel::PreAssetPrepare),
+                prepare_resource::<A>
+                    .after(PrepareAssetLabel::PreAssetPrepare)
+                    .after("prepare_assets"),
             );
     }
 }
