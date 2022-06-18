@@ -217,10 +217,9 @@ impl<const I: usize> EntityRenderCommand for SetTerrainMaterialSetBindGroup<I> {
 impl Default for TerrainMaterialParam {
     // ------------------------------------------------------------------------
     fn default() -> Self {
-        // TODO check defaults
         Self {
-            blend_sharpness: 0.0,
-            slope_base_dampening: 0.0,
+            blend_sharpness: 0.5,
+            slope_base_dampening: 0.5,
             slope_normal_dampening: 0.5,
             specularity_scale: 0.0,
             specularity: 0.0,
