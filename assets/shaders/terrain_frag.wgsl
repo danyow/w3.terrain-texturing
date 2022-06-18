@@ -747,7 +747,7 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     let r = lod % 2u;
     let g = r + lod % 4u;
     let b = r + lod % 3u;
-    let wireframeCol = 0.2 * vec4<f32>((1.0 + f32(r)) / 2.0, f32(g) / 3.0, f32(b) / 2.0, 0.0);
+    let wireframeCol = 0.6 * vec4<f32>((1.0 + f32(r)) / 2.0, f32(g) / 3.0, f32(b) / 2.0, 0.0);
 
     let wireframeWidth = 0.75 * delta;
 
