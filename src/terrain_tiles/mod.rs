@@ -31,7 +31,7 @@ use crate::EditorEvent;
 
 use TerrainTileSystemLabel::*;
 
-use self::generator::TileHeightErrors;
+use self::errormap::TileHeightErrors;
 // ----------------------------------------------------------------------------
 pub struct TerrainTilesGeneratorPlugin;
 
@@ -72,7 +72,7 @@ impl Plugin for TerrainTilesGeneratorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainMeshSettings>()
             .init_resource::<TerrainStats>()
-            .init_resource::<generator::TileTriangleLookup>();
+            .init_resource::<errormap::TileTriangleLookup>();
     }
     // ------------------------------------------------------------------------
 }
@@ -122,6 +122,7 @@ struct MeshReduction {
     idx_bound_wireframe: IndexBound,
 }
 // ----------------------------------------------------------------------------
+mod errormap;
 mod generator;
 mod settings;
 // ----------------------------------------------------------------------------
@@ -322,7 +323,7 @@ fn async_errormap_generation(
     thread_pool: Res<ComputeTaskPool>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
     mut editor_events: EventWriter<EditorEvent>,
-    mut triangle_table: ResMut<generator::TileTriangleLookup>,
+    mut triangle_table: ResMut<errormap::TileTriangleLookup>,
 ) {
     if !tiles.is_empty() {
         use instant::Instant;
@@ -366,7 +367,7 @@ fn async_errormap_generation(
                             s.spawn(async move {
                                 (
                                     *entity,
-                                    generator::generate_errormap(triangles, &terraindata_view),
+                                    errormap::generate_errormap(triangles, &terraindata_view),
                                 )
                             })
                         }
