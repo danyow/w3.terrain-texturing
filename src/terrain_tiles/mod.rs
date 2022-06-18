@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 /// defines the max time for blocking errormap/mesh generation until remaining
 /// work is deferred to next frame. prevents blocking of complete app.
-const MAX_MESH_GENERATION_TIME_MS: instant::Duration = instant::Duration::from_millis(15);
+const MAX_MESH_GENERATION_TIME_MS: instant::Duration = instant::Duration::from_millis(5);
 // ----------------------------------------------------------------------------
 /// defines how many tiles are processed in parallel before a check for max
 /// generation time is made
@@ -32,6 +32,8 @@ use crate::EditorEvent;
 use TerrainTileSystemLabel::*;
 
 use self::errormap::TileHeightErrors;
+use self::lod::MeshLodTracker;
+use self::settings::TerrainLodSettings;
 // ----------------------------------------------------------------------------
 pub struct TerrainTilesGeneratorPlugin;
 
@@ -55,8 +57,8 @@ impl TerrainTilesGeneratorPlugin {
             .with_system(start_async_terraintile_tasks)
             .with_system(async_errormap_generation.label(ErrorMapGeneration))
             .with_system(async_tilemesh_generation.label(MeshGeneration))
-            .with_system(adjust_tile_mesh_lod.before(MeshGeneration))
-            .with_system(adjust_meshes_on_config_change.before(MeshGeneration))
+            .with_system(lod::adjust_tile_mesh_lod.before(MeshGeneration))
+            .with_system(lod::adjust_meshes_on_config_change.before(MeshGeneration))
             .with_system(collect_stats.after(MeshGeneration))
             .with_system(update_mesh_index_bound.after(MeshGeneration))
     }
@@ -72,6 +74,7 @@ impl Plugin for TerrainTilesGeneratorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TerrainMeshSettings>()
             .init_resource::<TerrainStats>()
+            .init_resource::<MeshLodTracker>()
             .init_resource::<errormap::TileTriangleLookup>();
     }
     // ------------------------------------------------------------------------
@@ -116,6 +119,18 @@ struct MeshReduction {
     lod: u8,
     current: f32,
     target: f32,
+    special_case: bool,
+    special_case_corner: bool,
+    target_top: f32,
+    target_bottom: f32,
+    target_left: f32,
+    target_right: f32,
+
+    target_corner_tl: f32,
+    target_corner_tr: f32,
+    target_corner_bl: f32,
+    target_corner_br: f32,
+
     priority: u32,
 
     idx_bound: IndexBound,
@@ -124,6 +139,7 @@ struct MeshReduction {
 // ----------------------------------------------------------------------------
 mod errormap;
 mod generator;
+mod lod;
 mod settings;
 // ----------------------------------------------------------------------------
 impl TerrainTileComponent {
@@ -283,6 +299,7 @@ fn start_async_terraintile_tasks(
             GenerateTerrainTiles => {
                 debug!("generating terrain tiles...");
                 commands.spawn_batch(generate_tiles(&*terrain_config, &*heightmap, &*thread_pool));
+                commands.insert_resource(MeshLodTracker::new(&*terrain_config));
                 task_finished.send(AsyncTaskFinishedEvent::TerrainTilesGenerated);
             }
             GenerateTerrainMeshErrorMaps => {
@@ -340,7 +357,8 @@ fn async_errormap_generation(
         let mut remaining_tiles = tiles_to_process.len();
 
         // divide into packets that are parallelized...
-        let queue = &mut tiles_to_process.chunks(MESH_GENERATION_QUEUE_CHUNKSIZE);
+        // let queue = &mut tiles_to_process.chunks(MESH_GENERATION_QUEUE_CHUNKSIZE);
+        let queue = &mut tiles_to_process.iter();
 
         // since all tiles are triangulated at the same local coordinates
         // (within the tile!) all possible triangle coordinates can be
@@ -355,33 +373,74 @@ fn async_errormap_generation(
 
         // ...measure duration after every packet
         while Instant::now().duration_since(start_time) < MAX_MESH_GENERATION_TIME_MS {
-            match queue.next() {
-                Some(package) => {
-                    let mut generated_errormaps = thread_pool.scope(|s| {
-                        for (entity, tileid) in package {
-                            let terraindata_view = TerrainDataView::new(
-                                tileid.sampling_offset(),
-                                heightmap.clone(),
-                                normals.clone(),
-                            );
+            // generate all error maps with max res seams
+            let mut generated_errormaps = thread_pool.scope(|s| {
+                while let Some((entity, tileid)) = queue.next() {
+                    let terraindata_view = TerrainDataView::new(
+                        tileid.sampling_offset(),
+                        heightmap.clone(),
+                        normals.clone(),
+                    );
+                    s.spawn(async move {
+                        // all input must be copied/cloned!
+                        (
+                            *entity,
+                            *tileid,
+                            errormap::generate_errormap(triangles, &terraindata_view),
+                        )
+                    })
+                }
+            });
+
+            let mut errormap_seams = errormap::TileHeightErrorSeams::new(
+                TILE_SIZE as usize,
+                terrain_config.map_size() as usize,
+            );
+            // loop until seams do not change anmore
+
+            let mut pass = 1;
+            let mut done = false;
+
+            while !done {
+                warn!("errormap update pass {}", pass);
+                pass += 1;
+
+                // 1. integrate new seams
+                errormap_seams.is_dirty = false;
+                for (_, tileid, errormap) in &generated_errormaps {
+                    errormap_seams.merge_from::<TILE_SIZE>(*tileid, errormap);
+                }
+
+                // 2. patch errormap with new seams
+                for (_, tileid, errormap) in generated_errormaps.iter_mut() {
+                    errormap_seams.patch_error_map::<TILE_SIZE>(*tileid, errormap);
+                }
+
+                // 3. update errormaps
+                if errormap_seams.is_dirty {
+                    generated_errormaps = thread_pool.scope(|s| {
+                        for (entity, tileid, mut errormap) in generated_errormaps.drain(..) {
                             s.spawn(async move {
-                                (
-                                    *entity,
-                                    errormap::generate_errormap(triangles, &terraindata_view),
-                                )
-                            })
+                                errormap::update_errormap(triangles, &mut errormap);
+                                (entity, tileid, errormap)
+                            });
                         }
                     });
-                    for (entity, tile_errors) in generated_errormaps.drain(..) {
-                        remaining_tiles -= 1;
-                        commands
-                            .entity(entity)
-                            .insert(tile_errors)
-                            .remove::<TileHeightErrorGenerationQueued>();
-                    }
                 }
-                None => break,
+                done = !errormap_seams.is_dirty;
             }
+
+            // final collection
+
+            for (entity, _tileid, tile_errors) in generated_errormaps.drain(..) {
+                remaining_tiles -= 1;
+                commands
+                    .entity(entity)
+                    .insert(tile_errors)
+                    .remove::<TileHeightErrorGenerationQueued>();
+            }
+
+            // error!("tileseams stats: {:?}", errormap_seams.stats);
         }
         // progress update for GUI
         let max_tiles = terrain_config.tile_count();
@@ -392,7 +451,8 @@ fn async_errormap_generation(
             ),
         ));
 
-        if queue.next().is_none() {
+        // if queue.next().is_none() {
+        if remaining_tiles == 0 {
             task_finished.send(AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated);
             // remove precalculated data as it is not needed anymore
             triangle_table.clear();
@@ -462,7 +522,7 @@ fn async_tilemesh_generation(
                                     tile.id,
                                     terrain_config.resolution(),
                                     terrain_config.min_height(),
-                                    tile.mesh_conf.target,
+                                    &tile.mesh_conf,
                                     terraindata_view,
                                     triangle_errors,
                                     include_wireframe_info,
@@ -579,79 +639,12 @@ fn generate_tiles(
         .collect::<Vec<_>>()
 }
 // ----------------------------------------------------------------------------
-fn update_tilemesh_lods(
-    mut commands: Commands,
-    settings: Res<TerrainMeshSettings>,
-    lod_anchor: &Transform,
-    mut query: Query<
-        (Entity, &ComputedVisibility, &mut TerrainTileComponent),
-        With<AdaptiveTileMeshLods>,
-    >,
-) {
-    for (entity, vis, mut tile) in query.iter_mut() {
-        // maximum metric
-        let distance = (tile.pos_center.xz() - lod_anchor.translation.xz())
-            .abs()
-            .max_element();
-        let settings = settings.lod_settings_from_distance(distance);
-
-        tile.mesh_conf.target = settings.threshold;
-
-        if tile.mesh_conf.target != tile.mesh_conf.current {
-            commands.entity(entity).insert(TileMeshGenerationQueued);
-
-            // adjust priority based on distance from lod_anchor and visibility
-            tile.mesh_conf.priority = if vis.is_visible {
-                distance as u32
-            } else {
-                // adding big num will push priority after all visibles
-                // asummption: distance >= 1_000_000 are not used
-                distance as u32 + 1_000_000
-            };
-            tile.mesh_conf.lod = settings.level;
-            tile.mesh_conf.current = tile.mesh_conf.target;
-        }
-    }
-}
-// ----------------------------------------------------------------------------
-fn adjust_meshes_on_config_change(
-    commands: Commands,
-    settings: Res<TerrainMeshSettings>,
-    lod_anchor: Query<&Transform, With<TerrainLodAnchor>>,
-    query: Query<
-        (Entity, &ComputedVisibility, &mut TerrainTileComponent),
-        With<AdaptiveTileMeshLods>,
-    >,
-) {
-    if settings.is_changed() {
-        if let Ok(lod_anchor) = lod_anchor.get_single() {
-            update_tilemesh_lods(commands, settings, lod_anchor, query);
-        }
-    }
-}
-// ----------------------------------------------------------------------------
-fn adjust_tile_mesh_lod(
-    commands: Commands,
-    settings: Res<TerrainMeshSettings>,
-    lod_anchor: Query<&Transform, With<TerrainLodAnchor>>,
-    query: Query<
-        (Entity, &ComputedVisibility, &mut TerrainTileComponent),
-        With<AdaptiveTileMeshLods>,
-    >,
-) {
-    if !settings.ignore_anchor {
-        // TODO add hysteresis for current anchor pos
-        if let Ok(lod_anchor) = lod_anchor.get_single() {
-            update_tilemesh_lods(commands, settings, lod_anchor, query);
-        }
-    }
-}
-// ----------------------------------------------------------------------------
 fn despawn_tiles(mut commands: Commands, tiles: Query<Entity, With<TerrainTileComponent>>) {
     for tile in tiles.iter() {
         commands.entity(tile).despawn();
     }
     commands.insert_resource(TerrainStats::default());
+    commands.insert_resource(MeshLodTracker::default());
 }
 // ----------------------------------------------------------------------------
 impl MeshReduction {
@@ -698,6 +691,19 @@ impl Default for MeshReduction {
             // make target error threshold "high" by default so new terrain is
             // showed quicker and only near tiles are "upgraded"
             target: 2.0,
+            special_case: false,
+            special_case_corner: false,
+
+            target_top: 2.0,
+            target_bottom: 2.0,
+            target_left: 2.0,
+            target_right: 2.0,
+
+            target_corner_tl: 2.0,
+            target_corner_tr: 2.0,
+            target_corner_bl: 2.0,
+            target_corner_br: 2.0,
+
             priority: 0,
             idx_bound: IndexBound::default(),
             idx_bound_wireframe: IndexBound::default(),

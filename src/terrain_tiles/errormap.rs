@@ -2,14 +2,25 @@
 use bevy::{
     math::{uvec2, UVec2},
     prelude::*,
+    utils::HashMap,
 };
 
 use super::generator::TileTriangle;
-use super::{TerrainDataView, TILE_SIZE};
+use super::{TerrainDataView, TerrainTileId, TILE_SIZE};
 // ----------------------------------------------------------------------------
 #[derive(Component)]
 pub struct TileHeightErrors {
     errors: Vec<f32>,
+}
+// ----------------------------------------------------------------------------
+pub struct TileHeightErrorSeams {
+    tile_size: usize,
+    size: usize,
+    horizontal: Vec<f32>,
+    vertical: Vec<f32>,
+
+    pub is_dirty: bool,
+    pub(crate) stats: HashMap<TerrainTileId<TILE_SIZE>, usize>,
 }
 // ----------------------------------------------------------------------------
 /// Holds the table for mapping triangle labels to precalculated triangles.
@@ -96,37 +107,73 @@ pub(super) fn generate_errormap(
         //        c--L--a
         //
 
-        // temporaery brute force workaround for seams: set max error to ensure
-        // full resolution triangulation at seams so it's guaranteed neighboring
-        // tiles will be matching
-        if triangle.is_seam(TILE_SIZE as u16) {
-            // force subdivision
-            errors.set_unchecked(triangle.middle(), f32::MAX);
+        // Note: the tile borders will not match and require postprocessing passes
+        // after errormaps for *all* tiles were generated
+        let middle_error =
+            heightmap.sample_interpolated_height_error(triangle.a(), triangle.b(), triangle.m());
+
+        if triangle_label >= smallest_triangle_first_label {
+            // for highest res triangle there is no need to check for any
+            // previously set error
+            errors.set_unchecked(triangle.middle(), middle_error);
         } else {
-            let middle_error = heightmap.sample_interpolated_height_error(
-                triangle.a(),
-                triangle.b(),
-                triangle.m(),
+            // error in middle point of hypothenuse of left child triangle
+            let left_child_error = errors.get_unchecked(triangle.left_middle());
+            // error in middle point of hypothenuse of right child triangle
+            let right_child_error = errors.get_unchecked(triangle.right_middle());
+
+            errors.update_unchecked(
+                triangle.middle(),
+                middle_error.max(left_child_error).max(right_child_error),
             );
-
-            if triangle_label >= smallest_triangle_first_label {
-                // for highest res triangle there is no need to check for any
-                // previously set error
-                errors.set_unchecked(triangle.middle(), middle_error);
-            } else {
-                // error in middle point of hypothenuse of left child triangle
-                let left_child_error = errors.get_unchecked(triangle.left_middle());
-                // error in middle point of hypothenuse of right child triangle
-                let right_child_error = errors.get_unchecked(triangle.right_middle());
-
-                errors.update_unchecked(
-                    triangle.middle(),
-                    middle_error.max(left_child_error).max(right_child_error),
-                );
-            }
         }
     }
     errors
+}
+// ----------------------------------------------------------------------------
+pub(super) fn update_errormap(tile_triangles: &TileTriangleLookup, errors: &mut TileHeightErrors) {
+    // all possible triangles and their child triangles are stored in full
+    // binary tree:
+    //  - lowest level has tilesize * tilesize triangles
+    //      - > binary tree depth log(tilesize^2)
+    //  - full binary tree has 2^(depth + 1) - 1 elements -> 2 * 2^(depth) -1
+    //      -> 2 * 2^log(tilesize^2) -1
+    //      -> 2 * tilesize^2 - 1
+    // let smallest_triangle_count = tilesize * tilesize;
+    let smallest_triangle_count = TILE_SIZE * TILE_SIZE;
+    let node_count = smallest_triangle_count * 2 - 1;
+
+    let last_triangle_label = node_count;
+    let smallest_triangle_first_label = last_triangle_label - smallest_triangle_count + 1;
+
+    // no root triangle -> ignore label 1
+    for triangle_label in (2..=smallest_triangle_first_label).rev() {
+        // reconstruct triangle coordinates by splitting from top along path as
+        // defined by label
+        // let triangle = TileTriangle::new_from_path(triangle_label, TILE_SIZE);
+        //
+        //    .-->  x
+        //    |   b
+        //    |   |\
+        //    V   | \           m: middle point of triangle
+        //        R--m          R: right child middle point
+        //    y   | /|\         L: left child middle point
+        //        |/ | \
+        //        c--L--a
+        //
+        if triangle_label >= smallest_triangle_first_label {
+            // no need to update these as only accumulated errors differ in the
+            // seam from bordering tiles
+        } else {
+            let triangle = tile_triangles.get(triangle_label);
+            // error in middle point of hypothenuse of left child triangle
+            let left_child_error = errors.errors[triangle.left_middle()];
+            // error in middle point of hypothenuse of right child triangle
+            let right_child_error = errors.errors[triangle.right_middle()];
+
+            errors.update_unchecked(triangle.middle(), left_child_error.max(right_child_error));
+        }
+    }
 }
 // ----------------------------------------------------------------------------
 impl TileHeightErrors {
@@ -164,7 +211,188 @@ impl TileHeightErrors {
         }
     }
     // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn top_seam<const TILE_SIZE_: u32>(&self) -> &[f32] {
+        &self.errors[0..=TILE_SIZE_ as usize]
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn bottom_seam<const TILE_SIZE_: u32>(&self) -> &[f32] {
+        let start = (TILE_SIZE_ * (TILE_SIZE_ + 1)) as usize;
+        let end = start + TILE_SIZE_ as usize + 1;
+        &self.errors[start..end]
+    }
+    // ------------------------------------------------------------------------
+    fn left_seam<const TILE_SIZE_: u32>(&self) -> impl Iterator<Item = f32> + '_ {
+        self.errors.iter().step_by(TILE_SIZE_ as usize + 1).copied()
+    }
+    // ------------------------------------------------------------------------
+    fn right_seam<const TILE_SIZE_: u32>(&self) -> impl Iterator<Item = f32> + '_ {
+        self.errors[TILE_SIZE_ as usize..]
+            .iter()
+            .step_by(TILE_SIZE_ as usize + 1)
+            .copied()
+    }
+    // ------------------------------------------------------------------------
 }
+// ----------------------------------------------------------------------------
+impl TileHeightErrorSeams {
+    // ------------------------------------------------------------------------
+    pub fn new(tile_size: usize, map_size: usize) -> Self {
+        let tiles_per_edge = map_size / tile_size;
+        Self {
+            tile_size,
+            // Note: errormaps are tilesize + 1 and have 1px overlapping
+            // right/bottom borders
+            size: map_size + 1,
+            horizontal: vec![0.0; (tiles_per_edge + 1) * (map_size + 1)],
+            vertical: vec![0.0; (tiles_per_edge + 1) * (map_size + 1)],
+
+            stats: HashMap::default(),
+            is_dirty: false,
+        }
+    }
+    // ------------------------------------------------------------------------
+    /// extracts left and top seam and merges with previous data (max-test)
+    pub(super) fn merge_from<const TILE_SIZE_: u32>(
+        &mut self,
+        tileid: TerrainTileId<TILE_SIZE>,
+        errormap: &TileHeightErrors,
+    ) {
+        let mut is_dirty = false;
+
+        // top seam
+        let mut offset = self.top_seam_offset(tileid);
+        for value in errormap.top_seam::<TILE_SIZE_>() {
+            if self.horizontal[offset] < *value {
+                self.horizontal[offset] = *value;
+                is_dirty = true;
+            }
+            offset += 1;
+        }
+
+        // bottom seam
+        let mut offset = self.bottom_seam_offset(tileid);
+        for value in errormap.bottom_seam::<TILE_SIZE_>() {
+            if self.horizontal[offset] < *value {
+                self.horizontal[offset] = *value;
+                is_dirty = true;
+            }
+            offset += 1;
+        }
+
+        // left seam
+        let mut offset = self.left_seam_offset(tileid);
+        for value in errormap.left_seam::<TILE_SIZE_>() {
+            if self.vertical[offset] < value {
+                self.vertical[offset] = value;
+                is_dirty = true;
+            }
+            offset += 1;
+        }
+
+        // right seam
+        let mut offset = self.right_seam_offset(tileid);
+        for value in errormap.right_seam::<TILE_SIZE_>() {
+            if self.vertical[offset] < value {
+                self.vertical[offset] = value;
+                is_dirty = true;
+            }
+            offset += 1;
+        }
+
+        if is_dirty {
+            let entry = self.stats.entry(tileid).or_default();
+            *entry += 1;
+
+            self.is_dirty = true;
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub(super) fn patch_error_map<const TILE_SIZE_: u32>(
+        &self,
+        tileid: TerrainTileId<TILE_SIZE>,
+        errormap: &mut TileHeightErrors,
+    ) {
+        // top
+        errormap.errors[0..=self.tile_size].copy_from_slice(self.top_seam(tileid));
+
+        // bottom
+        let start = self.tile_size * (self.tile_size + 1);
+        let end = start + self.tile_size + 1;
+        errormap.errors[start..end].copy_from_slice(self.bottom_seam(tileid));
+
+        // left
+        for (old, new) in errormap
+            .errors
+            .iter_mut()
+            .step_by(self.tile_size + 1)
+            .zip(self.left_seam(tileid))
+        {
+            *old = *new;
+        }
+
+        // right
+        for (old, new) in errormap.errors[self.tile_size..]
+            .iter_mut()
+            .step_by(self.tile_size + 1)
+            .zip(self.right_seam(tileid))
+        {
+            *old = *new;
+        }
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn top_seam(&self, tileid: TerrainTileId<TILE_SIZE>) -> &[f32] {
+        let start = self.top_seam_offset(tileid);
+        // account for overlapping 1px border!
+        &self.horizontal[start..start + self.tile_size + 1]
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn bottom_seam(&self, tileid: TerrainTileId<TILE_SIZE>) -> &[f32] {
+        let start = self.bottom_seam_offset(tileid);
+        // account for overlapping 1px border!
+        &self.horizontal[start..start + self.tile_size + 1]
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn left_seam(&self, tileid: TerrainTileId<TILE_SIZE>) -> &[f32] {
+        let start = self.left_seam_offset(tileid);
+        // account for overlapping 1px border!
+        &self.vertical[start..start + self.tile_size + 1]
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn right_seam(&self, tileid: TerrainTileId<TILE_SIZE>) -> &[f32] {
+        let start = self.right_seam_offset(tileid);
+        // account for overlapping 1px border!
+        &self.vertical[start..start + self.tile_size + 1]
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn top_seam_offset(&self, tileid: TerrainTileId<TILE_SIZE>) -> usize {
+        tileid.y() as usize * self.size + tileid.x() as usize * self.tile_size
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn bottom_seam_offset(&self, tileid: TerrainTileId<TILE_SIZE>) -> usize {
+        (tileid.y() as usize + 1) * self.size + tileid.x() as usize * self.tile_size
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn left_seam_offset(&self, tileid: TerrainTileId<TILE_SIZE>) -> usize {
+        tileid.x() as usize * self.size + tileid.y() as usize * self.tile_size
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    fn right_seam_offset(&self, tileid: TerrainTileId<TILE_SIZE>) -> usize {
+        (tileid.x() as usize + 1) * self.size + tileid.y() as usize * self.tile_size
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+// helper
 // ----------------------------------------------------------------------------
 impl TileTriangle {
     // ------------------------------------------------------------------------

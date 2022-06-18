@@ -111,7 +111,8 @@ use bevy::{
 };
 
 use super::{
-    TerrainDataView, TerrainMesh, TerrainMeshVertexData, TerrainTileId, TileHeightErrors, TILE_SIZE,
+    MeshReduction, TerrainDataView, TerrainMesh, TerrainMeshVertexData, TerrainTileId,
+    TileHeightErrors, TILE_SIZE,
 };
 // ----------------------------------------------------------------------------
 /// Right-angled triangle with counter clockwise vertices [a, b, c] where c is
@@ -144,6 +145,11 @@ impl TileTriangle {
     #[inline(always)]
     pub fn b(&self) -> UVec2 {
         self.b
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn c(&self) -> UVec2 {
+        self.c
     }
     // ------------------------------------------------------------------------
     /// returns coordinates for middle of hypothenuse
@@ -182,7 +188,7 @@ pub(super) fn generate_tilemesh(
     tile_id: TerrainTileId<TILE_SIZE>,
     map_resolution: f32,
     base_height: f32,
-    error_threshold: f32,
+    error_thresholds: &MeshReduction,
     terraindata_view: TerrainDataView,
     triangle_errors: &TileHeightErrors,
     include_wireframe_info: bool,
@@ -198,9 +204,9 @@ pub(super) fn generate_tilemesh(
         );
 
         if small_index {
-            generate_mesh_with_small_idx(error_threshold, triangle_errors, builder)
+            generate_mesh_with_small_idx(error_thresholds, triangle_errors, builder)
         } else {
-            generate_mesh(error_threshold, triangle_errors, builder)
+            generate_mesh(error_thresholds, triangle_errors, builder)
         }
     } else {
         let builder = TileMeshBuilder::new(
@@ -211,9 +217,9 @@ pub(super) fn generate_tilemesh(
             small_index,
         );
         if small_index {
-            generate_mesh_with_small_idx(error_threshold, triangle_errors, builder)
+            generate_mesh_with_small_idx(error_thresholds, triangle_errors, builder)
         } else {
-            generate_mesh(error_threshold, triangle_errors, builder)
+            generate_mesh(error_thresholds, triangle_errors, builder)
         }
     }
 }
@@ -222,20 +228,20 @@ pub(super) fn generate_tilemesh(
 //      it's established that the generated mesh will have < u16::MAX vertices
 // ----------------------------------------------------------------------------
 fn generate_mesh_with_small_idx(
-    error_threshold: f32,
+    error_thresholds: &MeshReduction,
     triangle_errors: &TileHeightErrors,
     mut mesh_builder: impl MeshBuilder,
 ) -> TerrainMesh {
     // top tile triangles are always added
     process_triangle_with_small_idx(
         TileTriangle::root_left_bottom(),
-        error_threshold,
+        error_thresholds,
         triangle_errors,
         &mut mesh_builder,
     );
     process_triangle_with_small_idx(
         TileTriangle::root_right_upper(),
-        error_threshold,
+        error_thresholds,
         triangle_errors,
         &mut mesh_builder,
     );
@@ -245,21 +251,23 @@ fn generate_mesh_with_small_idx(
 // ----------------------------------------------------------------------------
 fn process_triangle_with_small_idx(
     triangle: TileTriangle,
-    error_threshold: f32,
+    error_thresholds: &MeshReduction,
     error_map: &TileHeightErrors,
     mesh_builder: &mut impl MeshBuilder,
 ) {
     // calculate middle point which is used as lookup address in error map
-    if triangle.can_be_split() && error_map.get(triangle.m()) > error_threshold {
+    if triangle.can_be_split()
+        && error_map.get(triangle.m()) > error_thresholds.get_error_threshold(&triangle)
+    {
         process_triangle_with_small_idx(
             triangle.split_left(),
-            error_threshold,
+            error_thresholds,
             error_map,
             mesh_builder,
         );
         process_triangle_with_small_idx(
             triangle.split_right(),
-            error_threshold,
+            error_thresholds,
             error_map,
             mesh_builder,
         );
@@ -272,20 +280,20 @@ fn process_triangle_with_small_idx(
 //      unknown number of vertices for tile. use u32 indices as default
 // ----------------------------------------------------------------------------
 fn generate_mesh(
-    error_threshold: f32,
+    error_thresholds: &MeshReduction,
     triangle_errors: &TileHeightErrors,
     mut mesh_builder: impl MeshBuilder,
 ) -> TerrainMesh {
     // top tile triangles are always added
     process_triangle(
         TileTriangle::root_left_bottom(),
-        error_threshold,
+        error_thresholds,
         triangle_errors,
         &mut mesh_builder,
     );
     process_triangle(
         TileTriangle::root_right_upper(),
-        error_threshold,
+        error_thresholds,
         triangle_errors,
         &mut mesh_builder,
     );
@@ -295,21 +303,23 @@ fn generate_mesh(
 // ----------------------------------------------------------------------------
 fn process_triangle(
     triangle: TileTriangle,
-    error_threshold: f32,
+    error_thresholds: &MeshReduction,
     error_map: &TileHeightErrors,
     mesh_builder: &mut impl MeshBuilder,
 ) {
     // calculate middle point which is used as lookup address in error map
-    if triangle.can_be_split() && error_map.get(triangle.m()) > error_threshold {
+    if triangle.can_be_split()
+        && error_map.get(triangle.m()) > error_thresholds.get_error_threshold(&triangle)
+    {
         process_triangle(
             triangle.split_left(),
-            error_threshold,
+            error_thresholds,
             error_map,
             mesh_builder,
         );
         process_triangle(
             triangle.split_right(),
-            error_threshold,
+            error_thresholds,
             error_map,
             mesh_builder,
         );
