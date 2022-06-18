@@ -1,5 +1,6 @@
 // ----------------------------------------------------------------------------
 use bevy::{
+    core::{Pod, Zeroable},
     core_pipeline::Opaque3d,
     ecs::system::{
         lifetimeless::{Read, SQuery, SRes},
@@ -21,7 +22,6 @@ use bevy::{
         RenderApp, RenderStage,
     },
 };
-use bytemuck::{Pod, Zeroable};
 
 use super::shapes;
 use super::PathInterpolation;

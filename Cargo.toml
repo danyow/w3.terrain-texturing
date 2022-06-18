@@ -38,8 +38,11 @@ bitflags = "1.2"
 # randomized brush params
 rand = "0.8.0"
 
-# interpolation of environment settings
+# interpolation of environment settings + cam flyby
 splines = "4.1"
+
+# needed for cam flyby visualization instance data
+bytemuck = { version = "1.5", features = ["derive"] }
 
 [[bin]]
 name = "terrain-editor"
