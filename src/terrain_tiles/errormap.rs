@@ -2,25 +2,25 @@
 use bevy::{
     math::{uvec2, UVec2},
     prelude::*,
-    utils::HashMap,
 };
 
 use super::generator::TileTriangle;
 use super::{TerrainDataView, TerrainTileId, TILE_SIZE};
+// ----------------------------------------------------------------------------
+type ErrorMapPostprocessingPackage = (Entity, TerrainTileId<TILE_SIZE>, TileHeightErrors);
 // ----------------------------------------------------------------------------
 #[derive(Component)]
 pub struct TileHeightErrors {
     errors: Vec<f32>,
 }
 // ----------------------------------------------------------------------------
-pub struct TileHeightErrorSeams {
-    tile_size: usize,
-    size: usize,
-    horizontal: Vec<f32>,
-    vertical: Vec<f32>,
-
-    pub is_dirty: bool,
-    pub(crate) stats: HashMap<TerrainTileId<TILE_SIZE>, usize>,
+pub struct ErrorMapsPostprocessing {
+    is_active: bool,
+    finished: bool,
+    tiles: usize,
+    seams: TileHeightErrorSeams,
+    queue: Vec<ErrorMapPostprocessingPackage>,
+    processed: Vec<ErrorMapPostprocessingPackage>,
 }
 // ----------------------------------------------------------------------------
 /// Holds the table for mapping triangle labels to precalculated triangles.
@@ -236,9 +236,129 @@ impl TileHeightErrors {
     // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
+// mesh seam optimization
+// ----------------------------------------------------------------------------
+impl ErrorMapsPostprocessing {
+    // ------------------------------------------------------------------------
+    pub fn new(map_size: u32, tiles: usize) -> Self {
+        Self {
+            is_active: false,
+            finished: false,
+            tiles,
+            seams: TileHeightErrorSeams::new(TILE_SIZE as usize, map_size as usize),
+            queue: Vec::with_capacity(tiles),
+            processed: Vec::with_capacity(tiles),
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub fn start(&mut self) {
+        self.is_active = true;
+        self.finished = false;
+        self.merge_seams();
+        self.patch_seams();
+    }
+    // ------------------------------------------------------------------------
+    pub fn free_resources(&mut self) {
+        self.is_active = false;
+        self.finished = false;
+        self.seams.reset();
+        self.queue = Vec::default();
+        self.processed = Vec::default();
+    }
+    // ------------------------------------------------------------------------
+    pub fn add_errormap(
+        &mut self,
+        entity: Entity,
+        tileid: TerrainTileId<TILE_SIZE>,
+        errormap: TileHeightErrors,
+    ) {
+        self.queue.push((entity, tileid, errormap))
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn processing_required(&self) -> bool {
+        self.is_active && self.seams.is_dirty
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn is_queue_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+    // ------------------------------------------------------------------------
+    #[inline(always)]
+    pub fn next_package(&mut self) -> Option<ErrorMapPostprocessingPackage> {
+        self.queue.pop()
+    }
+    // ------------------------------------------------------------------------
+    pub fn append_results(&mut self, results: &mut Vec<ErrorMapPostprocessingPackage>) {
+        self.processed.append(results)
+    }
+    // ------------------------------------------------------------------------
+    pub fn drain_results(&mut self) -> impl Iterator<Item = ErrorMapPostprocessingPackage> + '_ {
+        assert!(self.finished);
+        // Note: after pass is finalized the results are back in input queue
+        // because the seam merging was started to check if another pass is
+        // required
+        self.queue.drain(..)
+    }
+    // ------------------------------------------------------------------------
+    pub fn finalize_pass(&mut self) {
+        // seam merge works on input queue
+        std::mem::swap(&mut self.queue, &mut self.processed);
+
+        self.merge_seams();
+
+        if self.seams.is_dirty {
+            // prepare next pass
+            self.patch_seams();
+        } else {
+            self.finished = true;
+        }
+    }
+    // ------------------------------------------------------------------------
+    pub fn progress_info(&self) -> (usize, usize) {
+        let tiles_remaining = self
+            .tiles
+            .saturating_sub(self.seams.mismatched_tiles)
+            .min(self.tiles.saturating_sub(self.queue.len()));
+
+        (tiles_remaining, self.tiles)
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+impl ErrorMapsPostprocessing {
+    // ------------------------------------------------------------------------
+    fn merge_seams(&mut self) {
+        self.seams.is_dirty = false;
+        self.seams.mismatched_tiles = 0;
+
+        for (_, tileid, errormap) in &self.queue {
+            self.seams.merge_from::<TILE_SIZE>(*tileid, errormap);
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn patch_seams(&mut self) {
+        for (_, tileid, errormap) in self.queue.iter_mut() {
+            self.seams.patch_error_map::<TILE_SIZE>(*tileid, errormap);
+        }
+    }
+    // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+struct TileHeightErrorSeams {
+    tile_size: usize,
+    size: usize,
+    horizontal: Vec<f32>,
+    vertical: Vec<f32>,
+
+    is_dirty: bool,
+    mismatched_tiles: usize,
+}
+// ----------------------------------------------------------------------------
 impl TileHeightErrorSeams {
     // ------------------------------------------------------------------------
-    pub fn new(tile_size: usize, map_size: usize) -> Self {
+    fn new(tile_size: usize, map_size: usize) -> Self {
         let tiles_per_edge = map_size / tile_size;
         Self {
             tile_size,
@@ -248,13 +368,18 @@ impl TileHeightErrorSeams {
             horizontal: vec![0.0; (tiles_per_edge + 1) * (map_size + 1)],
             vertical: vec![0.0; (tiles_per_edge + 1) * (map_size + 1)],
 
-            stats: HashMap::default(),
             is_dirty: false,
+            mismatched_tiles: 0,
         }
     }
     // ------------------------------------------------------------------------
+    fn reset(&mut self) {
+        self.horizontal = Vec::default();
+        self.vertical = Vec::default();
+    }
+    // ------------------------------------------------------------------------
     /// extracts left and top seam and merges with previous data (max-test)
-    pub(super) fn merge_from<const TILE_SIZE_: u32>(
+    fn merge_from<const TILE_SIZE_: u32>(
         &mut self,
         tileid: TerrainTileId<TILE_SIZE>,
         errormap: &TileHeightErrors,
@@ -302,14 +427,12 @@ impl TileHeightErrorSeams {
         }
 
         if is_dirty {
-            let entry = self.stats.entry(tileid).or_default();
-            *entry += 1;
-
+            self.mismatched_tiles += 1;
             self.is_dirty = true;
         }
     }
     // ------------------------------------------------------------------------
-    pub(super) fn patch_error_map<const TILE_SIZE_: u32>(
+    fn patch_error_map<const TILE_SIZE_: u32>(
         &self,
         tileid: TerrainTileId<TILE_SIZE>,
         errormap: &mut TileHeightErrors,
@@ -566,5 +689,13 @@ impl From<TileTriangle> for PrecalculatedTriangle {
         }
     }
     // ------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
+// default
+// ----------------------------------------------------------------------------
+impl Default for ErrorMapsPostprocessing {
+    fn default() -> Self {
+        Self::new(0, 0)
+    }
 }
 // ----------------------------------------------------------------------------

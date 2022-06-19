@@ -24,7 +24,7 @@ use super::{
     AsyncTask, AsyncTaskFinishedEvent, AsyncTaskStartEvent, GenerateClipmap,
     GenerateHeightmapNormals, GenerateTerrainMeshErrorMaps, GenerateTerrainMeshes,
     GenerateTerrainTiles, LoadHeightmap, LoadTerrainMaterialSet, LoadTextureMap, LoadTintMap,
-    TrackedProgress, WaitForTerrainLoaded,
+    MergeTerrainMeshErrorMapSeams, TrackedProgress, WaitForTerrainLoaded,
 };
 // ----------------------------------------------------------------------------
 pub struct AsyncCmdsPlugin;
@@ -170,6 +170,7 @@ pub(crate) fn start_async_operations(
                 GenerateHeightmapNormals => task_ready.send(GenerateHeightmapNormals),
                 GenerateTerrainTiles => task_ready.send(GenerateTerrainTiles),
                 GenerateTerrainMeshErrorMaps => task_ready.send(GenerateTerrainMeshErrorMaps),
+                MergeTerrainMeshErrorMapSeams => task_ready.send(MergeTerrainMeshErrorMapSeams),
                 GenerateTerrainMeshes => task_ready.send(GenerateTerrainMeshes),
                 // -- these are just wrapper for sinks (join multiple events but do nothing)
                 WaitForTerrainLoaded => task_ready.send(WaitForTerrainLoaded),
@@ -348,12 +349,20 @@ impl AsyncTaskNode for GenerateTerrainMeshErrorMaps {
     ]}
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::GenerateTerrainMeshErrorMaps }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated }
+    fn subsequent_tasks(&self) -> Vec<AsyncTask> { vec![MergeTerrainMeshErrorMapSeams::default().into()] }
+}
+// ----------------------------------------------------------------------------
+#[rustfmt::skip]
+impl AsyncTaskNode for MergeTerrainMeshErrorMapSeams {
+    fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated] }
+    fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::MergeTerrainMeshErrorMapSeams }
+    fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainMeshErrorMapsSeamsMerged }
     fn subsequent_tasks(&self) -> Vec<AsyncTask> { vec![GenerateTerrainMeshes::default().into()] }
 }
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
 impl AsyncTaskNode for GenerateTerrainMeshes {
-    fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated]}
+    fn preconditions(&self) -> &[AsyncTaskFinishedEvent] { &[AsyncTaskFinishedEvent::TerrainMeshErrorMapsSeamsMerged] }
     fn start_event(self) -> AsyncTaskStartEvent { AsyncTaskStartEvent::GenerateTerrainMeshes }
     fn ready_event(&self) -> AsyncTaskFinishedEvent { AsyncTaskFinishedEvent::TerrainMeshesGenerated }
 }
@@ -389,6 +398,7 @@ impl From<AsyncTaskStartEvent> for TrackedProgress {
             AsyncTaskStartEvent::GenerateHeightmapNormals => GeneratedHeightmapNormals(0, 1),
             AsyncTaskStartEvent::GenerateTerrainTiles => GenerateTerrainTiles(false),
             AsyncTaskStartEvent::GenerateTerrainMeshErrorMaps => GeneratedTerrainErrorMaps(0, 1),
+            AsyncTaskStartEvent::MergeTerrainMeshErrorMapSeams => MergedTerrainErrorMapSeams(0, 1),
             AsyncTaskStartEvent::GenerateTerrainMeshes => GeneratedTerrainMeshes(0, 1),
             AsyncTaskStartEvent::LoadTerrainMaterialSet => LoadTerrainMaterialSet(0, 1),
             AsyncTaskStartEvent::WaitForTerrainLoaded => Ignored,
@@ -409,6 +419,9 @@ impl From<AsyncTaskFinishedEvent> for TrackedProgress {
             AsyncTaskFinishedEvent::TerrainTilesGenerated => GenerateTerrainTiles(true),
             AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated => {
                 GeneratedTerrainErrorMaps(1, 1)
+            }
+            AsyncTaskFinishedEvent::TerrainMeshErrorMapsSeamsMerged => {
+                MergedTerrainErrorMapSeams(1, 1)
             }
             AsyncTaskFinishedEvent::TerrainMeshesGenerated => GeneratedTerrainMeshes(1, 1),
             AsyncTaskFinishedEvent::TerrainMaterialSetLoaded => LoadTerrainMaterialSet(1, 1),

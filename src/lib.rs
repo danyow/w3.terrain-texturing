@@ -194,6 +194,7 @@ fn setup_terrain_loading(
             cmds::TrackedProgress::GeneratedHeightmapNormals(0, 1),
             cmds::TrackedProgress::GenerateTerrainTiles(false),
             cmds::TrackedProgress::GeneratedTerrainErrorMaps(0, terrain_config.tile_count()),
+            cmds::TrackedProgress::MergedTerrainErrorMapSeams(0, terrain_config.tile_count()),
             cmds::TrackedProgress::GeneratedTerrainMeshes(0, terrain_config.tile_count()),
         ],
     ));

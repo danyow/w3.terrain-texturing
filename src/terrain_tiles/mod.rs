@@ -2,6 +2,7 @@
 /// defines the max time for blocking errormap/mesh generation until remaining
 /// work is deferred to next frame. prevents blocking of complete app.
 const MAX_MESH_GENERATION_TIME_MS: instant::Duration = instant::Duration::from_millis(5);
+const MAX_ERRORMAP_GENERATION_TIME_MS: instant::Duration = instant::Duration::from_millis(35);
 // ----------------------------------------------------------------------------
 /// defines how many tiles are processed in parallel before a check for max
 /// generation time is made
@@ -31,7 +32,7 @@ use crate::EditorEvent;
 
 use TerrainTileSystemLabel::*;
 
-use self::errormap::TileHeightErrors;
+use self::errormap::{ErrorMapsPostprocessing, TileHeightErrors};
 use self::lod::MeshLodTracker;
 use self::settings::TerrainLodSettings;
 // ----------------------------------------------------------------------------
@@ -45,6 +46,7 @@ pub struct TerrainLodAnchor;
 #[derive(Debug, Clone, Hash, Eq, PartialEq, SystemLabel)]
 pub enum TerrainTileSystemLabel {
     ErrorMapGeneration,
+    ErrorMapSeamProcessing,
     MeshGeneration,
 }
 // ----------------------------------------------------------------------------
@@ -56,6 +58,11 @@ impl TerrainTilesGeneratorPlugin {
         SystemSet::on_update(state)
             .with_system(start_async_terraintile_tasks)
             .with_system(async_errormap_generation.label(ErrorMapGeneration))
+            .with_system(
+                async_errormap_seam_processing
+                    .label(ErrorMapSeamProcessing)
+                    .after(ErrorMapGeneration),
+            )
             .with_system(async_tilemesh_generation.label(MeshGeneration))
             .with_system(lod::adjust_tile_mesh_lod.before(MeshGeneration))
             .with_system(lod::adjust_meshes_on_config_change.before(MeshGeneration))
@@ -75,6 +82,7 @@ impl Plugin for TerrainTilesGeneratorPlugin {
         app.init_resource::<TerrainMeshSettings>()
             .init_resource::<TerrainStats>()
             .init_resource::<MeshLodTracker>()
+            .init_resource::<ErrorMapsPostprocessing>()
             .init_resource::<errormap::TileTriangleLookup>();
     }
     // ------------------------------------------------------------------------
@@ -288,6 +296,7 @@ fn start_async_terraintile_tasks(
     thread_pool: Res<ComputeTaskPool>,
 
     tiles: Query<Entity, With<TerrainTileComponent>>,
+    mut errormaps_postprocessing: ResMut<ErrorMapsPostprocessing>,
 
     mut tasks_queued: EventReader<AsyncTaskStartEvent>,
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
@@ -309,6 +318,14 @@ fn start_async_terraintile_tasks(
                         .entity(entity)
                         .insert(TileHeightErrorGenerationQueued);
                 });
+                *errormaps_postprocessing = ErrorMapsPostprocessing::new(
+                    terrain_config.map_size(),
+                    terrain_config.tile_count(),
+                );
+            }
+            MergeTerrainMeshErrorMapSeams => {
+                debug!("merging error map seams...");
+                errormaps_postprocessing.start();
             }
             GenerateTerrainMeshes => {
                 debug!("generating tile meshes...");
@@ -341,6 +358,7 @@ fn async_errormap_generation(
     mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
     mut editor_events: EventWriter<EditorEvent>,
     mut triangle_table: ResMut<errormap::TileTriangleLookup>,
+    mut seamprocessing_queue: ResMut<ErrorMapsPostprocessing>,
 ) {
     if !tiles.is_empty() {
         use instant::Instant;
@@ -356,9 +374,9 @@ fn async_errormap_generation(
             .collect::<Vec<_>>();
         let mut remaining_tiles = tiles_to_process.len();
 
-        // divide into packets that are parallelized...
-        // let queue = &mut tiles_to_process.chunks(MESH_GENERATION_QUEUE_CHUNKSIZE);
-        let queue = &mut tiles_to_process.iter();
+        // divide into packets that are processed completely until processing time
+        // is evaluated again...
+        let queue = &mut tiles_to_process.chunks(MESH_GENERATION_QUEUE_CHUNKSIZE);
 
         // since all tiles are triangulated at the same local coordinates
         // (within the tile!) all possible triangle coordinates can be
@@ -372,75 +390,36 @@ fn async_errormap_generation(
         let triangles = &triangle_table;
 
         // ...measure duration after every packet
-        while Instant::now().duration_since(start_time) < MAX_MESH_GENERATION_TIME_MS {
-            // generate all error maps with max res seams
-            let mut generated_errormaps = thread_pool.scope(|s| {
-                while let Some((entity, tileid)) = queue.next() {
-                    let terraindata_view = TerrainDataView::new(
-                        tileid.sampling_offset(),
-                        heightmap.clone(),
-                        normals.clone(),
-                    );
-                    s.spawn(async move {
-                        // all input must be copied/cloned!
-                        (
-                            *entity,
-                            *tileid,
-                            errormap::generate_errormap(triangles, &terraindata_view),
-                        )
-                    })
-                }
-            });
-
-            let mut errormap_seams = errormap::TileHeightErrorSeams::new(
-                TILE_SIZE as usize,
-                terrain_config.map_size() as usize,
-            );
-            // loop until seams do not change anmore
-
-            let mut pass = 1;
-            let mut done = false;
-
-            while !done {
-                warn!("errormap update pass {}", pass);
-                pass += 1;
-
-                // 1. integrate new seams
-                errormap_seams.is_dirty = false;
-                for (_, tileid, errormap) in &generated_errormaps {
-                    errormap_seams.merge_from::<TILE_SIZE>(*tileid, errormap);
-                }
-
-                // 2. patch errormap with new seams
-                for (_, tileid, errormap) in generated_errormaps.iter_mut() {
-                    errormap_seams.patch_error_map::<TILE_SIZE>(*tileid, errormap);
-                }
-
-                // 3. update errormaps
-                if errormap_seams.is_dirty {
-                    generated_errormaps = thread_pool.scope(|s| {
-                        for (entity, tileid, mut errormap) in generated_errormaps.drain(..) {
+        while Instant::now().duration_since(start_time) < MAX_ERRORMAP_GENERATION_TIME_MS {
+            match queue.next() {
+                Some(package) => {
+                    let mut generated_errormaps = thread_pool.scope(|s| {
+                        for (entity, tileid) in package {
+                            let terraindata_view = TerrainDataView::new(
+                                tileid.sampling_offset(),
+                                heightmap.clone(),
+                                normals.clone(),
+                            );
                             s.spawn(async move {
-                                errormap::update_errormap(triangles, &mut errormap);
-                                (entity, tileid, errormap)
-                            });
+                                (
+                                    *entity,
+                                    *tileid,
+                                    errormap::generate_errormap(triangles, &terraindata_view),
+                                )
+                            })
                         }
                     });
+                    for (entity, tileid, tile_errors) in generated_errormaps.drain(..) {
+                        remaining_tiles -= 1;
+                        commands
+                            .entity(entity)
+                            .remove::<TileHeightErrorGenerationQueued>();
+
+                        seamprocessing_queue.add_errormap(entity, tileid, tile_errors);
+                    }
                 }
-                done = !errormap_seams.is_dirty;
+                None => break,
             }
-
-            // final collection
-
-            for (entity, _tileid, tile_errors) in generated_errormaps.drain(..) {
-                remaining_tiles -= 1;
-                commands
-                    .entity(entity)
-                    .insert(tile_errors)
-                    .remove::<TileHeightErrorGenerationQueued>();
-            }
-
-            // error!("tileseams stats: {:?}", errormap_seams.stats);
         }
         // progress update for GUI
         let max_tiles = terrain_config.tile_count();
@@ -451,11 +430,73 @@ fn async_errormap_generation(
             ),
         ));
 
-        // if queue.next().is_none() {
-        if remaining_tiles == 0 {
+        if queue.next().is_none() {
             task_finished.send(AsyncTaskFinishedEvent::TerrainMeshErrorMapsGenerated);
-            // remove precalculated data as it is not needed anymore
-            triangle_table.clear();
+        }
+    }
+}
+// ----------------------------------------------------------------------------
+fn async_errormap_seam_processing(
+    mut commands: Commands,
+    mut errormaps_postprocessing: ResMut<ErrorMapsPostprocessing>,
+    thread_pool: Res<ComputeTaskPool>,
+    mut task_finished: EventWriter<AsyncTaskFinishedEvent>,
+    mut editor_events: EventWriter<EditorEvent>,
+    mut triangle_table: ResMut<errormap::TileTriangleLookup>,
+) {
+    if errormaps_postprocessing.processing_required() {
+        use instant::Instant;
+
+        let start_time = Instant::now();
+
+        // sharable reference for scoped threads
+        let triangles = &triangle_table;
+
+        // ...measure duration after every packet
+        while Instant::now().duration_since(start_time) < MAX_ERRORMAP_GENERATION_TIME_MS
+            && !errormaps_postprocessing.is_queue_empty()
+        {
+            let mut generated_errormaps = thread_pool.scope(|s| {
+                let mut max = MESH_GENERATION_QUEUE_CHUNKSIZE;
+                while let Some((entity, tileid, mut errormap)) =
+                    errormaps_postprocessing.next_package()
+                {
+                    s.spawn(async move {
+                        errormap::update_errormap(triangles, &mut errormap);
+                        (entity, tileid, errormap)
+                    });
+
+                    max -= 1;
+                    if max == 0 {
+                        break;
+                    }
+                }
+            });
+            // collect results
+            errormaps_postprocessing.append_results(&mut generated_errormaps);
+        }
+
+        // progress update for GUI
+        let (remaining_tiles, max_tiles) = errormaps_postprocessing.progress_info();
+        editor_events.send(EditorEvent::ProgressTrackingUpdate(
+            TrackedProgress::MergedTerrainErrorMapSeams(remaining_tiles, max_tiles),
+        ));
+
+        if errormaps_postprocessing.is_queue_empty() {
+            errormaps_postprocessing.finalize_pass();
+
+            if !errormaps_postprocessing.processing_required() {
+                // done -> insert errormaps into terrain tiles
+                for (entity, _, tile_errors) in errormaps_postprocessing.drain_results() {
+                    commands.entity(entity).insert(tile_errors);
+                }
+                // free resources that are not needed anymore
+                errormaps_postprocessing.free_resources();
+                triangle_table.clear();
+
+                // notify async task processort
+                task_finished.send(AsyncTaskFinishedEvent::TerrainMeshErrorMapsSeamsMerged);
+            }
         }
     }
 }

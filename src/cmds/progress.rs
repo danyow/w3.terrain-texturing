@@ -12,6 +12,7 @@ pub enum TrackedProgress {
     GenerateClipmap(bool),
     GeneratedHeightmapNormals(usize, usize),
     GeneratedTerrainErrorMaps(usize, usize),
+    MergedTerrainErrorMapSeams(usize, usize),
     GenerateTerrainTiles(bool),
     GeneratedTerrainMeshes(usize, usize),
     LoadTerrainMaterialSet(usize, usize),
@@ -32,6 +33,7 @@ impl TrackedProgress {
             | Self::GenerateTerrainTiles(b) => *b,
             Self::GeneratedHeightmapNormals(a, b)
             | Self::GeneratedTerrainErrorMaps(a, b)
+            | Self::MergedTerrainErrorMapSeams(a, b)
             | Self::GeneratedTerrainMeshes(a, b)
             | Self::LoadTerrainMaterialSet(a, b) => *a == *b,
             Self::Ignored => true,
@@ -53,6 +55,7 @@ impl TrackedProgress {
             }
             Self::GeneratedHeightmapNormals(a, b)
             | Self::GeneratedTerrainErrorMaps(a, b)
+            | Self::MergedTerrainErrorMapSeams(a, b)
             | Self::GeneratedTerrainMeshes(a, b)
             | Self::LoadTerrainMaterialSet(a, b) => *a as f32 / *b as f32,
             Self::Ignored => 1.0,
@@ -76,6 +79,9 @@ impl TrackedProgress {
             Self::GeneratedTerrainErrorMaps(_, _) => {
                 Self::format_progress("generating error maps", self.progress())
             }
+            Self::MergedTerrainErrorMapSeams(_, _) => {
+                Self::format_progress("merging error map seams", self.progress())
+            }
             Self::GeneratedTerrainMeshes(_, _) => {
                 Self::format_progress("generating tile meshes", self.progress())
             }
@@ -95,6 +101,7 @@ impl TrackedProgress {
             Self::GeneratedHeightmapNormals(_, _) => "heightmap normals generated.",
             Self::GenerateTerrainTiles(_) => "mesh tile info generated.",
             Self::GeneratedTerrainErrorMaps(_, _) => "terrain error maps generation finished.",
+            Self::MergedTerrainErrorMapSeams(_, _) => "terrain error map seams merged.",
             Self::GeneratedTerrainMeshes(_, _) => "terrain mesh generation finished.",
             Self::LoadTerrainMaterialSet(_, _) => "materials loaded.",
             Self::Ignored => "",
@@ -118,8 +125,9 @@ impl hash::Hash for TrackedProgress {
             GeneratedHeightmapNormals(_, _) => state.write_u8(5),
             GenerateTerrainTiles(_) => state.write_u8(6),
             GeneratedTerrainErrorMaps(_, _) => state.write_u8(7),
-            GeneratedTerrainMeshes(_, _) => state.write_u8(8),
-            LoadTerrainMaterialSet(_, _) => state.write_u8(9),
+            MergedTerrainErrorMapSeams(_, _) => state.write_u8(8),
+            GeneratedTerrainMeshes(_, _) => state.write_u8(9),
+            LoadTerrainMaterialSet(_, _) => state.write_u8(10),
         }
     }
 }
@@ -136,6 +144,7 @@ impl cmp::PartialEq for TrackedProgress {
             GeneratedHeightmapNormals(_, _) => matches!(other, GeneratedHeightmapNormals(_, _)),
             GenerateTerrainTiles(_) => matches!(other, GenerateTerrainTiles(_)),
             GeneratedTerrainErrorMaps(_, _) => matches!(other, GeneratedTerrainErrorMaps(_, _)),
+            MergedTerrainErrorMapSeams(_, _) => matches!(other, MergedTerrainErrorMapSeams(_, _)),
             GeneratedTerrainMeshes(_, _) => matches!(other, GeneratedTerrainMeshes(_, _)),
             LoadTerrainMaterialSet(_, _) => matches!(other, LoadTerrainMaterialSet(_, _)),
         }
