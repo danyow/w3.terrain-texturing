@@ -1,0 +1,59 @@
+diff --git a/crates/bevy_render/src/render_asset.rs b/crates/bevy_render/src/render_asset.rs
+index 3ee311ffd..01094a2f7 100644
+--- a/crates/bevy_render/src/render_asset.rs
++++ b/crates/bevy_render/src/render_asset.rs
+@@ -100,7 +100,7 @@ impl<A: RenderAsset> Plugin for RenderAssetPlugin<A> {
+                 .init_resource::<RenderAssets<A>>()
+                 .init_resource::<PrepareNextFrameAssets<A>>()
+                 .add_system_to_stage(RenderStage::Extract, extract_render_asset::<A>)
+-                .add_system_to_stage(RenderStage::Prepare, prepare_asset_system);
++                .add_system_to_stage(RenderStage::Prepare, prepare_asset_system.label("prepare_assets"));
+         }
+     }
+ }
+diff --git a/crates/bevy_render/src/render_resource/mod.rs b/crates/bevy_render/src/render_resource/mod.rs
+index 81fa1618d..aed6c9461 100644
+--- a/crates/bevy_render/src/render_resource/mod.rs
++++ b/crates/bevy_render/src/render_resource/mod.rs
+@@ -41,7 +41,7 @@ pub use wgpu::{
+     TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType,
+     TextureUsages, TextureViewDescriptor, TextureViewDimension, VertexAttribute,
+     VertexBufferLayout as RawVertexBufferLayout, VertexFormat, VertexState as RawVertexState,
+-    VertexStepMode,
++    VertexStepMode, Maintain, BufferAsyncError,
+ };
+ 
+ pub use bevy_crevice::*;
+diff --git a/crates/bevy_render/src/render_resource/pipeline_specializer.rs b/crates/bevy_render/src/render_resource/pipeline_specializer.rs
+index ee73bf1cf..d1a5910c0 100644
+--- a/crates/bevy_render/src/render_resource/pipeline_specializer.rs
++++ b/crates/bevy_render/src/render_resource/pipeline_specializer.rs
+@@ -43,7 +43,7 @@ impl<S: SpecializedRenderPipeline> SpecializedRenderPipelines<S> {
+ }
+ 
+ pub trait SpecializedComputePipeline {
+-    type Key: Clone + Hash + PartialEq + Eq;
++    type Key: Clone + Hash + PartialEq + Eq + Send + Sync;
+     fn specialize(&self, key: Self::Key) -> ComputePipelineDescriptor;
+ }
+ 
+diff --git a/crates/bevy_render/src/texture/image.rs b/crates/bevy_render/src/texture/image.rs
+index fa4afe049..576cd1442 100644
+--- a/crates/bevy_render/src/texture/image.rs
++++ b/crates/bevy_render/src/texture/image.rs
+@@ -449,6 +449,7 @@ impl TextureFormatPixelInfo for TextureFormat {
+             // 16bit
+             TextureFormat::R16Uint
+             | TextureFormat::R16Sint
++            | TextureFormat::R16Unorm
+             | TextureFormat::R16Float
+             | TextureFormat::Rg16Uint
+             | TextureFormat::Rg16Sint
+@@ -483,6 +484,7 @@ impl TextureFormatPixelInfo for TextureFormat {
+             | TextureFormat::R8Snorm
+             | TextureFormat::R8Uint
+             | TextureFormat::R8Sint
++            | TextureFormat::R16Unorm
+             | TextureFormat::R16Uint
+             | TextureFormat::R16Sint
+             | TextureFormat::R16Float
