@@ -29,7 +29,7 @@ The project can be compiled with the `stable` rust-toolchain version 1.56 or hig
   $ git apply bevy-patch
   $ cd ..
   ```
-  and bevy-egui v0.14 (to use local bevy repository) with [bevy-egui-patch][bevy-egui-patch]:
+  and bevy-egui v0.14 (to use local bevy repository) with [bevy_egui-patch][bevy_egui-patch]:
   ```sh
   $ cp w3.terrain-texturing/bevy_egui-patch bevy_egui/bevy_egui-patch
   $ cd bevy_egui
@@ -60,9 +60,9 @@ The `Debug` menu provides some predefined test-terrain loading options.
   - background texture map: indexed color 8bit png, palette with exactly 32 entries
   - overlay texture map: indexed color 8bit png, palette with exactly 32 entries
   - blendcontrol map: indexed color 8bit png, palette with exactly 64 entries
-  - tint map: RGBA png image
+  - tint map: 8bit RGBA png image
 
-  - material textures (normal & diffuse): 1024x1024 pixel RGBA png
+  - material textures (normal & diffuse): 1024x1024 pixel 8bit RGBA png
 
 with the hardcoded names in the appropriate folders.
 
@@ -99,7 +99,7 @@ at your option. You're welcome.
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be licensed as above, without any additional terms or conditions.
 
 [bevy-patch]:                bevy-patch
-[bevy-egui-patch]:           bevy-egui-patch
+[bevy_egui-patch]:           bevy_egui-patch
 [terrain-config]:            https://codeberg.org/rmemr/w3.terrain-texturing/src/branch/main/src/config.rs#L257
 [material-config]:           https://codeberg.org/rmemr/w3.terrain-texturing/src/branch/main/src/config.rs#L311
 [radishtools-discord]:       https://discord.gg/R7Jpzfv
