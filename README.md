@@ -16,7 +16,7 @@ The project can be compiled with the `stable` rust-toolchain version 1.56 or hig
 
 1. Clone repositories:
   ```sh
-  $ git git clone https://github.com/bevyengine/bevy.git
+  $ git clone https://github.com/bevyengine/bevy.git
   $ git clone https://github.com/mvlabat/bevy_egui.git
   $ git clone https://codeberg.org/rmemr/w3.terrain-texturing.git
   ```
@@ -37,8 +37,21 @@ The project can be compiled with the `stable` rust-toolchain version 1.56 or hig
   $ git apply bevy_egui-patch
   $ cd ..
   ```
+  **Note**: it may be necessary to add the `--ignore-whitespace` option if the patching produces errors:
+  ```sh
+  $ git apply --ignore-whitespace bevy-patch
+  ```
 
-3. Compile terrain editor in release mode (dev mode image reading is very slow):
+3. On windows the dynamic linking has to by deactivated by removing the `"dynmic"` line from
+  ```sh
+  w3.terrain-texturing/Cargo.toml
+  ```
+  and
+  ```sh
+  bevy_egui/Cargo.toml
+  ```
+
+4. Compile terrain editor in release mode (debug mode image reading is very slow):
   ```sh
   $ cd w3.terrain-texturing
   $ cargo build --release
@@ -46,10 +59,10 @@ The project can be compiled with the `stable` rust-toolchain version 1.56 or hig
 
 ## Usage
 
-The core texturing features are implemented and can be  started with:
+The core texturing features are implemented and the editor can be started with:
 
 ```sh
-  cargo run
+  cargo run --release
 ```
 
 The `Debug` menu provides some predefined test-terrain loading options.
