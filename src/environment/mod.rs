@@ -57,7 +57,7 @@ impl EnvironmentPlugin {
             // In a dedicated this will be always updated automatically but will
             // have one frame lag (which is ok).
             .with_system(sun::update_skybox)
-            .with_system(update_environment_values.after("daynight_cycle"))
+            .with_system(update_environment_data.after("daynight_cycle"))
     }
     // ------------------------------------------------------------------------
 }
@@ -73,8 +73,10 @@ impl Plugin for EnvironmentPlugin {
 // systems
 // ----------------------------------------------------------------------------
 fn setup_environment_settings(
+    day_night_cycle: Res<DayNightCycle>,
     terrain_config: Res<TerrainConfig>,
     mut env_settings: ResMut<EnvironmentSettings>,
+    mut env_data: ResMut<EnvironmentData>,
 ) {
     let definition = terrain_config
         .environment_definition()
@@ -82,22 +84,28 @@ fn setup_environment_settings(
         .unwrap_or_default();
 
     *env_settings = EnvironmentSettings::from(definition);
+    set_sampled_environment_values(
+        day_night_cycle.time_of_day(),
+        env_settings.as_ref(),
+        env_data.as_mut(),
+    );
 }
 // ----------------------------------------------------------------------------
 fn reset_environment_settings(mut env_settings: ResMut<EnvironmentSettings>) {
     *env_settings = EnvironmentSettings::from(EnvironmentConfig::default());
 }
 // ----------------------------------------------------------------------------
-fn update_environment_values(
+fn update_environment_data(
     day_night_cycle: Res<DayNightCycle>,
     env_settings: Res<EnvironmentSettings>,
     mut env_data: ResMut<EnvironmentData>,
 ) {
     if day_night_cycle.is_changed() {
-        // sample new interpolated values and update current environment data
-        env_data.sun.color = env_settings.sun.color.sample(day_night_cycle.time_of_day());
-        // fog
-        env_data.fog = env_settings.fog.sample(day_night_cycle.time_of_day());
+        set_sampled_environment_values(
+            day_night_cycle.time_of_day(),
+            env_settings.as_ref(),
+            env_data.as_mut(),
+        );
     }
 }
 // ----------------------------------------------------------------------------
@@ -113,6 +121,17 @@ fn daynight_cycle(time: Res<Time>, mut daynight_cycle: ResMut<DayNightCycle>) {
         let pos = daynight_cycle.time_of_day().normalized() + time.delta_seconds() * speed;
         daynight_cycle.update_time_of_day(pos);
     }
+}
+// ----------------------------------------------------------------------------
+fn set_sampled_environment_values(
+    time_of_day: &TimeOfDay,
+    env_settings: &EnvironmentSettings,
+    env_data: &mut EnvironmentData,
+) {
+    // sample new interpolated values and update current environment data
+    env_data.sun.color = env_settings.sun.color.sample(time_of_day);
+    // fog
+    env_data.fog = env_settings.fog.sample(time_of_day);
 }
 // ----------------------------------------------------------------------------
 // day night cycle
