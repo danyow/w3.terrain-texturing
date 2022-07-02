@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::render::{RenderApp, RenderStage};
 
 use crate::clipmap::Rectangle;
-use crate::resource::RenderResourcePlugin;
+use crate::resource::{RenderResourcePlugin, RenderResourceSystemLabel};
 use crate::texturearray::TextureArray;
 
 use crate::terrain_clipmap::{HeightmapClipmap, TextureControlClipmap, TintClipmap};
@@ -21,6 +21,11 @@ pub use terrain_shadows::{
 };
 
 pub use self::terrain_shadows::TerrainShadowsComputePlugin;
+// ----------------------------------------------------------------------------
+#[derive(Debug, Clone, Hash, Eq, PartialEq, SystemLabel)]
+pub enum TerrainRenderSystemLabel {
+    PrepareMapInfo,
+}
 // ----------------------------------------------------------------------------
 #[derive(Default, Clone)]
 pub struct TerrainMapInfo {
@@ -127,7 +132,10 @@ impl Plugin for TerrainRenderPlugin {
         app.init_resource::<TerrainRenderSettings>()
             .init_resource::<TerrainMaterialSet>()
             .init_resource::<TerrainMapInfo>()
-            .add_plugin(RenderResourcePlugin::<TerrainMapInfo>::default())
+            .add_plugin(
+                RenderResourcePlugin::<TerrainMapInfo>::default()
+                    .prepare_label(TerrainRenderSystemLabel::PrepareMapInfo),
+            )
             .add_plugin(environment::EnvironmentDataPlugin)
             .add_plugin(rendergraph::TerrainRenderGraphPlugin)
             .add_plugin(terrain::TerrainMeshRenderPlugin)
@@ -239,5 +247,15 @@ impl TerrainRenderSettings {
 // ----------------------------------------------------------------------------
 fn extract_terrain_render_settings(mut commands: Commands, settings: Res<TerrainRenderSettings>) {
     commands.insert_resource(settings.clone())
+}
+// ----------------------------------------------------------------------------
+// helper conversion
+// ----------------------------------------------------------------------------
+impl From<TerrainRenderSystemLabel> for RenderResourceSystemLabel {
+    fn from(val: TerrainRenderSystemLabel) -> Self {
+        match val {
+            TerrainRenderSystemLabel::PrepareMapInfo => "TerrainRenderSystemLabel::PrepareMapInfo",
+        }
+    }
 }
 // ----------------------------------------------------------------------------
