@@ -12,7 +12,7 @@ use crate::texturearray::{TextureArray, TextureArrayBuilder};
 use super::gpu;
 use super::{
     ClipmapInfo, ClipmapLayerInfo, EnvironmentData, HeightmapClipmap, TerrainMapInfo,
-    TerrainRenderSettings,
+    TerrainRenderSettings, TerrainRenderSystemLabel,
 };
 
 use self::pipeline::ComputeShadowsPipeline;
@@ -84,7 +84,10 @@ impl Plugin for TerrainShadowsComputePlugin {
             .init_resource::<TerrainShadowsUpdateTracker>()
             .init_resource::<TerrainShadowsRenderSettings>()
             .add_plugin(RenderResourcePlugin::<TerrainShadowsRenderSettings>::default())
-            .add_plugin(RenderResourcePlugin::<TerrainLightheightClipmap>::default())
+            .add_plugin(
+                RenderResourcePlugin::<TerrainLightheightClipmap>::default()
+                    .prepare_after(TerrainRenderSystemLabel::PrepareMapInfo),
+            )
             .add_plugin(RenderResourcePlugin::<TerrainShadowsComputeInput>::default())
             .add_plugin(RenderResourcePlugin::<TerrainShadowsLightrayInfo>::default())
             .add_system(

@@ -45,30 +45,83 @@ pub trait RenderResource: Resource {
 ///
 /// Therefore it sets up the [`RenderStage::Extract`](crate::RenderStage::Extract) and
 /// [`RenderStage::Prepare`](crate::RenderStage::Prepare) steps for the specified [`RenderResource`].
-pub struct RenderResourcePlugin<A: RenderResource>(PhantomData<fn() -> A>);
+pub struct RenderResourcePlugin<A: RenderResource> {
+    prepare_label: Option<RenderResourceSystemLabel>,
+    prepare_before: Option<RenderResourceSystemLabel>,
+    prepare_after: Option<RenderResourceSystemLabel>,
+    phantom: PhantomData<fn() -> A>,
+}
+
+/// Workaround/helper alias/type for system label (because atm it's not possible
+/// to pass a BoxedSystemLabel as impl SystemLabel to after/before/label functions.
+pub type RenderResourceSystemLabel = &'static str;
 
 impl<A: RenderResource> Default for RenderResourcePlugin<A> {
     fn default() -> Self {
-        Self(PhantomData)
+        Self {
+            prepare_label: None,
+            prepare_before: None,
+            prepare_after: None,
+            phantom: PhantomData,
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl<A: RenderResource> RenderResourcePlugin<A> {
+    /// Assigns a label to the prepare system
+    pub fn prepare_label<L: Into<RenderResourceSystemLabel>>(mut self, label: L) -> Self {
+        self.prepare_label = Some(label.into());
+        self
+    }
+
+    /// Specifies that the prepare system should run before systems with the given label.
+    pub fn prepare_before<L: Into<RenderResourceSystemLabel>>(mut self, label: L) -> Self {
+        self.prepare_before = Some(label.into());
+        self
+    }
+
+    /// Specifies that the prepare system should run after systems with the given label.
+    pub fn prepare_after<L: Into<RenderResourceSystemLabel>>(mut self, label: L) -> Self {
+        self.prepare_after = Some(label.into());
+        self
     }
 }
 
 impl<A: RenderResource> Plugin for RenderResourcePlugin<A> {
     fn build(&self, app: &mut App) {
+        let prepare_resource_system = prepare_resource::<A>
+            // this is important as renderresources may point to assets which
+            // have to be available when resources are prepared (e.g. images)!
+            .after(PrepareAssetLabel::PreAssetPrepare)
+            .after("prepare_assets");
+
+        // allow a "little" control over system ordering
+        let prepare_resource_system = if let Some(label) = self.prepare_label {
+            prepare_resource_system.label(label)
+        } else {
+            prepare_resource_system
+        };
+
+        let prepare_resource_system = if let Some(label) = self.prepare_before {
+            prepare_resource_system.before(label)
+        } else {
+            prepare_resource_system
+        };
+
+        let prepare_resource_system = if let Some(label) = self.prepare_after {
+            prepare_resource_system.after(label)
+        } else {
+            prepare_resource_system
+        };
+
         let render_app = app.sub_app_mut(RenderApp);
         render_app
             .init_resource::<UpdatedResource<A>>()
             .init_resource::<PreparedRenderResource<A>>()
             .init_resource::<PrepareNextFrameResource<A>>()
             .add_system_to_stage(RenderStage::Extract, extract_render_resource::<A>)
-            .add_system_to_stage(
-                RenderStage::Prepare,
-                // this is important as renderresources may point to assets which
-                // have to be available when resources are prepared (e.g. images)!
-                prepare_resource::<A>
-                    .after(PrepareAssetLabel::PreAssetPrepare)
-                    .after("prepare_assets"),
-            );
+            .add_system_to_stage(RenderStage::Prepare, prepare_resource_system);
     }
 }
 

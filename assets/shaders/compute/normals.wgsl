@@ -59,9 +59,9 @@ fn main(
     // g---h---i
 
     // clamp x to 0..datawidth for previous and next col
-    // let x_prev = clamp(invocation_id.x + 0u, 1u, params.data_width + 1u) - 1u;
+    // let x_prev = clamp(invocation_id.x + 0u, 1u, params.data_width - 1u) - 1u;
     let x = invocation_id.x;
-    let x_next = clamp(invocation_id.x + 1u, 1u, params.data_width);
+    let x_next = clamp(invocation_id.x + 1u, 1u, params.data_width - 1u);
 
     // prev and next line are provided in data so there are no seams between
     // slices
