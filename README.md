@@ -98,11 +98,7 @@ If you have questions, you can find me on the [radish modding tools discord serv
 
 ## License
 
-All code for the editor in this repository is licensed under:
-
-* GPL-3.0 License ([LICENSE-GPL3](LICENSE-GPL3) or [https://opensource.org/licenses/GPL-3.0](https://opensource.org/licenses/GPL-3.0))
-
-with the exception that anything that can be plugged out as bevy-plugin is *also* dual-licensed under either:
+All code for the editor in this repository is dual-licensed under either:
 
 * MIT License ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
 * Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
