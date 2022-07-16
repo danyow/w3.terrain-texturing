@@ -3,8 +3,7 @@ name = "terrain-editor"
 version = "0.1.0"
 edition = "2021"
 authors = ["rmemr"]
-# license = "GPL-3 WITH bevy exception"
-license-file = "README.md#License"
+license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://codeberg.org/rmemr/w3.terrain-texturing"
 
