@@ -638,6 +638,17 @@ fn fragment(in: FragmentInput) -> FragmentOutput {
     // --------------------------------------------------------------------------------------------
     // Terrain shadows
     // --------------------------------------------------------------------------------------------
+    // Quick Hack for clipmap mismatch (?)
+    var hackedOffset = vec2<f32>(-1.0, -1.0);
+    if (clipmap_level == 1u) {
+        hackedOffset = vec2<f32>(-1.0, -2.0);
+    }
+
+    let mapOffset = vec2<f32>(clipmap.layers[clipmap_level].map_offset) + hackedOffset;
+    var clipmapPos = (fragmentPos.xz - clipmap.world_offset) / clipmap.world_res;
+    clipmapPos = (clipmapPos - mapOffset) / mapScaling;
+    let clipmapPosCoord = clamp(vec2<i32>(clipmapPos), vec2<i32>(0), vec2<i32>(i32(mapSize)));
+
     let light_height1: vec4<u32> = textureLoad(lightmap, clipmapPosCoord, i32(clipmap_level));
     let height_texel: vec4<u32> = textureLoad(heightmap, clipmapPosCoord, i32(clipmap_level));
 

@@ -25,6 +25,9 @@ pub fn show_menu(
         if ui.button("Load Prolog (2048)").clicked() { result = Some(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(2048)))); }
         if ui.button("Load Prolog (4096)").clicked() { result = Some(DebugLoadTerrain(Box::new(TerrainConfig::prolog_village(4096)))); }
         ui.separator();
+        ui.label("Bevy");
+        if ui.button("Bevy Terrain (4096)").clicked() { result = Some(DebugLoadTerrain(Box::new(TerrainConfig::bevy_example()))); }
+        ui.separator();
         ui.label("Kaer Morhen");
         if ui.button("Kaer Morhen (16384)").clicked() { result = Some(DebugLoadTerrain(Box::new(TerrainConfig::kaer_morhen()))); }
 

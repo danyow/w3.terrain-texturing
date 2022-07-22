@@ -306,6 +306,31 @@ impl TerrainConfig {
         }
     }
     // ------------------------------------------------------------------------
+    #[allow(dead_code)]
+    pub fn bevy_example() -> Self {
+        let basepath = "_test-data_/terrain/";
+        let _hubid = "bevy";
+        let size = 4096;
+        Self {
+            name: format!("Bevy ({} x {})", size, size),
+            terrain_size: size as f32 / 2.0,
+            map_size: size,
+            resolution: 0.5,
+            min_height: -37.0,
+            max_height: 245.0,
+            heightmap: format!("{}/bevy.heightmap.{}x{}.png", basepath, size, size),
+            texturemaps: TextureMaps {
+                background: format!("{}/bevy.bkgrnd.{}x{}.png", basepath, size, size),
+                overlay: format!("{}/bevy.overlay.{}x{}.png", basepath, size, size),
+                blendcontrol: format!("{}/bevy.blendcontrol.{}x{}.png", basepath, size, size),
+            },
+            tintmap: format!("{}/bevy.tint.{}x{}.png", basepath, size, size),
+            clipmap_levels: 3,
+            materialset: MaterialSetConfig::bevy_example(),
+            environment: Some("environment/definitions/env_prologue/env_prolog_colors_v1_b_sunset.env".to_string()),
+        }
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
 impl MaterialSetConfig {
@@ -343,6 +368,28 @@ impl MaterialSetConfig {
             diffuse,
             normal,
             parameter: kaer_morhen_material_params()
+                .iter()
+                .take(20)
+                .cloned()
+                .collect::<Vec<_>>(),
+        }
+    }
+    // ------------------------------------------------------------------------
+    fn bevy_example() -> Self {
+        let max_textures = 16;
+        let basepath = "_test-data_/textures/";
+        let diffuse = (0..=max_textures.min(16))
+            .map(|i| format!("{}texture.diffuse_{}.png", basepath, i))
+            .collect::<Vec<_>>();
+
+        let normal = (0..=max_textures.min(16))
+            .map(|i| format!("{}texture.normal_{}.png", basepath, i))
+            .collect::<Vec<_>>();
+
+        Self {
+            diffuse,
+            normal,
+            parameter: bevy_example_material_params()
                 .iter()
                 .take(20)
                 .cloned()
@@ -598,7 +645,8 @@ fn prolog_material_params() -> [TerrainMaterialParam; 31] {
             ..Default::default()
         },
     ]
-} // ----------------------------------------------------------------------------
+}
+// ----------------------------------------------------------------------------
 #[allow(clippy::excessive_precision)]
 fn kaer_morhen_material_params() -> [TerrainMaterialParam; 30] {
     [
@@ -855,6 +903,124 @@ fn kaer_morhen_material_params() -> [TerrainMaterialParam; 30] {
             specularity_base: 0.4726369977,
             ..Default::default()
         },
+    ]
+}
+// ----------------------------------------------------------------------------
+#[allow(clippy::excessive_precision)]
+fn bevy_example_material_params() -> [TerrainMaterialParam; 16] {
+    [
+        // 1 grass ~ mossy
+        TerrainMaterialParam {
+            blend_sharpness: 0.45,
+            slope_base_dampening: 0.22,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 2 rocks
+        TerrainMaterialParam {
+            blend_sharpness: 0.35,
+            slope_base_dampening: 0.35,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 3 small rocks on rocks
+        TerrainMaterialParam {
+            blend_sharpness: 0.08,
+            slope_base_dampening: 0.3,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 4 sand
+        TerrainMaterialParam {
+            blend_sharpness: 0.12,
+            slope_base_dampening: 0.5,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 5 sand curly
+        TerrainMaterialParam {
+            blend_sharpness: 0.5,
+            slope_base_dampening: 0.5,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 6 stones bkgrnd
+        TerrainMaterialParam {
+            blend_sharpness: 0.2,
+            slope_base_dampening: 0.4,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 7 grass ~ hard cover rocks, as bkgrnd will be hidden on horizontal terrain
+        TerrainMaterialParam {
+            blend_sharpness: 0.3,
+            slope_base_dampening: 1.0,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 8 rock dark
+        TerrainMaterialParam {
+            blend_sharpness: 0.5,
+            slope_base_dampening: 1.0,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 9 rock grey
+        TerrainMaterialParam {
+            blend_sharpness: 0.5,
+            slope_base_dampening: 1.0,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 10 rock light grey
+        TerrainMaterialParam {
+            blend_sharpness: 0.5,
+            slope_base_dampening: 1.0,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 11 smaller rocks dark
+        TerrainMaterialParam {
+            blend_sharpness: 0.7,
+            slope_base_dampening: 0.7,
+            slope_normal_dampening: 1.0,
+            ..Default::default()
+        },
+        // 12 smaller rocks grey
+        TerrainMaterialParam {
+            blend_sharpness: 0.7,
+            slope_base_dampening: 0.7,
+            slope_normal_dampening: 1.0,
+            ..Default::default()
+        },
+        // 13 smaller rocks light greay
+        TerrainMaterialParam {
+            blend_sharpness: 0.7,
+            slope_base_dampening: 0.7,
+            slope_normal_dampening: 1.0,
+            ..Default::default()
+        },
+        // 14 pebbles dark
+        TerrainMaterialParam {
+            blend_sharpness: 0.3,
+            slope_base_dampening: 0.2,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 15 pebbles grey
+        TerrainMaterialParam {
+            blend_sharpness: 0.3,
+            slope_base_dampening: 0.2,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        },
+        // 16 pebbles light grey
+        TerrainMaterialParam {
+            blend_sharpness: 0.3,
+            slope_base_dampening: 0.2,
+            slope_normal_dampening: 0.5,
+            ..Default::default()
+        }
     ]
 }
 // ----------------------------------------------------------------------------

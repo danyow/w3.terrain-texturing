@@ -425,6 +425,12 @@ fn global_hotkeys(
                         .overwrite_push(EditorState::AutoFlyCamera)
                         .unwrap();
                 }
+                KeyCode::Key8 => {
+                    autocam_paths.select(2);
+                    app_state
+                        .overwrite_push(EditorState::AutoFlyCamera)
+                        .unwrap();
+                }
                 _ => (),
             },
             TerrainLoading => match key {
