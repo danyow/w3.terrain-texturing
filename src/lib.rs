@@ -9,6 +9,7 @@ use camera::CameraPlugin;
 use cmds::AsyncTaskFinishedEvent;
 use gui::UiImages;
 
+use crate::autofly_camera::AutoFlyCameraPlugin;
 use crate::environment::EnvironmentPlugin;
 use crate::heightmap::HeightmapPlugin;
 use crate::terrain_clipmap::TerrainClipmapPlugin;
@@ -32,6 +33,7 @@ mod environment;
 mod terrain_painting;
 mod terrain_render;
 
+mod autofly_camera;
 mod camera;
 mod clipmap;
 mod compute;
@@ -50,6 +52,7 @@ enum EditorState {
     TerrainLoading,
     Editing,
     FreeCam,
+    AutoFlyCamera,
 }
 // ----------------------------------------------------------------------------
 /// events triggered by editor and not user (e.g. to update something in GUI)
@@ -226,6 +229,7 @@ impl Plugin for EditorPlugin {
             .add_plugin(terrain_tiles::TerrainTilesGeneratorPlugin)
             .add_plugin(terrain_render::TerrainRenderPlugin)
             .add_plugin(terrain_painting::TerrainPaintingPlugin)
+            .add_plugin(autofly_camera::AutoFlyCameraPlugin)
             .insert_resource(camera::CameraSettings {
                 rotation_sensitivity: 0.00015, // default: 0.00012
                 movement_speed: 122.0,         // default: 12.0
@@ -244,6 +248,7 @@ impl Plugin for EditorPlugin {
         EditorState::terrain_loading(app);
         EditorState::terrain_editing(app);
         EditorState::free_cam(app);
+        EditorState::auto_fly_cam(app);
         // --- state systems definition END -----------------------------------
     }
 }
@@ -366,13 +371,35 @@ impl EditorState {
             .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(FreeCam));
     }
     // ------------------------------------------------------------------------
+    /// stacked state with auto fly cam (editing on hold)
+    fn auto_fly_cam(app: &mut App) {
+        use EditorState::AutoFlyCamera;
+
+        app.add_system_set(
+            SystemSet::on_enter(AutoFlyCamera).with_system(signal_editor_state_change),
+        )
+        .add_system_set(
+            SystemSet::on_enter(AutoFlyCamera).with_system(terrain_clipmap::enable_caching),
+        );
+
+        app // plugins
+            .add_system_set(AutoFlyCameraPlugin::setup_autofly_path(AutoFlyCamera))
+            .add_system_set(AutoFlyCameraPlugin::active_autofly_camera(AutoFlyCamera))
+            .add_system_set(AutoFlyCameraPlugin::stop_auto_fly(AutoFlyCamera))
+            .add_system_set(EnvironmentPlugin::activate_dynamic_updates(AutoFlyCamera))
+            .add_system_set(TerrainClipmapPlugin::update_tracker(AutoFlyCamera))
+            .add_system_set(TerrainTilesGeneratorPlugin::lazy_generation(AutoFlyCamera));
+    }
+    // ------------------------------------------------------------------------
 }
 // ----------------------------------------------------------------------------
-#[allow(clippy::single_match)]
+#[allow(clippy::single_match, clippy::too_many_arguments)]
 fn global_hotkeys(
     keys: Res<Input<KeyCode>>,
     mut app_state: ResMut<State<EditorState>>,
     mut event: EventWriter<EditorEvent>,
+
+    mut autocam_paths: ResMut<autofly_camera::CameraPathsCollection>,
 ) {
     use EditorState::*;
 
@@ -386,6 +413,18 @@ fn global_hotkeys(
             Editing => match key {
                 KeyCode::F12 => event.send(EditorEvent::ToggleGuiVisibility),
                 KeyCode::LControl => app_state.overwrite_push(FreeCam).unwrap(),
+                KeyCode::Key0 => {
+                    autocam_paths.select(0);
+                    app_state
+                        .overwrite_push(EditorState::AutoFlyCamera)
+                        .unwrap();
+                }
+                KeyCode::Key9 => {
+                    autocam_paths.select(1);
+                    app_state
+                        .overwrite_push(EditorState::AutoFlyCamera)
+                        .unwrap();
+                }
                 _ => (),
             },
             TerrainLoading => match key {
@@ -395,6 +434,11 @@ fn global_hotkeys(
             NoTerrainData => match key {
                 KeyCode::F12 => event.send(EditorEvent::ToggleGuiVisibility),
                 KeyCode::LControl => app_state.overwrite_push(FreeCam).unwrap(),
+                _ => (),
+            },
+            AutoFlyCamera => match key {
+                KeyCode::F12 => event.send(EditorEvent::ToggleGuiVisibility),
+                KeyCode::Escape | KeyCode::LControl => app_state.overwrite_pop().unwrap(),
                 _ => (),
             },
             Initialization => {}
