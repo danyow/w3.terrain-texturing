@@ -2,9 +2,11 @@
 
 A terrain texturing editor for new hubs in "The Witcher 3: Wild Hunt" game by CD Projekt Red, part of radish community modding tools.
 
-![Example Screenshot](example.screenshot.png)
+![Example Screenshot][img.example]
 
 radish modding tools are a collection of community created modding tools aimed to enable the creation of new quests for "The Witcher 3: Wild Hunt" game by CDPR.
+
+[![Example Video 1][img.example.small.1]][vid.example.1] [![Example Video 2][img.example.small.2]][vid.example.2]
 
 The full package is available here: https://www.nexusmods.com/witcher3/mods/3620
 
@@ -112,3 +114,9 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [terrain-config]:            https://codeberg.org/rmemr/w3.terrain-texturing/src/branch/main/src/config.rs#L257
 [material-config]:           https://codeberg.org/rmemr/w3.terrain-texturing/src/branch/main/src/config.rs#L311
 [radishtools-discord]:       https://discord.gg/R7Jpzfv
+
+[img.example]:               example.screenshot.png
+[img.example.small.1]:       example.video.1.png
+[img.example.samll.2]:       example.video.2.png
+[vid.example.1]:             https://streamable.com/vwbrfo
+[vid.example.2]:             https://streamable.com/xy9mmu
