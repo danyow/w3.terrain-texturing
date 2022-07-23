@@ -117,6 +117,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 [img.example]:               example.screenshot.png
 [img.example.small.1]:       example.video.1.png
-[img.example.samll.2]:       example.video.2.png
+[img.example.small.2]:       example.video.2.png
 [vid.example.1]:             https://streamable.com/vwbrfo
 [vid.example.2]:             https://streamable.com/xy9mmu
